@@ -6,7 +6,9 @@ import shutil
 from typing import Dict, List
 from fastapi.responses import JSONResponse
 from gpt_researcher.document.document import DocumentLoader
-from backend.utils import write_md_to_pdf, write_md_to_word, write_text_to_md  # Add this import
+from backend.utils import write_md_to_pdf, write_md_to_word, write_text_to_md
+from gpt_researcher.orchestrator.actions.utils import stream_output
+from multi_agents.main import run_research_task  # Add this import
 
 
 def sanitize_filename(filename: str) -> str:
