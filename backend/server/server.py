@@ -140,7 +140,7 @@ async def delete_file(filename: str):
     return await handle_file_deletion(filename, DOC_PATH)
 
 
-@app.websocket("/research/ws")
+@app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
