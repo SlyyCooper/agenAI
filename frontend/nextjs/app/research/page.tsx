@@ -74,7 +74,7 @@ export default function Home() {
           ? 'localhost:8000'
           : 'dolphin-app-49eto.ondigitalocean.app/backend';
         
-        const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}${pathname}ws`;
+        const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}${pathname}research/ws`;
 
         const newSocket = new WebSocket(ws_uri);
         setSocket(newSocket as WebSocket);
