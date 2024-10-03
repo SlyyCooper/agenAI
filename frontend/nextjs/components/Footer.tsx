@@ -9,7 +9,7 @@ const Footer = ({ setChatBoxSettings, chatBoxSettings }: { setChatBoxSettings: R
         <Modal setChatBoxSettings={setChatBoxSettings} chatBoxSettings={chatBoxSettings} />
         
         <div className="text-sm text-gray-500 font-light">
-          © {new Date().getFullYear()} GPT Researcher. All rights reserved.
+          © {new Date().getFullYear()} TANgent. All rights reserved.
         </div>
         
         <div className="flex items-center space-x-4">

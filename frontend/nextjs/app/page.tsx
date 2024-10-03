@@ -1,417 +1,225 @@
-"use client";
+'use client'
 
-import Answer from "@/components/Answer";
-import Footer from "@/components/Footer";
-import Header from "@/components/Header";
-import Hero from "@/components/Hero";
-import InputArea from "@/components/InputArea";
-
-import Sources from "@/components/Sources";
-import Question from "@/components/Question";
-import SubQuestions from "@/components/SubQuestions";
-import { useRef, useState, useEffect } from "react";
-import AccessReport from '../components/Task/AccessReport';
-import Accordion from '../components/Task/Accordion';
-import LogMessage from '../components/Task/LogMessage';
-
-import { startLanggraphResearch } from '../components/Langgraph/Langgraph';
-import findDifferences from '../helpers/findDifferences';
-import HumanFeedback from "@/components/HumanFeedback";
+import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { ArrowRight, Brain, BarChart, Zap, PieChart, TrendingUp, LineChart } from 'lucide-react'
+import Link from 'next/link'
 
 export default function Home() {
-  const [promptValue, setPromptValue] = useState("");
-  const [showResult, setShowResult] = useState(false);
-  const [answer, setAnswer] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [chatBoxSettings, setChatBoxSettings] = useState({ report_source: 'web', report_type: 'research_report', tone: 'Objective' });
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-
-  const [question, setQuestion] = useState("");
-  const [sources, setSources] = useState<{ name: string; url: string }[]>([]);
-  const [similarQuestions, setSimilarQuestions] = useState<string[]>([]);
-
-  const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [orderedData, setOrderedData] = useState<any[]>([]);
-  const heartbeatInterval = useRef<number | null>(null);
-  const [showHumanFeedback, setShowHumanFeedback] = useState(false);
-  const [questionForHuman, setQuestionForHuman] = useState(false);
-  const [hasOutput, setHasOutput] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [scrollY, setScrollY] = useState(0)
 
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [orderedData]);
-
-  const startResearch = (chatBoxSettings: {
-    task?: string;
-    report_type: string;
-    report_source: string;
-    tone: string;
-  }) => {
-    const storedConfig = localStorage.getItem('apiVariables');
-    const apiVariables = storedConfig ? JSON.parse(storedConfig) : {};
-    const headers = {
-      'retriever': apiVariables.RETRIEVER,
-      'langchain_api_key': apiVariables.LANGCHAIN_API_KEY,
-      'openai_api_key': apiVariables.OPENAI_API_KEY,
-      'tavily_api_key': apiVariables.TAVILY_API_KEY,
-      'google_api_key': apiVariables.GOOGLE_API_KEY,
-      'google_cx_key': apiVariables.GOOGLE_CX_KEY,
-      'bing_api_key': apiVariables.BING_API_KEY,
-      'searchapi_api_key': apiVariables.SEARCHAPI_API_KEY,
-      'serpapi_api_key': apiVariables.SERPAPI_API_KEY,
-      'serper_api_key': apiVariables.SERPER_API_KEY,
-      'searx_url': apiVariables.SEARX_URL
-    };
-
-    if (!socket) {
-      if (typeof window !== 'undefined') {
-        const { protocol, pathname } = window.location;
-        let { host } = window.location;
-        host = host.includes('localhost')
-          ? 'localhost:8000'
-          : 'dolphin-app-49eto.ondigitalocean.app/backend';
-        
-        const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}${pathname}ws`;
-
-        const newSocket = new WebSocket(ws_uri);
-        setSocket(newSocket as WebSocket);
-
-        newSocket.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          console.log('websocket data caught in frontend: ', data);
-
-          if (data.type === 'human_feedback' && data.content === 'request') {
-            console.log('triggered human feedback condition')
-            setQuestionForHuman(data.output)
-            setShowHumanFeedback(true);
-          } else {
-            const contentAndType = `${data.content}-${data.type}`;
-            setOrderedData((prevOrder) => [...prevOrder, { ...data, contentAndType }]);
-
-            if (data.type === 'report') {
-              setAnswer((prev) => prev + data.output);
-            } else if (data.type === 'path') {
-              setLoading(false);
-              newSocket.close();
-              setSocket(null);
-            }
-          }
-          
-        };
-
-        newSocket.onopen = () => {
-          const { task, report_type, report_source, tone } = chatBoxSettings;
-          let data = "start " + JSON.stringify({ task: promptValue, report_type, report_source, tone, headers });
-          newSocket.send(data);
-
-          // Start sending heartbeat messages every 30 seconds
-          // heartbeatInterval.current = setInterval(() => {
-          //   newSocket.send(JSON.stringify({ type: 'ping' }));
-          // }, 30000);
-        };
-
-        newSocket.onclose = () => {
-          clearInterval(heartbeatInterval.current as number);
-          setSocket(null);
-        };
-      }
-    } else {
-      const { task, report_type, report_source, tone } = chatBoxSettings;
-      let data = "start " + JSON.stringify({ task: promptValue, report_type, report_source, tone, headers });
-      socket.send(data);
-    }
-  };
-
-  // Add this function to handle feedback submission
-  const handleFeedbackSubmit = (feedback: string | null) => {
-    console.log('user feedback is passed to handleFeedbackSubmit: ', feedback);
-    if (socket) {
-      socket.send(JSON.stringify({ type: 'human_feedback', content: feedback }));
-    }
-    setShowHumanFeedback(false);
-  };
-
-  const handleDisplayResult = async (newQuestion?: string) => {
-    setIsTransitioning(true);
-    newQuestion = newQuestion || promptValue;
-
-    setShowResult(true);
-    setLoading(true);
-    setQuestion(newQuestion);
-    setPromptValue("");
-    setAnswer(""); // Reset answer for new query
-    setHasOutput(false); // Reset hasOutput
-
-    // Add the new question to orderedData
-    setOrderedData((prevOrder) => [...prevOrder, { type: 'question', content: newQuestion }]);
-
-    const { report_type, report_source, tone } = chatBoxSettings;
-
-    // Retrieve LANGGRAPH_HOST_URL from local storage or state
-    const storedConfig = localStorage.getItem('apiVariables');
-    const apiVariables = storedConfig ? JSON.parse(storedConfig) : {};
-    const langgraphHostUrl = apiVariables.LANGGRAPH_HOST_URL;
-
-    if (report_type === 'multi_agents' && langgraphHostUrl) {
-      let { streamResponse, host, thread_id } = await startLanggraphResearch(newQuestion, report_source, langgraphHostUrl);
-
-      const langsmithGuiLink = `https://smith.langchain.com/studio/thread/${thread_id}?baseUrl=${host}`;
-
-      console.log('langsmith-gui-link in page.tsx', langsmithGuiLink);
-      // Add the Langgraph button to orderedData
-      setOrderedData((prevOrder) => [...prevOrder, { type: 'langgraphButton', link: langsmithGuiLink }]);
-
-      let previousChunk = null;
-
-      for await (const chunk of streamResponse) {
-        console.log(chunk);
-        if (chunk.data.report != null && chunk.data.report != "Full report content here") {
-          setOrderedData((prevOrder) => [...prevOrder, { ...chunk.data, output: chunk.data.report, type: 'report' }]);
-          setLoading(false);
-          setHasOutput(true); // Set hasOutput to true when the first output is generated
-        } else if (previousChunk) {
-          const differences = findDifferences(previousChunk, chunk);
-          setOrderedData((prevOrder) => [...prevOrder, { type: 'differences', content: 'differences', output: JSON.stringify(differences) }]);
-          setHasOutput(true); // Set hasOutput to true when the first output is generated
-        }
-        previousChunk = chunk;
-      }
-    } else {
-      startResearch(chatBoxSettings);
-      setHasOutput(true); // Set hasOutput to true when the research starts
-    }
-    // Wait for the transition to complete
-    setTimeout(() => {
-      setIsTransitioning(false);
-    }, 500); // Adjust this value to match your transition duration
-  };
-
-  const reset = () => {
-    setShowResult(false);
-    setPromptValue("");
-    setQuestion("");
-    setAnswer("");
-    setSources([]);
-    setSimilarQuestions([]);
-  };
-
-  const handleClickSuggestion = (value: string) => {
-    setPromptValue(value);
-    const element = document.getElementById('input-area');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const preprocessOrderedData = (data: any[]): any[] => {
-    const groupedData: any[] = [];
-    let currentAccordionGroup: any = null;
-    let currentSourceGroup: any = null;
-    let currentReportGroup: any = null;
-    let finalReportGroup: any = null;
-    let sourceBlockEncountered = false;
-    let lastSubqueriesIndex = -1;
-  
-    data.forEach((item: any, index: number) => {
-      const { type, content, metadata, output, link } = item;
-  
-      if (type === 'report') {
-        if (!currentReportGroup) {
-          currentReportGroup = { type: 'reportBlock', content: '' };
-          groupedData.push(currentReportGroup);
-        }
-        currentReportGroup.content += output;
-      } else if (type === 'logs' && content === 'research_report') {
-        if (!finalReportGroup) {
-          finalReportGroup = { type: 'reportBlock', content: '' };
-          groupedData.push(finalReportGroup);
-        }
-        finalReportGroup.content += output.report;
-      } else if (type === 'langgraphButton') {
-        groupedData.push({ type: 'langgraphButton', link });
-      } else if (type === 'question') {
-        groupedData.push({ type: 'question', content });
-      } else if (type === 'accordionBlock') {
-        if (!currentAccordionGroup) {
-          currentAccordionGroup = { type: 'accordionBlock', items: [] };
-          groupedData.push(currentAccordionGroup);
-        }
-        currentAccordionGroup.items.push(item);
-      } else {
-        if (currentReportGroup) {
-          currentReportGroup = null;
-        }
-  
-        if (content === 'subqueries') {
-          if (currentAccordionGroup) {
-            currentAccordionGroup = null;
-          }
-          if (currentSourceGroup) {
-            groupedData.push(currentSourceGroup);
-            currentSourceGroup = null;
-          }
-          groupedData.push(item);
-          lastSubqueriesIndex = groupedData.length - 1;
-        } else if (type === 'sourceBlock') {
-          currentSourceGroup = item;
-          if (lastSubqueriesIndex !== -1) {
-            groupedData.splice(lastSubqueriesIndex + 1, 0, currentSourceGroup);
-            lastSubqueriesIndex = -1;
-          } else {
-            groupedData.push(currentSourceGroup);
-          }
-          sourceBlockEncountered = true;
-          currentSourceGroup = null;
-        } else if (content === 'added_source_url') {
-          if (!currentSourceGroup) {
-            currentSourceGroup = { type: 'sourceBlock', items: [] };
-            if (lastSubqueriesIndex !== -1) {
-              groupedData.splice(lastSubqueriesIndex + 1, 0, currentSourceGroup);
-              lastSubqueriesIndex = -1;
-            } else {
-              groupedData.push(currentSourceGroup);
-            }
-            sourceBlockEncountered = true;
-          }
-          const hostname = new URL(metadata).hostname.replace('www.', '');
-          currentSourceGroup.items.push({ name: hostname, url: metadata });
-        } else if (type !== 'path' && content !== '') {
-          if (sourceBlockEncountered) {
-            if (!currentAccordionGroup) {
-              currentAccordionGroup = { type: 'accordionBlock', items: [] };
-              groupedData.push(currentAccordionGroup);
-            }
-            currentAccordionGroup.items.push(item);
-          } else {
-            groupedData.push(item);
-          }
-        } else {
-          if (currentAccordionGroup) {
-            currentAccordionGroup = null;
-          }
-          if (currentSourceGroup) {
-            currentSourceGroup = null;
-          }
-          groupedData.push(item);
-        }
-      }
-    });
-  
-    return groupedData;
-  };
-
-  const renderComponentsInOrder = () => {
-    const groupedData = preprocessOrderedData(orderedData);
-    console.log('orderedData in renderComponentsInOrder: ', groupedData);
-
-    const leftComponents: React.ReactNode[] = [];
-    const rightComponents: React.ReactNode[] = [];
-
-    // Add the Question component at the beginning of leftComponents
-    if (question) {
-      leftComponents.push(<Question key="question" question={question} />);
-    }
-
-    groupedData.forEach((data, index) => {
-      const uniqueKey = `${data.type}-${index}`;
-
-      if (data.type === 'sourceBlock') {
-        leftComponents.push(<Sources key={uniqueKey} sources={data.items} />);
-      } else if (data.type === 'accordionBlock') {
-        const logs = data.items.map((item: any, subIndex: number) => ({
-          header: item.content,
-          text: item.output,
-          key: `${item.type}-${item.content}-${subIndex}`,
-        }));
-        // Use the LogMessage component to render accordion-style logs
-        leftComponents.push(<LogMessage key={uniqueKey} logs={logs} />);
-      } else if (data.content === 'subqueries') {
-        leftComponents.push(
-          <SubQuestions
-            key={uniqueKey}
-            metadata={data.metadata}
-            handleClickSuggestion={handleClickSuggestion}
-          />
-        );
-      } else {
-        let component: React.ReactNode = null;
-        if (data.type === 'reportBlock') {
-          component = <Answer key={uniqueKey} answer={data.content} />;
-        } else if (data.type === 'langgraphButton') {
-          component = <div key={uniqueKey}></div>;
-        } else if (data.type === 'path') {
-          component = <AccessReport key={uniqueKey} accessData={data.output} report={answer} />;
-        }
-        if (component) {
-          rightComponents.push(component);
-        }
-      }
-    });
-
-    return { leftComponents, rightComponents };
-  };
+    const handleScroll = () => setScrollY(window.scrollY)
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-grow flex overflow-hidden">
-        {/* Left side - Input components and Sources */}
-        <div
-          className={`flex flex-col transition-all duration-500 ${
-            showResult ? 'flex-1' : 'flex-[2]'
-          }`}
-        >
-          <div className={`transition-all duration-500 ease-in-out ${
-            showResult ? 'translate-y-0 opacity-100' : 'translate-y-1/2 opacity-0'
-          }`}>
-            <InputArea
-              promptValue={promptValue}
-              setPromptValue={setPromptValue}
-              handleDisplayResult={handleDisplayResult}
-              disabled={loading}
-              reset={reset}
-            />
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-90 backdrop-blur-md">
+        <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="text-2xl font-bold text-gray-900">TANgent</div>
+          <div className="space-x-6">
+            <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">Features</a>
+            <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors">Pricing</a>
+            <a href="#about" className="text-gray-600 hover:text-gray-900 transition-colors">About</a>
           </div>
-          {!showResult && !isTransitioning && (
-            <Hero
-              promptValue={promptValue}
-              setPromptValue={setPromptValue}
-              handleDisplayResult={handleDisplayResult}
-            />
-          )}
-          {/* Scrollable container for left components */}
-          <div className="flex-grow overflow-y-auto">
-            {renderComponentsInOrder().leftComponents}
+          <div className="space-x-4">
+            <Link href="/login" className="text-gray-600 hover:text-gray-900 transition-colors">
+              Login
+            </Link>
+            <Link href="/signup" className="bg-black text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-800 transition-colors">
+              Sign Up
+            </Link>
           </div>
-        </div>
+        </nav>
+      </header>
 
-        {/* Right side - Output components */}
-        <div
-          className={`flex flex-col transition-all duration-500 ${
-            showResult ? 'flex-1 opacity-100' : 'flex-0 opacity-0 overflow-hidden'
-          }`}
-        >
-          {/* Scrollable container for right components */}
-          <div className="flex-grow overflow-y-auto bg-gray-100 rounded-lg shadow-inner p-4">
-            {showResult && (
-              <div className="space-y-4">
-                {renderComponentsInOrder().rightComponents}
+      <main>
+        <section className="pt-32 pb-20 px-6">
+          <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <motion.h1 
+                className="text-5xl md:text-7xl font-bold mb-6 leading-tight"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                AI-Powered<br />Insights at Your<br />Fingertips
+              </motion.h1>
+              <motion.p 
+                className="text-xl md:text-2xl text-gray-600 mb-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+              >
+                Harness the power of multi-agent AI for unparalleled data analysis and decision-making support.
+              </motion.p>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+              >
+                <Link 
+                  href="/research" 
+                  className="bg-black text-white px-8 py-4 rounded-full text-lg font-semibold inline-flex items-center hover:bg-gray-800 transition-colors"
+                >
+                  Get Started
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </motion.div>
+            </div>
+            <div className="relative">
+              <motion.div 
+                className="w-full h-64 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg absolute top-0 left-0 filter blur-3xl opacity-20"
+                animate={{ 
+                  scale: [1, 1.2, 1],
+                  rotate: [0, 90, 0],
+                }}
+                transition={{
+                  duration: 20,
+                  repeat: Infinity,
+                  repeatType: "reverse",
+                }}
+              />
+              <div className="bg-white rounded-lg p-8 shadow-xl relative z-10">
+                <div className="grid grid-cols-2 gap-6">
+                  <motion.div
+                    className="flex flex-col items-center"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                  >
+                    <PieChart className="w-16 h-16 text-blue-500 mb-2" />
+                    <p className="text-sm font-semibold">Data Analysis</p>
+                  </motion.div>
+                  <motion.div
+                    className="flex flex-col items-center"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.4 }}
+                  >
+                    <TrendingUp className="w-16 h-16 text-green-500 mb-2" />
+                    <p className="text-sm font-semibold">Predictive Modeling</p>
+                  </motion.div>
+                  <motion.div
+                    className="flex flex-col items-center"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.6 }}
+                  >
+                    <LineChart className="w-16 h-16 text-purple-500 mb-2" />
+                    <p className="text-sm font-semibold">Market Trends</p>
+                  </motion.div>
+                  <motion.div
+                    className="flex flex-col items-center"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.8 }}
+                  >
+                    <Brain className="w-16 h-16 text-red-500 mb-2" />
+                    <p className="text-sm font-semibold">AI Insights</p>
+                  </motion.div>
+                </div>
               </div>
-            )}
+            </div>
           </div>
-          {showHumanFeedback && (
-            <HumanFeedback
-              questionForHuman={questionForHuman}
-              websocket={socket}
-              onFeedbackSubmit={handleFeedbackSubmit}
-            />
-          )}
-        </div>
+        </section>
+
+        <section id="features" className="py-20 px-6">
+          <div className="container mx-auto">
+            <h2 className="text-3xl font-bold mb-12 text-center">Powerful AI-Driven Features</h2>
+            <div className="grid md:grid-cols-3 gap-8">
+              {[
+                { icon: Brain, title: "Advanced Analytics", description: "Leverage our multi-agent AI system for deep, nuanced analysis of complex data sets." },
+                { icon: BarChart, title: "Predictive Insights", description: "Gain forward-looking perspectives with our AI-powered predictive modeling." },
+                { icon: Zap, title: "Real-time Adaptation", description: "Our AI continuously learns and adapts, providing up-to-the-minute insights for your business." }
+              ].map((feature, index) => (
+                <motion.div 
+                  key={index}
+                  className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                >
+                  <feature.icon className="w-12 h-12 text-blue-600 mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-gray-600">{feature.description}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="pricing" className="py-20 px-6 bg-gray-50">
+          <div className="container mx-auto">
+            <h2 className="text-3xl font-bold mb-12 text-center">Flexible Pricing Options</h2>
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+              <div className="bg-white p-8 rounded-xl shadow-lg">
+                <h3 className="text-2xl font-bold mb-4">Per Report</h3>
+                <p className="text-gray-600 mb-4">Perfect for one-time insights or occasional use.</p>
+                <p className="text-4xl font-bold mb-6">$499<span className="text-xl text-gray-600 font-normal">/report</span></p>
+                <ul className="mb-8 space-y-2">
+                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Comprehensive AI analysis</li>
+                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Customized insights</li>
+                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> 30-day support</li>
+                </ul>
+                <button className="w-full bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-colors">
+                  Get Started
+                </button>
+              </div>
+              <div className="bg-white p-8 rounded-xl shadow-lg border-2 border-blue-500">
+                <h3 className="text-2xl font-bold mb-4">Subscription</h3>
+                <p className="text-gray-600 mb-4">For ongoing insights and continuous support.</p>
+                <p className="text-4xl font-bold mb-6">$1,999<span className="text-xl text-gray-600 font-normal">/month</span></p>
+                <ul className="mb-8 space-y-2">
+                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Unlimited AI-powered reports</li>
+                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Real-time data updates</li>
+                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Priority support</li>
+                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Customized AI models</li>
+                </ul>
+                <button className="w-full bg-blue-500 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-600 transition-colors">
+                  Subscribe Now
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="about" className="py-20 px-6">
+          <div className="container mx-auto">
+            <div className="max-w-3xl mx-auto text-center">
+              <h2 className="text-4xl font-bold mb-6">Revolutionizing Decision-Making with AI</h2>
+              <p className="text-xl text-gray-600 mb-8">
+                At TANgent, we&apos;ve harnessed the power of multi-agent AI systems to provide unparalleled insights for businesses. Our cutting-edge technology processes complex data sets, identifies patterns, and generates actionable recommendations to drive your success.
+              </p>
+              <a 
+                href="#" 
+                className="text-blue-600 font-semibold hover:text-blue-800 transition-colors inline-flex items-center"
+              >
+                Learn more about our technology
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-20 px-6 bg-gray-900 text-white">
+          <div className="container mx-auto text-center">
+            <h2 className="text-4xl font-bold mb-8">Ready to Transform Your Decision-Making?</h2>
+            <p className="text-xl mb-12 max-w-2xl mx-auto">
+              Join the AI revolution and unlock the full potential of your data with TANgent&apos;s multi-agent AI analysis.
+            </p>
+            <a 
+              href="#" 
+              className="bg-white text-gray-900 px-8 py-4 rounded-full text-lg font-semibold inline-flex items-center hover:bg-gray-100 transition-colors"
+            >
+              Start Your Free Trial
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </a>
+          </div>
+        </section>
       </main>
-      <Footer setChatBoxSettings={setChatBoxSettings} chatBoxSettings={chatBoxSettings} />
     </div>
-  );
+  )
 }

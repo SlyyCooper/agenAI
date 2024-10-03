@@ -23,14 +23,11 @@ const Hero: FC<THeroProps> = ({
       <div className="flex flex-col items-center justify-center">
         <div className="landing flex flex-col items-center">
             <h1 className="text-4xl font-extrabold text-center lg:text-7xl">
-              Say Goodbye to <br />
+              What Took Days, <br />
               <span className="gradient-text">
-                Hours of Research
+                Now Takes Seconds
               </span>
             </h1>
-            <h2 className="text-xl font-light text-center mb-4 ml-[20vw] mr-[20vw] mb-10 text-gray-300">
-              Say Hello to GPT Researcher, your AI mate for rapid insights and comprehensive research
-            </h2>
         </div>
         
 

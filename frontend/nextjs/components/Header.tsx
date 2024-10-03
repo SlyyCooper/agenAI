@@ -20,9 +20,7 @@ const Header = () => {
           </Link>
           <nav>
             <ul className="flex space-x-6">
-              <NavItem href="/about">About</NavItem>
-              <NavItem href="/docs">Docs</NavItem>
-              <NavItem href="/contact">Contact</NavItem>
+              <NavItem href="/">Home</NavItem>
             </ul>
           </nav>
         </div>
