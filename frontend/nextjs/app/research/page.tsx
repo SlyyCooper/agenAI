@@ -68,14 +68,13 @@ export default function Home() {
 
     if (!socket) {
       if (typeof window !== 'undefined') {
-        const { protocol, pathname } = window.location;
+        const { protocol } = window.location;
         let { host } = window.location;
         host = host.includes('localhost')
           ? 'localhost:8000'
           : 'dolphin-app-49eto.ondigitalocean.app/backend';
         
-        const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}${pathname}research/ws`;
-
+        const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}/ws`;
         const newSocket = new WebSocket(ws_uri);
         setSocket(newSocket as WebSocket);
 
