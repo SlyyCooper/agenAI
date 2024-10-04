@@ -8,7 +8,7 @@ from gpt_researcher.orchestrator.prompts import (
     generate_draft_titles_prompt,
 )
 
-from gpt_researcher.utils.llm import construct_subtopics
+from gpt_researcher.utils.llm import construct_subtopics, create_chat_completion
 from gpt_researcher.orchestrator.actions import stream_output, generate_report, generate_draft_section_titles
 
 
@@ -74,15 +74,6 @@ class ReportGenerator:
         return report
 
     async def write_report_conclusion(self, report_content: str) -> str:
-        """
-        Write the conclusion for the report.
-
-        Args:
-            report_content (str): The content of the report.
-
-        Returns:
-            str: The generated conclusion.
-        """
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -91,7 +82,24 @@ class ReportGenerator:
                 self.researcher.websocket,
             )
 
-        conclusion = generate_report_conclusion(report_content)
+        # Generate the prompt
+        conclusion_prompt = generate_report_conclusion(report_content)
+
+        # Send the prompt to the LLM and get the response
+        conclusion = await create_chat_completion(
+            model=self.researcher.cfg.smart_llm_model,
+            messages=[
+                {"role": "system", "content": f"{self.researcher.role}"},
+                {"role": "user", "content": conclusion_prompt},
+            ],
+            temperature=0.25,
+            llm_provider=self.researcher.cfg.llm_provider,
+            stream=True,
+            websocket=self.researcher.websocket,
+            max_tokens=self.researcher.cfg.smart_token_limit,
+            llm_kwargs=self.researcher.cfg.llm_kwargs,
+            cost_callback=self.researcher.add_costs,
+        )
 
         if self.researcher.verbose:
             await stream_output(
@@ -103,7 +111,7 @@ class ReportGenerator:
 
         return conclusion
 
-    async def write_introduction(self):
+    async def write_introduction(self) -> str:
         """Write the introduction section of the report."""
         if self.researcher.verbose:
             await stream_output(
@@ -113,9 +121,26 @@ class ReportGenerator:
                 self.researcher.websocket,
             )
 
-        introduction = generate_report_introduction(
+        # Generate the prompt
+        introduction_prompt = generate_report_introduction(
             question=self.researcher.query,
             research_summary=self.researcher.context
+        )
+
+        # Send the prompt to the LLM and get the response
+        introduction = await create_chat_completion(
+            model=self.researcher.cfg.smart_llm_model,
+            messages=[
+                {"role": "system", "content": f"{self.researcher.role}"},
+                {"role": "user", "content": introduction_prompt},
+            ],
+            temperature=0.25,
+            llm_provider=self.researcher.cfg.llm_provider,
+            stream=True,
+            websocket=self.researcher.websocket,
+            max_tokens=self.researcher.cfg.smart_token_limit,
+            llm_kwargs=self.researcher.cfg.llm_kwargs,
+            cost_callback=self.researcher.add_costs,
         )
 
         if self.researcher.verbose:
