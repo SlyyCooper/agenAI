@@ -2,6 +2,9 @@ import './globals.css'
 import { Inter } from 'next/font/google'
 import { Metadata } from 'next'
 import PlausibleProvider from "next-plausible"
+import { AuthProvider } from '@/config/firebase/AuthContext'
+import UserProfileButton from '@/components/profile/UserProfileButton'
+import Link from 'next/link'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -44,28 +47,38 @@ export default function RootLayout({
       <head>
         <PlausibleProvider domain="localhost:3000" />
       </head>
-      <body className={`${inter.className} min-h-screen flex flex-col bg-white text-gray-900`}>
-        <div className="flex flex-col min-h-screen">
-          <header className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-90 backdrop-blur-md">
-            <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-              <div className="text-2xl font-bold text-gray-900">TANgent</div>
-              <div className="space-x-6">
-                <a href="/" className="text-gray-600 hover:text-gray-900 transition-colors">Home</a>
+      <AuthProvider>
+        <body className={`${inter.className} min-h-screen flex flex-col bg-white text-gray-900`}>
+          <div className="flex flex-col min-h-screen">
+            <header className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-90 backdrop-blur-md shadow-sm">
+              <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
+                <Link href="/" className="text-2xl font-bold text-gray-900 hover:text-gray-700 transition-colors">
+                  TANgent
+                </Link>
+                <div className="space-x-6 flex items-center">
+                  <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors">
+                    Home
+                  </Link>
+                  <Link href="/research" className="text-gray-600 hover:text-gray-900 transition-colors">
+                    Research
+                  </Link>
+                  <UserProfileButton />
+                </div>
+              </nav>
+            </header>
+
+            <main className="flex-grow mt-16 pt-8">
+              {children}
+            </main>
+
+            <footer className="bg-gray-100 py-8 px-6">
+              <div className="container mx-auto text-center text-gray-600">
+                <p>&copy; {new Date().getFullYear()} TANgent. All rights reserved.</p>
               </div>
-            </nav>
-          </header>
-
-          <main className="flex-grow">
-            {children}
-          </main>
-
-          <footer className="bg-gray-100 py-8 px-6">
-            <div className="container mx-auto text-center text-gray-600">
-              <p>&copy; {new Date().getFullYear()} TANgent. All rights reserved.</p>
-            </div>
-          </footer>
-        </div>
-      </body>
+            </footer>
+          </div>
+        </body>
+      </AuthProvider>
     </html>
   )
 }

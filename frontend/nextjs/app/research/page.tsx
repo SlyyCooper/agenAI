@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/config/firebase/AuthContext";
+
 import Answer from "@/components/Answer";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
@@ -9,7 +13,7 @@ import InputArea from "@/components/InputArea";
 import Sources from "@/components/Sources";
 import Question from "@/components/Question";
 import SubQuestions from "@/components/SubQuestions";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import AccessReport from '@/components/Task/AccessReport';
 import Accordion from '@/components/Task/Accordion';
 import LogMessage from '@/components/Task/LogMessage';
@@ -18,7 +22,16 @@ import { startLanggraphResearch } from '@/components/Langgraph/Langgraph';
 import findDifferences from '@/helpers/findDifferences';
 import HumanFeedback from "@/components/HumanFeedback";
 
-export default function Home() {
+export default function ResearchPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
   const [promptValue, setPromptValue] = useState("");
   const [showResult, setShowResult] = useState(false);
   const [answer, setAnswer] = useState("");
@@ -352,6 +365,14 @@ export default function Home() {
 
     return { leftComponents, rightComponents };
   };
+
+  if (authLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!user) {
+    return null; // or a loading spinner, as the useEffect will redirect
+  }
 
   return (
     <div className="flex flex-col min-h-screen">

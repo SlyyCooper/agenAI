@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight, Brain, BarChart, Zap, PieChart, TrendingUp, LineChart } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { auth } from '@/config/firebase/firebase'
+import { onAuthStateChanged } from 'firebase/auth'
 
 export default function Home() {
   const [scrollY, setScrollY] = useState(0)
@@ -60,13 +63,7 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.4 }}
               >
-                <Link 
-                  href="/research" 
-                  className="bg-black text-white px-8 py-4 rounded-full text-lg font-semibold inline-flex items-center hover:bg-gray-800 transition-colors"
-                >
-                  Get Started
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
+                <GetStartedButton />
               </motion.div>
             </div>
             <div className="relative">
@@ -222,4 +219,41 @@ export default function Home() {
       </main>
     </div>
   )
+}
+
+function GetStartedButton() {
+  const router = useRouter();
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user);
+      setLoadingAuth(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleClick = () => {
+    if (isAuthenticated) {
+      router.push('/research');
+    } else {
+      router.push('/login');
+    }
+  };
+
+  if (loadingAuth) {
+    return null; // Or a loading spinner
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      className="bg-black text-white px-8 py-4 rounded-full text-lg font-semibold inline-flex items-center hover:bg-gray-800 transition-colors"
+    >
+      Get Started
+      <ArrowRight className="ml-2 h-5 w-5" />
+    </button>
+  );
 }

@@ -1,5 +1,6 @@
-import Image from "next/image";
 import { FC } from "react";
+import { ArrowRight } from "lucide-react";
+import { Button } from "./button";
 import InputArea from "./InputArea";
 
 type THeroProps = {
@@ -18,21 +19,21 @@ const Hero: FC<THeroProps> = ({
   };
 
   return (
-    <div>
-
-      <div className="flex flex-col items-center justify-center">
-        <div className="landing flex flex-col items-center">
-            <h1 className="text-4xl font-extrabold text-center lg:text-7xl">
-              What Took Days, <br />
-              <span className="gradient-text">
-                Now Takes Seconds
-              </span>
-            </h1>
+    <div className="bg-gradient-to-b from-gray-50 to-white py-20">
+      <div className="container mx-auto px-4">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-extrabold mb-4 lg:text-6xl">
+            What Took Days, <br />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">
+              Now Takes Seconds
+            </span>
+          </h1>
+          <p className="text-xl text-gray-600 mb-8">
+            Harness the power of AI for lightning-fast research
+          </p>
         </div>
-        
 
-        {/* input section */}
-        <div className="w-full max-w-[708px] pb-6 mt-20">
+        <div className="max-w-2xl mx-auto mb-12">
           <InputArea
             promptValue={promptValue}
             setPromptValue={setPromptValue}
@@ -40,30 +41,20 @@ const Hero: FC<THeroProps> = ({
           />
         </div>
 
-        {/* Suggestions section */}
-        <div className="flex flex-wrap items-center justify-center gap-2.5 pb-[30px] lg:flex-nowrap lg:justify-normal">
+        <div className="flex flex-wrap justify-center gap-4">
           {suggestions.map((item) => (
-            <div
-              className="flex h-[35px] cursor-pointer items-center justify-center gap-[5px] rounded border border-solid border-[#C1C1C1] bg-[#EDEDEA] px-2.5 py-2"
-              onClick={() => handleClickSuggestion(item?.name)}
+            <Button
               key={item.id}
+              variant="outline"
+              onClick={() => handleClickSuggestion(item.name)}
+              className="flex items-center space-x-2"
             >
-              <Image
-                src={item.icon}
-                alt={item.name}
-                width={18}
-                height={16}
-                className="w-[18px]"
-              />
-              <span className="text-sm font-light leading-[normal] text-[#1B1B16]">
-                {item.name}
-              </span>
-            </div>
+              <span>{item.name}</span>
+              <ArrowRight className="w-4 h-4" />
+            </Button>
           ))}
         </div>
-
       </div>
-  
     </div>
   );
 };

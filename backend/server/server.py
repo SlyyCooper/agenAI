@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from typing import Dict, List
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, File, UploadFile, Header
@@ -57,6 +58,8 @@ templates = Jinja2Templates(directory="./frontend")
 
 # WebSocket manager
 manager = WebSocketManager()
+def sanitize_filename(filename):
+    return re.sub(r"[^\w\s-]", "", filename).strip()
 
 # Middleware
 app.add_middleware(

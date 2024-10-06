@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { Link } from 'lucide-react';
 import SourceCard from "./SourceCard";
 
 export default function Sources({
@@ -7,27 +7,20 @@ export default function Sources({
   sources: { name: string; url: string }[];
 }) {
   return (
-    <div className="container h-auto w-full shrink-0 rounded-lg border border-solid border-[#C2C2C2] bg-gray-800 shadow-md p-5">
-      <div className="flex items-start gap-4 pb-3 lg:pb-3.5">
-        <Image src="/img/sources.svg" alt="footer" width={24} height={24} />
-        <h3 className="text-base font-bold uppercase leading-[152.5%] text-white">
-          sources:{" "}
-        </h3>
+    <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <Link className="w-5 h-5 text-blue-500" />
+        <h3 className="text-xl font-bold text-gray-800">Sources</h3>
       </div>
-      <div className="flex w-full max-w-[890px] flex-wrap content-center items-center gap-[15px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sources.length > 0 ? (
           sources.map((source) => (
             <SourceCard source={source} key={source.url} />
           ))
         ) : (
-          <>
-            <div className="h-20 w-[260px] max-w-sm animate-pulse rounded-md bg-gray-300" />
-            <div className="h-20 w-[260px] max-w-sm animate-pulse rounded-md bg-gray-300" />
-            <div className="h-20 w-[260px] max-w-sm animate-pulse rounded-md bg-gray-300" />
-            <div className="h-20 w-[260px] max-w-sm animate-pulse rounded-md bg-gray-300" />
-            <div className="h-20 w-[260px] max-w-sm animate-pulse rounded-md bg-gray-300" />
-            <div className="h-20 w-[260px] max-w-sm animate-pulse rounded-md bg-gray-300" />
-          </>
+          Array(6).fill(0).map((_, index) => (
+            <div key={index} className="h-20 animate-pulse rounded-md bg-gray-200" />
+          ))
         )}
       </div>
     </div>

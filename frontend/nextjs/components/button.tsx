@@ -1,10 +1,17 @@
 import * as React from "react"
 import { ArrowRight } from "lucide-react"
+import { clsx, type ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
   size?: "default" | "sm" | "lg" | "icon"
   showArrow?: boolean
+}
+
+// Correct implementation of cn function
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -26,10 +33,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       lg: "px-6 py-3 text-base",
       icon: "p-2"
     }
-
-        function cn(baseStyles: string, arg1: string, arg2: string, className: string | undefined): string | undefined {
-            throw new Error("Function not implemented.")
-        }
 
     return (
       <button

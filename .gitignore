@@ -2,6 +2,7 @@
 .env
 .venv
 .envrc
+env.local
 
 #Ignore Virtual Env
 env/
@@ -41,3 +42,6 @@ package-lock.json
 
 #Vim swp files
 *.swp
+
+#cursor files
+.cursorrules
