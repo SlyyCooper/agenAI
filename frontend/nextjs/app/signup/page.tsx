@@ -2,18 +2,83 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, Brain } from 'lucide-react'
+import { ArrowRight, Brain, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, TwitterAuthProvider } from 'firebase/auth'
+import { auth } from '@/config/firebase/firebase'
+import GoogleSignInButton from '@/components/GoogleSignInButton'
+import XSignInButton from '@/components/XSigninButton'
+import { useAuth } from '@/config/firebase/AuthContext'
 
 export default function SignupPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
+  const { user } = useAuth()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleEmailPasswordSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle signup logic here
-    console.log('Signup attempted with:', name, email, password)
+    setIsLoading(true)
+    setError('')
+    if (auth) {
+      try {
+        await createUserWithEmailAndPassword(auth, email, password)
+        // TODO: Save the name to the user profile
+        router.push('/research')
+      } catch (error: any) {
+        console.error('Error signing up:', error)
+        setError(error.message || 'An error occurred during sign up')
+      }
+    } else {
+      setError('Authentication not initialized')
+    }
+    setIsLoading(false)
+  }
+
+  const handleGoogleSignUp = async () => {
+    setIsLoading(true)
+    setError('')
+    const provider = new GoogleAuthProvider()
+    if (auth) {
+      try {
+        await signInWithPopup(auth, provider)
+        router.push('/research')
+      } catch (error: any) {
+        console.error('Error signing up with Google:', error)
+        setError(error.message || 'An error occurred during Google sign up')
+      }
+    } else {
+      setError('Authentication not initialized')
+    }
+    setIsLoading(false)
+  }
+
+  const handleXSignUp = async () => {
+    setIsLoading(true)
+    setError('')
+    const provider = new TwitterAuthProvider()
+    if (auth) {
+      try {
+        await signInWithPopup(auth, provider)
+        router.push('/research')
+      } catch (error: any) {
+        console.error('Error signing up with X:', error)
+        setError(error.message || 'An error occurred during X sign up')
+      }
+    } else {
+      setError('Authentication not initialized')
+    }
+    setIsLoading(false)
+  }
+
+  if (user) {
+    router.push('/research')
+    return null
   }
 
   return (
@@ -27,7 +92,12 @@ export default function SignupPage() {
         <div className="p-8">
           <div className="text-2xl font-bold text-center mb-4">TANgent</div>
           <h2 className="text-3xl font-bold text-center mb-6">Create an Account</h2>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+              <span className="block sm:inline">{error}</span>
+            </div>
+          )}
+          <form onSubmit={handleEmailPasswordSignUp} className="space-y-6">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                 Full Name
@@ -58,25 +128,60 @@ export default function SignupPage() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+              </div>
             </div>
             <div>
               <button
                 type="submit"
                 className="w-full bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-colors flex items-center justify-center"
+                disabled={isLoading}
               >
-                Sign Up
-                <ArrowRight className="ml-2 h-5 w-5" />
+                {isLoading ? (
+                  <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                ) : (
+                  <>
+                    Sign Up
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </>
+                )}
               </button>
             </div>
           </form>
+          
+          <div className="mt-6 relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">Or sign up with</span>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-center space-x-4">
+            <GoogleSignInButton onClick={handleGoogleSignUp} />
+            <XSignInButton onClick={handleXSignUp} />
+          </div>
+          
           <div className="mt-4 text-center">
             <Link href="/login" className="text-sm text-blue-600 hover:text-blue-800 transition-colors">
               Already have an account? Sign in
