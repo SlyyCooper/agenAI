@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/config/firebase/AuthContext";
 
 import Answer from "@/components/Answer";
-import Footer from "@/components/Footer";
-import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import InputArea from "@/components/InputArea";
 
@@ -21,6 +19,9 @@ import LogMessage from '@/components/Task/LogMessage';
 import { startLanggraphResearch } from '@/components/Langgraph/Langgraph';
 import findDifferences from '@/helpers/findDifferences';
 import HumanFeedback from "@/components/HumanFeedback";
+import Settings from "@/components/Settings";
+import Image from 'next/image';
+
 
 export default function ResearchPage() {
   const { user, loading: authLoading } = useAuth();
@@ -376,62 +377,95 @@ export default function ResearchPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-grow flex overflow-hidden">
-        {/* Left side - Input components and Sources */}
-        <div
-          className={`flex flex-col transition-all duration-500 ${
-            showResult ? 'flex-1' : 'flex-[2]'
-          }`}
-        >
-          <div className={`transition-all duration-500 ease-in-out ${
-            showResult ? 'translate-y-0 opacity-100' : 'translate-y-1/2 opacity-0'
-          }`}>
-            <InputArea
-              promptValue={promptValue}
-              setPromptValue={setPromptValue}
-              handleDisplayResult={handleDisplayResult}
-              disabled={loading}
-              reset={reset}
-            />
-          </div>
-          {!showResult && !isTransitioning && (
-            <Hero
-              promptValue={promptValue}
-              setPromptValue={setPromptValue}
-              handleDisplayResult={handleDisplayResult}
-            />
-          )}
-          {/* Scrollable container for left components */}
-          <div className="flex-grow overflow-y-auto">
-            {renderComponentsInOrder().leftComponents}
-          </div>
-        </div>
-
-        {/* Right side - Output components */}
-        <div
-          className={`flex flex-col transition-all duration-500 ${
-            showResult ? 'flex-1 opacity-100' : 'flex-0 opacity-0 overflow-hidden'
-          }`}
-        >
-          {/* Scrollable container for right components */}
-          <div className="flex-grow overflow-y-auto bg-gray-100 rounded-lg shadow-inner p-4">
-            {showResult && (
-              <div className="space-y-4">
-                {renderComponentsInOrder().rightComponents}
+      <main className="flex-grow flex flex-col overflow-hidden relative">
+        {/* Top container for Hero, InputArea, and Settings */}
+        <div className="w-full relative p-4 bg-gray-50 shadow-sm">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex-grow flex justify-center">
+                <Image 
+                  src="/TAN.png" 
+                  alt="TAN Logo" 
+                  width={showResult ? 40 : 80}
+                  height={showResult ? 40 : 80}
+                  className="transition-all duration-500 ease-in-out"
+                />
+              </div>
+              <Settings setChatBoxSettings={setChatBoxSettings} chatBoxSettings={chatBoxSettings} />
+            </div>
+            
+            <div className={`transition-all duration-500 ease-in-out ${
+              showResult ? 'translate-y-0 opacity-100' : 'translate-y-1/2 opacity-0'
+            }`}>
+              <InputArea
+                promptValue={promptValue}
+                setPromptValue={setPromptValue}
+                handleDisplayResult={handleDisplayResult}
+                disabled={loading}
+                reset={reset}
+              />
+            </div>
+            
+            {!showResult && !isTransitioning && (
+              <div className="mt-2">
+                <Hero
+                  promptValue={promptValue}
+                  setPromptValue={setPromptValue}
+                  handleDisplayResult={handleDisplayResult}
+                />
               </div>
             )}
           </div>
-          {showHumanFeedback && (
-            <HumanFeedback
-              questionForHuman={questionForHuman}
-              websocket={socket}
-              onFeedbackSubmit={handleFeedbackSubmit}
-            />
-          )}
+        </div>
+
+        {/* Container for left and right content */}
+        <div className="flex-grow flex overflow-hidden">
+          {/* Left side - Sources and other components */}
+          <div
+            className={`flex flex-col transition-all duration-500 ${
+              showResult ? 'w-1/3 min-w-[300px]' : 'w-full'
+            } bg-white border-r border-gray-200`}
+          >
+            {/* Scrollable container for left components */}
+            <div className="flex-grow overflow-y-auto p-4 space-y-4">
+              {renderComponentsInOrder().leftComponents.map((component, index) => (
+                <div key={index} className="bg-gray-50 rounded-lg shadow-sm p-4">
+                  {component}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right side - Output components */}
+          <div
+            className={`flex flex-col transition-all duration-500 ${
+              showResult ? 'flex-1 opacity-100' : 'w-0 opacity-0 overflow-hidden'
+            }`}
+          >
+            {/* Scrollable container for right components */}
+            <div className="flex-grow overflow-y-auto bg-gray-100 rounded-lg shadow-inner p-4">
+              {showResult && (
+                <div className="space-y-4">
+                  {renderComponentsInOrder().rightComponents.map((component, index) => (
+                    <div key={index} className="bg-white rounded-lg shadow-sm p-6">
+                      {component}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {showHumanFeedback && (
+              <div className="mt-4 bg-white rounded-lg shadow-sm p-4">
+                <HumanFeedback
+                  questionForHuman={questionForHuman}
+                  websocket={socket}
+                  onFeedbackSubmit={handleFeedbackSubmit}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </main>
-      <Footer setChatBoxSettings={setChatBoxSettings} chatBoxSettings={chatBoxSettings} />
     </div>
   );
 }

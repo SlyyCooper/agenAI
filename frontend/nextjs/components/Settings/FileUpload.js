@@ -51,7 +51,7 @@ const FileUpload = () => {
 
   return (
     <div className={"mb-4 w-full"}>
-      <div {...getRootProps()} style={{ border: '2px dashed #cccccc', padding: '20px', textAlign: 'center' }}>
+      <div {...getRootProps()} className="drop-box">
         <input {...getInputProps()} />
         <p>Drag &apos;n&apos; drop some files here, or click to select files</p>
       </div>

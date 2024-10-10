@@ -10,6 +10,7 @@ import { auth } from '@/config/firebase/firebase'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
 import XSignInButton from '@/components/XSigninButton'
 import { useAuth } from '@/config/firebase/AuthContext'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -88,7 +89,15 @@ export default function LoginPage() {
         transition={{ duration: 0.5 }}
       >
         <div className="p-8">
-          <div className="text-2xl font-bold text-center mb-4">TANgent</div>
+          <div className="flex justify-center mb-4">
+            <Image
+              src="/TAN.png"
+              alt="TANgent Logo"
+              width={100}
+              height={100}
+              priority
+            />
+          </div>
           <h2 className="text-3xl font-bold text-center mb-6">Welcome Back</h2>
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">

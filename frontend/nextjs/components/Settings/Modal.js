@@ -3,10 +3,10 @@ import './App.css';
 import ChatBox from './ChatBox';
 import axios from 'axios';
 import { getHost } from '../../helpers/getHost';
+import { motion } from 'framer-motion';
 
 export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
-  const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('search');
+  const [activeTab] = useState('search'); // Force 'search' tab to be active
   const [apiVariables, setApiVariables] = useState({
     ANTHROPIC_API_KEY: '',
     TAVILY_API_KEY: '',
@@ -14,7 +14,7 @@ export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
     LANGCHAIN_API_KEY: '',
     OPENAI_API_KEY: '',
     DOC_PATH: './my-docs',
-    RETRIEVER: 'tavily', // Set default retriever to Tavily
+    RETRIEVER: 'tavily', // Keep Tavily as the default retriever
     GOOGLE_API_KEY: '',
     GOOGLE_CX_KEY: '',
     BING_API_KEY: '',
@@ -39,12 +39,11 @@ export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
           console.error('Error fetching config:', error);
         });
     }
-  }, [showModal]);
+  }, []);
 
   const handleSaveChanges = () => {
     setChatBoxSettings(chatBoxSettings);
     localStorage.setItem('apiVariables', JSON.stringify(apiVariables));
-    setShowModal(false);
   };
 
   const handleInputChange = (e) => {
@@ -116,104 +115,54 @@ export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
   };
 
   return (
-    <div className="settings">
-      <button
-        className="bg-purple-500 text-white active:bg-purple-600 font-bold uppercase text-sm px-6 py-3 rounded shadow hover:shadow-lg outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150"
-        type="button"
-        onClick={() => setShowModal(true)}
-      >
-        Settings
-      </button>
-      {showModal ? (
-        <>
-          <div
-            className="justify-center items-center flex overflow-x-hidden overflow-y-auto fixed inset-0 z-50 outline-none focus:outline-none"
-          >
-            <div className="relative w-auto my-6 mx-auto max-w-3xl">
-              <div className="border-0 rounded-lg shadow-lg relative flex flex-col w-full bg-white outline-none focus:outline-none">
-                <div className="relative p-6 flex-auto">
-                  <div className="tabs">
-                    <button onClick={() => setActiveTab('search')} className={`tab-button ${activeTab === 'search' ? 'active' : ''}`}>Search Settings</button>
-                    <button onClick={() => setActiveTab('api')} className={`tab-button ${activeTab === 'api' ? 'active' : ''}`}>API Variables</button>
-                  </div>
-                  {activeTab === 'search' && (
-                    <div className="App">
-                      <header className="App-header">
-                        <ChatBox setChatBoxSettings={setChatBoxSettings} chatBoxSettings={chatBoxSettings} />
-                      </header>
-                    </div>
-                  )}
-                  {activeTab === 'api' && (
-                    <main className="container" id="form">
-                      <form method="POST" className="report_settings">
-                        <div className="form-group">
-                          <label className="form-group-label">Search Engine</label>
-                          <select name="RETRIEVER" value={apiVariables.RETRIEVER} onChange={handleInputChange}>
-                            <option value="" disabled>Select Retriever</option>
-                            <option value="tavily">Tavily</option>
-                            <option value="google">Google</option>
-                            <option value="searx">Searx</option>
-                            <option value="searchapi">SearchApi</option>
-                            <option value="serpapi">SerpApi</option>
-                            <option value="googleSerp">GoogleSerp</option>
-                            <option value="duckduckgo">DuckDuckGo</option>
-                            <option value="bing">Bing</option>
-                          </select>
-                        </div>
-                        {renderConditionalInputs()}
-
-                        <div className="form-group">
-                          <label className="form-group-label">OPENAI_API_KEY</label>
-                          <input type="text" name="OPENAI_API_KEY" value={apiVariables.OPENAI_API_KEY} onChange={handleInputChange} />
-                        </div>
-
-                        <div className="form-group">
-                          <label className="form-group-label">DOC_PATH</label>
-                          <input type="text" name="DOC_PATH" value={apiVariables.DOC_PATH} onChange={handleInputChange} />
-                        </div>
-
-                        <div className="form-group">
-                          <label className="form-group-label">TAVILY_API_KEY</label>
-                          <input type="text" name="TAVILY_API_KEY" value={apiVariables.TAVILY_API_KEY} onChange={handleInputChange} />
-                        </div>
-
-                        <div className="form-group">
-                          <label className="form-group-label">LANGCHAIN_API_KEY</label>
-                          <input type="text" name="LANGCHAIN_API_KEY" value={apiVariables.LANGCHAIN_API_KEY} onChange={handleInputChange} />
-                        </div>
-
-                        {apiVariables.LANGCHAIN_API_KEY && (
-                          <>
-                            <div className="form-group">
-                              <label className="form-group-label">LANGGRAPH_HOST_URL</label>
-                              <input type="text" name="LANGGRAPH_HOST_URL" value={apiVariables.LANGGRAPH_HOST_URL} onChange={handleInputChange} />
-                            </div>
-
-                            <div className="form-group">
-                              <label className="form-group-label">ANTHROPIC_API_KEY</label>
-                              <input type="text" name="ANTHROPIC_API_KEY" value={apiVariables.ANTHROPIC_API_KEY} onChange={handleInputChange} />
-                            </div>
-                          </>
-                        )}
-                      </form>
-                    </main>
-                  )}
-                </div>
-                <div className="flex items-center justify-end p-3">
-                  <button
-                    className="bg-emerald-500 text-white active:bg-emerald-600 font-bold uppercase text-sm px-6 py-3 rounded shadow hover:shadow-lg outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150"
-                    type="button"
-                    onClick={handleSaveChanges}
-                  >
-                    Save & Close
-                  </button>
-                </div>
-              </div>
+    <motion.div
+      className="settings-modal"
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="settings-content">
+        {/* Comment out the tabs */}
+        {/* <div className="settings-tabs">
+          <button onClick={() => setActiveTab('search')} className={`tab-button ${activeTab === 'search' ? 'active' : ''}`}>Search</button>
+          <button onClick={() => setActiveTab('api')} className={`tab-button ${activeTab === 'api' ? 'active' : ''}`}>API</button>
+        </div> */}
+        <motion.div
+          className="settings-body"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          {activeTab === 'search' && (
+            <div className="settings-section">
+              <ChatBox setChatBoxSettings={setChatBoxSettings} chatBoxSettings={chatBoxSettings} />
             </div>
-          </div>
-          <div className="opacity-25 fixed inset-0 z-40 bg-black"></div>
-        </>
-      ) : null}
-    </div>
+          )}
+          {/* Comment out the API tab content */}
+          {/* {activeTab === 'api' && (
+            <form className="settings-form">
+              ... API form content ...
+            </form>
+          )} */}
+        </motion.div>
+      </div>
+      <motion.div
+        className="settings-footer"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.4 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            className="save-button"
+            type="button"
+            onClick={handleSaveChanges}
+          >
+            Save
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

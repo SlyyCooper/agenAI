@@ -6,6 +6,7 @@ import { useAuth } from '@/config/firebase/AuthContext';
 import { User, LogIn, LogOut } from 'lucide-react';
 import { auth } from '@/config/firebase/firebase';
 import { signOut } from 'firebase/auth';
+import Image from 'next/image';
 
 const UserProfileButton: React.FC = () => {
   const { user, loading } = useAuth();
@@ -23,6 +24,11 @@ const UserProfileButton: React.FC = () => {
     } catch (error) {
       console.error('Error signing out:', error);
     }
+  };
+
+  const handleProfileClick = () => {
+    setIsMenuOpen(false);
+    router.push('/userprofile');
   };
 
   if (!user) {
@@ -44,7 +50,14 @@ const UserProfileButton: React.FC = () => {
         className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
       >
         {user.photoURL ? (
-          <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full mr-2" />
+          <Image
+            src={user.photoURL}
+            alt="Profile"
+            width={32}
+            height={32}
+            className="rounded-full mr-2"
+            priority
+          />
         ) : (
           <User className="w-5 h-5 mr-1" />
         )}
@@ -53,10 +66,7 @@ const UserProfileButton: React.FC = () => {
       {isMenuOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
           <button
-            onClick={() => {
-              setIsMenuOpen(false);
-              router.push('/profile');
-            }}
+            onClick={handleProfileClick}
             className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
           >
             Profile

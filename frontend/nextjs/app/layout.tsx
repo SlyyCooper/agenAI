@@ -5,6 +5,7 @@ import PlausibleProvider from "next-plausible"
 import { AuthProvider } from '@/config/firebase/AuthContext'
 import UserProfileButton from '@/components/profile/UserProfileButton'
 import Link from 'next/link'
+import Image from 'next/image'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -52,8 +53,14 @@ export default function RootLayout({
           <div className="flex flex-col min-h-screen">
             <header className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-90 backdrop-blur-md shadow-sm">
               <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-                <Link href="/" className="text-2xl font-bold text-gray-900 hover:text-gray-700 transition-colors">
-                  TANgent
+                <Link href="/" className="flex items-center">
+                  <Image
+                    src="/TAN.png"
+                    alt="TANgent Logo"
+                    width={40}
+                    height={40}
+                    priority
+                  />
                 </Link>
                 <div className="space-x-6 flex items-center">
                   <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors">

@@ -15,7 +15,9 @@ export default function Sources({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sources.length > 0 ? (
           sources.map((source) => (
-            <SourceCard source={source} key={source.url} />
+            <div key={source.url} className="overflow-hidden">
+              <SourceCard source={source} />
+            </div>
           ))
         ) : (
           Array(6).fill(0).map((_, index) => (

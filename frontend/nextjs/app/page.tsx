@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { auth } from '@/config/firebase/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
+import Image from 'next/image'
 
 export default function Home() {
   const [scrollY, setScrollY] = useState(0)
@@ -21,7 +22,15 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-90 backdrop-blur-md">
         <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="text-2xl font-bold text-gray-900">TANgent</div>
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/TAN.png"
+              alt="TANgent Logo"
+              width={40}
+              height={40}
+              priority
+            />
+          </Link>
           <div className="space-x-6">
             <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">Features</a>
             <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors">Pricing</a>
@@ -68,7 +77,7 @@ export default function Home() {
             </div>
             <div className="relative">
               <motion.div 
-                className="w-full h-64 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg absolute top-0 left-0 filter blur-3xl opacity-20"
+                className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl absolute top-0 left-0 filter blur-3xl opacity-20"
                 animate={{ 
                   scale: [1, 1.2, 1],
                   rotate: [0, 90, 0],
@@ -79,43 +88,56 @@ export default function Home() {
                   repeatType: "reverse",
                 }}
               />
-              <div className="bg-white rounded-lg p-8 shadow-xl relative z-10">
-                <div className="grid grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl p-4 shadow-2xl relative z-10 overflow-hidden">
+                <div className="relative w-full h-96 mb-4"> {/* Increased height significantly */}
+                  <Image
+                    src="/tangents.png"
+                    alt="TANgent AI Visualization"
+                    fill
+                    sizes="100%"
+                    style={{ objectFit: 'cover' }}
+                    className="rounded-xl"
+                    priority
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent opacity-30"></div> {/* Reduced opacity */}
+                </div>
+                <div className="grid grid-cols-2 gap-2"> {/* Reduced gap */}
                   <motion.div
-                    className="flex flex-col items-center"
+                    // Reduced padding
+                    className="flex flex-col items-center bg-blue-50 p-2 rounded-lg"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.2 }}
                   >
-                    <PieChart className="w-16 h-16 text-blue-500 mb-2" />
-                    <p className="text-sm font-semibold">Data Analysis</p>
+                    <PieChart className="w-8 h-8 text-blue-600 mb-1" /> {/* Reduced icon size */}
+                    <p className="text-xs font-semibold text-center text-blue-800">Data Analysis</p>
                   </motion.div>
                   <motion.div
-                    className="flex flex-col items-center"
+                    className="flex flex-col items-center bg-green-50 p-2 rounded-lg"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.4 }}
                   >
-                    <TrendingUp className="w-16 h-16 text-green-500 mb-2" />
-                    <p className="text-sm font-semibold">Predictive Modeling</p>
+                    <TrendingUp className="w-8 h-8 text-green-600 mb-1" />
+                    <p className="text-xs font-semibold text-center text-green-800">Predictive Modeling</p>
                   </motion.div>
                   <motion.div
-                    className="flex flex-col items-center"
+                    className="flex flex-col items-center bg-purple-50 p-2 rounded-lg"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.6 }}
                   >
-                    <LineChart className="w-16 h-16 text-purple-500 mb-2" />
-                    <p className="text-sm font-semibold">Market Trends</p>
+                    <LineChart className="w-8 h-8 text-purple-600 mb-1" />
+                    <p className="text-xs font-semibold text-center text-purple-800">Market Trends</p>
                   </motion.div>
                   <motion.div
-                    className="flex flex-col items-center"
+                    className="flex flex-col items-center bg-red-50 p-2 rounded-lg"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.8 }}
                   >
-                    <Brain className="w-16 h-16 text-red-500 mb-2" />
-                    <p className="text-sm font-semibold">AI Insights</p>
+                    <Brain className="w-8 h-8 text-red-600 mb-1" />
+                    <p className="text-xs font-semibold text-center text-red-800">AI Insights</p>
                   </motion.div>
                 </div>
               </div>
