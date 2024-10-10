@@ -67,7 +67,11 @@ app.add_middleware(
     allow_origins=[ # allow_origins=["http://localhost:3000"] for local testing
         "https://gpt-researcher-costom.vercel.app",
         "https://www.tanalyze.app",
-        "https://tanalyze.app"
+        "https://tanalyze.app",
+        "https://agenai.app",
+        "https://www.agenai.app",
+        "http://agenai.app",
+        "http://www.agenai.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],  # You can restrict this to specific methods if needed
