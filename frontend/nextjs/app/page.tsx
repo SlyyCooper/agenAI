@@ -33,7 +33,7 @@ export default function Home() {
           </Link>
           <div className="space-x-6">
             <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">Features</a>
-            <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors">Pricing</a>
+            <Link href="/plans" className="text-gray-600 hover:text-gray-900 transition-colors">Pricing</Link>
             <a href="#about" className="text-gray-600 hover:text-gray-900 transition-colors">About</a>
           </div>
           <div className="space-x-4">
@@ -166,41 +166,6 @@ export default function Home() {
                   <p className="text-gray-600">{feature.description}</p>
                 </motion.div>
               ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="pricing" className="py-20 px-6 bg-gray-50">
-          <div className="container mx-auto">
-            <h2 className="text-3xl font-bold mb-12 text-center">Flexible Pricing Options</h2>
-            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-              <div className="bg-white p-8 rounded-xl shadow-lg">
-                <h3 className="text-2xl font-bold mb-4">Per Report</h3>
-                <p className="text-gray-600 mb-4">Perfect for one-time insights or occasional use.</p>
-                <p className="text-4xl font-bold mb-6">$499<span className="text-xl text-gray-600 font-normal">/report</span></p>
-                <ul className="mb-8 space-y-2">
-                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Comprehensive AI analysis</li>
-                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Customized insights</li>
-                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> 30-day support</li>
-                </ul>
-                <button className="w-full bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-colors">
-                  Get Started
-                </button>
-              </div>
-              <div className="bg-white p-8 rounded-xl shadow-lg border-2 border-blue-500">
-                <h3 className="text-2xl font-bold mb-4">Subscription</h3>
-                <p className="text-gray-600 mb-4">For ongoing insights and continuous support.</p>
-                <p className="text-4xl font-bold mb-6">$1,999<span className="text-xl text-gray-600 font-normal">/month</span></p>
-                <ul className="mb-8 space-y-2">
-                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Unlimited AI-powered reports</li>
-                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Real-time data updates</li>
-                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Priority support</li>
-                  <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Customized AI models</li>
-                </ul>
-                <button className="w-full bg-blue-500 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-600 transition-colors">
-                  Subscribe Now
-                </button>
-              </div>
             </div>
           </div>
         </section>

@@ -22,7 +22,6 @@ import HumanFeedback from "@/components/HumanFeedback";
 import Settings from "@/components/Settings";
 import Image from 'next/image';
 
-
 export default function ResearchPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -58,7 +57,7 @@ export default function ResearchPage() {
     }
   }, [orderedData]);
 
-  const startResearch = (chatBoxSettings: {
+  const startResearch = async (chatBoxSettings: {
     task?: string;
     report_type: string;
     report_source: string;
@@ -89,6 +88,15 @@ export default function ResearchPage() {
           : 'dolphin-app-49eto.ondigitalocean.app/backend';
         
         const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}/ws`;
+        
+        // Get the Firebase ID token
+        const idToken = await user?.getIdToken();
+        if (!idToken) {
+          console.error('Failed to retrieve ID token');
+          router.push('/login');
+          return;
+        }
+        
         const newSocket = new WebSocket(ws_uri);
         setSocket(newSocket as WebSocket);
 
@@ -116,8 +124,19 @@ export default function ResearchPage() {
         };
 
         newSocket.onopen = () => {
+          console.log('WebSocket connection opened');
+          console.log('Sending auth message');
+          // Send the ID token as the first message after connection
+          newSocket.send(JSON.stringify({ type: 'auth', token: idToken }));
+
           const { task, report_type, report_source, tone } = chatBoxSettings;
-          let data = "start " + JSON.stringify({ task: promptValue, report_type, report_source, tone, headers });
+          let data = "start " + JSON.stringify({
+            task: promptValue,
+            report_type,
+            report_source,
+            tone,
+            headers
+          });
           newSocket.send(data);
 
           // Start sending heartbeat messages every 30 seconds

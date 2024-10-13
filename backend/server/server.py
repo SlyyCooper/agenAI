@@ -2,6 +2,7 @@ import json
 import os
 import re
 from typing import Dict, List
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, File, UploadFile, Header
 from fastapi.responses import JSONResponse
@@ -48,6 +49,23 @@ class ConfigRequest(BaseModel):
     SEARX_URL: str = ''
 
 
+    # Define all the fields you want to update
+class ConfigUpdateRequest(BaseModel):
+    llm_model: str = None
+    fast_llm_model: str = None
+    smart_llm_model: str = None
+    fast_token_limit: int = None
+    smart_token_limit: int = None
+    browse_chunk_max_length: int = None
+    summary_token_limit: int = None
+    temperature: float = None
+    max_search_results_per_query: int = None
+    total_words: int = None
+    report_format: str = None
+    max_iterations: int = None
+    max_subtopics: int = None
+    report_source: str = None
+
 # App initialization
 app = FastAPI()
 
@@ -82,8 +100,10 @@ app.add_middleware(
 # Constants
 DOC_PATH = os.getenv("DOC_PATH", "./my-docs")
 
-# Startup event
+# Load environment variables
+load_dotenv()
 
+# Startup event
 
 @app.on_event("startup")
 def startup_event():
@@ -150,7 +170,8 @@ async def delete_file(filename: str):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
-    try:
-        await handle_websocket_communication(websocket, manager)
-    except WebSocketDisconnect:
-        await manager.disconnect(websocket)
+    if websocket in manager.active_connections:
+        try:
+            await handle_websocket_communication(websocket, manager)
+        except WebSocketDisconnect:
+            await manager.disconnect(websocket)

@@ -30,6 +30,7 @@ json_repair
 json5
 loguru
 browser_cookie3
+firebase-admin
 
 # uncomment for testing
 # pytest

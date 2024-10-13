@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 from typing import Dict, List
+from dotenv import load_dotenv
 
 from fastapi import WebSocket
 
@@ -8,6 +9,7 @@ from backend.report_type import BasicReport, DetailedReport
 from gpt_researcher.utils.enum import ReportType, Tone
 from multi_agents.main import run_research_task
 from gpt_researcher.orchestrator.actions import stream_output  # Import stream_output
+from backend.server.server_utils import verify_firebase_token
 
 
 class WebSocketManager:
@@ -41,6 +43,23 @@ class WebSocketManager:
     async def connect(self, websocket: WebSocket):
         """Connect a websocket."""
         await websocket.accept()
+        try:
+            auth_message = await websocket.receive_json()
+            print(f"Received auth message: {auth_message}")
+            if auth_message['type'] == 'auth':
+                token = auth_message['token']
+                decoded_token = await verify_firebase_token(token)
+                if not decoded_token:
+                    await websocket.close(code=1008)  # Policy violation
+                    return
+            else:
+                await websocket.close(code=1008)  # Policy violation
+                return
+        except Exception as e:
+            print(f"Authentication error: {e}")
+            await websocket.close(code=1008)  # Policy violation
+            return
+
         self.active_connections.append(websocket)
         self.message_queues[websocket] = asyncio.Queue()
         self.sender_tasks[websocket] = asyncio.create_task(
@@ -101,3 +120,6 @@ async def run_agent(task, report_type, report_source, source_urls, tone: Tone, w
     )
 
     return report
+
+# Load environment variables
+load_dotenv()

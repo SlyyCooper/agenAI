@@ -10,6 +10,9 @@ from gpt_researcher.document.document import DocumentLoader
 from backend.utils import write_md_to_pdf, write_md_to_word, write_text_to_md
 from gpt_researcher.orchestrator.actions.utils import stream_output
 from multi_agents.main import run_research_task
+import firebase_admin
+from firebase_admin import credentials, auth
+from dotenv import load_dotenv
 
 
 def sanitize_filename(filename: str) -> str:
@@ -113,14 +116,28 @@ async def execute_multi_agents(manager) -> Dict[str, str]:
 
 
 async def handle_websocket_communication(websocket, manager):
-    while True:
-        data = await websocket.receive_text()
-        if data.startswith("start"):
-            await handle_start_command(websocket, data, manager)
-        elif data.startswith("human_feedback"):
-            await handle_human_feedback(data)
-        else:
-            print("Error: Unknown command or not enough parameters provided.")
+    try:
+        # Remove the authentication logic here
+        while True:
+            data = await websocket.receive_text()
+            if data.startswith("start"):
+                await handle_start_command(websocket, data, manager)
+            elif data.startswith("human_feedback"):
+                await handle_human_feedback(data)
+            else:
+                print("Error: Unknown command or not enough parameters provided.")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        await manager.disconnect(websocket)
+
+
+async def verify_firebase_token(token: str):
+    try:
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token
+    except Exception as e:
+        print(f"Error verifying token: {e}")
+        return None
 
 
 def extract_command_data(json_data: Dict) -> tuple:
@@ -132,3 +149,22 @@ def extract_command_data(json_data: Dict) -> tuple:
         json_data.get("headers", {}),
         json_data.get("report_source")
     )
+
+# Load environment variables
+load_dotenv()
+
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate({
+    "type": os.getenv("FIREBASE_TYPE"),
+    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+    "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace("\\n", "\n"),
+    "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+    "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+    "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
+    "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
+    "auth_provider_x509_cert_url": os.getenv("FIREBASE_AUTH_PROVIDER_X509_CERT_URL"),
+    "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
+    "universe_domain": os.getenv("FIREBASE_UNIVERSE_DOMAIN")
+})
+firebase_admin.initialize_app(cred)

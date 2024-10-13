@@ -6,11 +6,21 @@ import os
 class Config:
     """Config class for GPT Researcher."""
 
-    def __init__(self, config_file: str = None):
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(Config, cls).__new__(cls)
+            cls._instance.initialize()
+        return cls._instance
+
+    def initialize(self):
         """Initialize the config class."""
-        self.config_file = (
-            os.path.expanduser(config_file) if config_file else os.getenv("CONFIG_FILE")
-        )
+        self.load_config()
+
+    def load_config(self):
+        """Load configuration from environment variables and config file."""
+        self.config_file = os.getenv("CONFIG_FILE")
         self.retrievers = self.parse_retrievers(os.getenv("RETRIEVER", "tavily"))
         self.embedding_provider = os.getenv("EMBEDDING_PROVIDER", "openai")
         self.similarity_threshold = int(os.getenv("SIMILARITY_THRESHOLD", 0.42))
@@ -38,7 +48,7 @@ class Config:
         self.report_format = os.getenv("REPORT_FORMAT", "APA")
         self.max_iterations = int(os.getenv("MAX_ITERATIONS", 3))
         self.agent_role = os.getenv("AGENT_ROLE", None)
-        self.scraper = os.getenv("SCRAPER", "bs")  # Change to "browser" to use Selenium. Requires selenium.
+        self.scraper = os.getenv("SCRAPER", "bs")
         self.max_subtopics = os.getenv("MAX_SUBTOPICS", 3)
         self.report_source = os.getenv("REPORT_SOURCE", None)
         self.doc_path = os.getenv("DOC_PATH", "./my-docs")
@@ -50,6 +60,18 @@ class Config:
 
         if self.doc_path:
             self.validate_doc_path()
+
+    def update_config(self, config_updates):
+        """Update configuration with new values."""
+        for key, value in config_updates.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                print(f"Unknown configuration key: {key}")
+
+    def to_dict(self):
+        """Return configuration as a dictionary."""
+        return {attr: getattr(self, attr) for attr in vars(self) if not attr.startswith('_') and not callable(getattr(self, attr))}
 
     def parse_retrievers(self, retriever_str: str):
         """Parse the retriever string into a list of retrievers and validate them."""

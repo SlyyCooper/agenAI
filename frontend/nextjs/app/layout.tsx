@@ -69,6 +69,9 @@ export default function RootLayout({
                   <Link href="/research" className="text-gray-600 hover:text-gray-900 transition-colors">
                     Research
                   </Link>
+                  <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 transition-colors">
+                    Dashboard
+                  </Link>
                   <UserProfileButton />
                 </div>
               </nav>
