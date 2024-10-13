@@ -1,20 +1,21 @@
 // multi_agents/gpt_researcher_nextjs/components/Task/Accordion.tsx
 
 import { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const plainTextFields = ['task', 'sections', 'headers', 'sources', 'research_data'];
 
 const Accordion = ({ logs }: { logs: any[] }) => {
-  console.log('logs in Accordion', logs);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const getLogHeaderText = (log: { text?: string; header: string }) => {
     if (log.header === 'differences') {
-      return 'The following fields on the Langgraph were updated: ' + Object.keys(JSON.parse(log.text || '{}').data).join(', ');
+      return 'Updated Langgraph Fields: ' + Object.keys(JSON.parse(log.text || '{}').data).join(', ');
     } else {
       const regex = /📃 Source: (https?:\/\/[^\s]+)/;
       const match = log.text?.match(regex);
       let sourceUrl = match ? match[1] : '';
-      return `📄 Retrieved relevant content from the source: ${sourceUrl}`;
+      return `Retrieved content from: ${sourceUrl}`;
     }
   };
 
@@ -26,120 +27,46 @@ const Accordion = ({ logs }: { logs: any[] }) => {
     if (log.header === 'differences' && log.processedData) {
       return log.processedData.map((data, index) => (
         <div key={index} className="mb-4">
-          <h3 className="font-semibold text-lg text-body-color dark:text-dark-6">{data.field}:</h3>
+          <h4 className="font-semibold text-lg text-gray-700">{data.field}:</h4>
           {data.isMarkdown ? (
-            <div className="markdown-content" dangerouslySetInnerHTML={{ __html: typeof data.htmlContent === 'string' ? data.htmlContent : '' }} />
+            <div className="markdown-content prose" dangerouslySetInnerHTML={{ __html: typeof data.htmlContent === 'string' ? data.htmlContent : '' }} />
           ) : (
-            <p className="text-body-color dark:text-dark-6">{typeof data.htmlContent === 'object' ? JSON.stringify(data.htmlContent) : data.htmlContent}</p>
+            <p className="text-gray-600">{typeof data.htmlContent === 'object' ? JSON.stringify(data.htmlContent) : data.htmlContent}</p>
           )}
-          <style jsx>{`
-            .markdown-content {
-              margin: 0;
-              padding: 0;
-              h1, h2, h3, h4, h5, h6 {
-                font-size: inherit;
-                font-weight: bold;
-                margin-top: 1em;
-                margin-bottom: 0.2em;
-                line-height: 1.2;
-              }
-              h1 {
-                font-size: 2.5em;
-                color: #333;
-              }
-              h2 {
-                font-size: 2em;
-                color: #555;
-              }
-              h3 {
-                font-size: 1.5em;
-                color: #777;
-              }
-              h4 {
-                font-size: 1.2em;
-                color: #999;
-              }
-              ul {
-                list-style-type: none;
-                padding-left: 0;
-                margin-top: 1em;
-                margin-bottom: 1em;
-              }
-              ul > li {
-                margin-bottom: 0.5em;
-              }
-              ul > li > ul {
-                margin-left: 1em;
-                list-style-type: disc;
-              }
-              ul > li > ul > li {
-                margin-bottom: 0.3em;
-              }
-              ul > li > ul > li > ul {
-                margin-left: 1em;
-                list-style-type: circle;
-              }
-              ul > li > ul > li > ul > li {
-                margin-bottom: 0.2em;
-              }
-            }
-          `}</style>
         </div>
       ));
     } else {
-      return <p className="mb-2 text-body-color dark:text-dark-6">{log.text || 'No content available'}</p>;
+      return <p className="text-gray-600">{log.text || 'No content available'}</p>;
     }
   };
-
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const handleToggle = (index: number) => {
     setOpenIndex(openIndex === index ? null : index);
   };
 
   return (
-    <div id="accordion-collapse" data-accordion="collapse" className="mb-4 bg-gray-800 rounded-lg">
-  {logs.map((log, index) => (
-    <div key={index}>
-      <h2 id={`accordion-collapse-heading-${index}`}>
-        <button
-          type="button"
-          className="flex items-center w-full p-5 font-medium rtl:text-right text-white rounded-t-xl focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-800 hover:bg-gray-700 hover:text-white gap-3"
-          onClick={() => handleToggle(index)}
-          aria-expanded={openIndex === index}
-          aria-controls={`accordion-collapse-body-${index}`}
-        >
-          <span className="flex-grow text-left">{getLogHeaderText(log)}</span>
-          <svg
-            data-accordion-icon
-            className={`w-3 h-3 ${openIndex === index ? 'rotate-180' : ''} shrink-0`}
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 10 6"
+    <div className="space-y-4">
+      {logs.map((log, index) => (
+        <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+          <button
+            className="flex items-center justify-between w-full p-4 text-left bg-gray-50 hover:bg-gray-100 transition-colors"
+            onClick={() => handleToggle(index)}
           >
-            <path
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M9 5 5 1 1 5"
-            />
-          </svg>
-        </button>
-      </h2>
-      <div
-        id={`accordion-collapse-body-${index}`}
-        className={`${openIndex === index ? '' : 'hidden'}`}
-        aria-labelledby={`accordion-collapse-heading-${index}`}
-      >
-        <div className="p-5 border border-b-0 border-gray-200 dark:border-gray-700 dark:bg-gray-800 text-white">
-          {renderLogContent(log)}
+            <span className="font-medium text-gray-700">{getLogHeaderText(log)}</span>
+            {openIndex === index ? (
+              <ChevronUp className="w-5 h-5 text-gray-500" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-500" />
+            )}
+          </button>
+          {openIndex === index && (
+            <div className="p-4 bg-white">
+              {renderLogContent(log)}
+            </div>
+          )}
         </div>
-      </div>
+      ))}
     </div>
-  ))}
-</div>
   );
 };
 

@@ -194,13 +194,13 @@ export default function Home() {
             <p className="text-xl mb-12 max-w-2xl mx-auto">
               Join the AI revolution and unlock the full potential of your data with TANgent&apos;s multi-agent AI analysis.
             </p>
-            <a 
-              href="#" 
+            <Link 
+              href="/signup" 
               className="bg-white text-gray-900 px-8 py-4 rounded-full text-lg font-semibold inline-flex items-center hover:bg-gray-100 transition-colors"
             >
               Start Your Free Trial
               <ArrowRight className="ml-2 h-5 w-5" />
-            </a>
+            </Link>
           </div>
         </section>
       </main>
@@ -226,7 +226,7 @@ function GetStartedButton() {
     if (isAuthenticated) {
       router.push('/research');
     } else {
-      router.push('/login');
+      router.push('/signup');  // Changed from '/login' to '/signup'
     }
   };
 

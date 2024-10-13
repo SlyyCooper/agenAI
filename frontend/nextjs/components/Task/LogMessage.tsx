@@ -1,9 +1,10 @@
 // multi_agents/gpt_researcher_nextjs/components/Task/LogMessage.tsx
 
-import Accordion from './Accordion';
 import { useEffect, useState } from 'react';
 import { remark } from 'remark';
 import html from 'remark-html';
+import Accordion from './Accordion';
+import { FileText } from 'lucide-react';
 
 const LogMessage = ({ logs }: { logs: any[] }) => {
   const [processedLogs, setProcessedLogs] = useState<any[]>([]);
@@ -32,30 +33,25 @@ const LogMessage = ({ logs }: { logs: any[] }) => {
   }, [logs]);
 
   return (
-    <section className="relative z-20 overflow-hidden pb-12 pt-20 lg:pb-[20px] lg:pt-[20px]">
-      <div className="container mx-auto">
-        <div className="-mx-4 flex flex-wrap justify-center">
-          <div className="w-full px-4">
-            {processedLogs.map((log, index) => {
-              if (log.header === 'subquery_context_window' || log.header === 'differences') {
-                return <Accordion key={index} logs={[log]} />;
-              } else {
-                return (
-                  <div
-                      key={index}
-                      className="mb-4 w-full max-w-4xl mx-auto rounded-lg p-4 bg-gray-800 shadow-md"
-                    >
-                      <p className="py-3 text-base leading-relaxed text-white dark:text-white">
-                        {log.text}
-                      </p>
-                    </div>
-                );
-              }
-            })}
-          </div>
-        </div>
+    <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <FileText className="w-5 h-5 text-blue-500" />
+        <h3 className="text-xl font-bold text-gray-800">Log Messages</h3>
       </div>
-    </section>
+      <div className="space-y-4">
+        {processedLogs.map((log, index) => {
+          if (log.header === 'subquery_context_window' || log.header === 'differences') {
+            return <Accordion key={index} logs={[log]} />;
+          } else {
+            return (
+              <div key={index} className="p-4 bg-gray-100 rounded-lg">
+                <p className="text-gray-700">{log.text}</p>
+              </div>
+            );
+          }
+        })}
+      </div>
+    </div>
   );
 };
 
@@ -65,7 +61,7 @@ const markdownToHtml = async (markdown: string): Promise<string> => {
     return result.toString();
   } catch (error) {
     console.error('Error converting Markdown to HTML:', error);
-    return ''; // Handle error gracefully, return empty string or default content
+    return '';
   }
 };
 

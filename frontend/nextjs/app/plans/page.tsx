@@ -47,32 +47,42 @@ export default function PlansPage() {
       <div className="container mx-auto px-6">
         <h1 className="text-4xl font-bold mb-12 text-center">Choose Your Plan</h1>
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          <div className="bg-white p-8 rounded-xl shadow-lg">
-            <h3 className="text-2xl font-bold mb-4">Per Report</h3>
-            <p className="text-gray-600 mb-4">Perfect for one-time insights or occasional use.</p>
-            <p className="text-4xl font-bold mb-6">$1<span className="text-xl text-gray-600 font-normal">/report</span></p>
-            <ul className="mb-8 space-y-2">
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Comprehensive AI analysis</li>
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Customized insights</li>
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> 30-day support</li>
-            </ul>
-            <button 
-              onClick={() => handleCheckout('per-report')}
-              disabled={isLoading}
-              className="w-full bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-colors inline-block text-center disabled:opacity-50"
-            >
-              {isLoading ? 'Processing...' : 'Get Started'}
-            </button>
+          <div className="bg-white p-8 rounded-xl shadow-lg flex flex-col">
+            <div>
+              <h3 className="text-2xl font-bold mb-4">Per Report</h3>
+              <p className="text-gray-600 mb-4">Perfect for one-time insights or occasional use.</p>
+              <div className="flex items-start mb-6">
+                <p className="text-4xl font-bold">$1<span className="text-xl text-gray-600 font-normal">/report</span></p>
+                <p className="text-xs text-gray-500 ml-2 mt-1 italic">*Minimum of 5 reports</p>
+              </div>
+              <ul className="mb-8 space-y-2">
+                <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> 5 Detailed Reports using gpt-4o</li>
+                <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> 10 Summary Reports</li>
+                <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Ability to Save Reports to Account</li>
+                <li className="invisible flex items-center"><ArrowRight className="mr-2 h-5 w-5" /> &nbsp;</li>
+                <li className="invisible flex items-center"><ArrowRight className="mr-2 h-5 w-5" /> &nbsp;</li>
+              </ul>
+            </div>
+            <div className="mt-auto">
+              <button 
+                onClick={() => handleCheckout('per-report')}
+                disabled={isLoading}
+                className="w-full bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-colors inline-block text-center disabled:opacity-50"
+              >
+                {isLoading ? 'Processing...' : 'Get Started'}
+              </button>
+            </div>
           </div>
-          <div className="bg-white p-8 rounded-xl shadow-lg border-2 border-blue-500">
+          <div className="bg-white p-8 rounded-xl shadow-lg border-2 border-blue-500 flex flex-col">
             <h3 className="text-2xl font-bold mb-4">Subscription</h3>
             <p className="text-gray-600 mb-4">For ongoing insights and continuous support.</p>
             <p className="text-4xl font-bold mb-6">$20<span className="text-xl text-gray-600 font-normal">/month</span></p>
             <ul className="mb-8 space-y-2">
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Unlimited AI-powered reports</li>
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Real-time data updates</li>
+              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> 30 Detailed Reports using gpt-4o</li>
+              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Access to the latest AI models</li>
+              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Unlimited Summary Reports</li>
+              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Ability to Save Reports to Account</li>
               <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Priority support</li>
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Customized AI models</li>
             </ul>
             <button 
               onClick={() => handleCheckout('subscription')}

@@ -342,7 +342,21 @@ export default function ResearchPage() {
     const leftComponents: React.ReactNode[] = [];
     const rightComponents: React.ReactNode[] = [];
 
-    // Add the Question component at the beginning of leftComponents
+    let accessReportComponent: React.ReactNode | null = null;
+
+    // First, find the AccessReport component
+    groupedData.forEach((data) => {
+      if (data.type === 'path') {
+        accessReportComponent = <AccessReport key="accessReport" accessData={data.output} report={answer} />;
+      }
+    });
+
+    // Add the AccessReport component at the very beginning if it exists
+    if (accessReportComponent) {
+      leftComponents.push(accessReportComponent);
+    }
+
+    // Add the Question component after the AccessReport
     if (question) {
       leftComponents.push(<Question key="question" question={question} />);
     }
@@ -358,7 +372,6 @@ export default function ResearchPage() {
           text: item.output,
           key: `${item.type}-${item.content}-${subIndex}`,
         }));
-        // Use the LogMessage component to render accordion-style logs
         leftComponents.push(<LogMessage key={uniqueKey} logs={logs} />);
       } else if (data.content === 'subqueries') {
         leftComponents.push(
@@ -374,8 +387,6 @@ export default function ResearchPage() {
           component = <Answer key={uniqueKey} answer={data.content} />;
         } else if (data.type === 'langgraphButton') {
           component = <div key={uniqueKey}></div>;
-        } else if (data.type === 'path') {
-          component = <AccessReport key={uniqueKey} accessData={data.output} report={answer} />;
         }
         if (component) {
           rightComponents.push(component);

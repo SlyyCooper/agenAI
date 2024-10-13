@@ -1,10 +1,9 @@
 import Image from "next/image";
 import { Toaster, toast } from "react-hot-toast";
-
 import { useEffect, useState } from 'react';
 import { remark } from 'remark';
 import html from 'remark-html';
-
+import { Copy } from 'lucide-react'; // Import the Copy icon from lucide-react
 
 export default function Answer({ answer }: { answer: string }) {
   async function markdownToHtml(markdown: string) {
@@ -25,127 +24,91 @@ export default function Answer({ answer }: { answer: string }) {
   }, [answer]);
   
   return (
-    <div className="container flex h-auto w-full shrink-0 gap-4 bg-gray-800 shadow-md rounded-lg border border-solid border-[#C2C2C2] p-5">
-      <div className="w-full">
-        <div className="flex items-center justify-between pb-3">
-          {answer && (
-            <div className="flex items-center gap-3">
-              {/* <Image
-                src="/img/link.svg"
-                alt="footer"
-                width={20}
-                height={20}
-                className="cursor-pointer"
-              /> */}
-              <button
-                aria-label="Copy answer to clipboard"
-                onClick={() => {
-                  navigator.clipboard.writeText(answer.trim());
-                  toast("Answer copied to clipboard", {
-                    icon: "✂️",
-                  });
-                }}
-              >
-
-                <Image
-                  src="/img/copy-white.svg"
-                  alt="footer"
-                  width={20}
-                  height={20}
-                  className="cursor-pointer text-white"
-                />
-              </button>
-              {/* <Image
-                src="/img/share.svg"
-                alt="footer"
-                width={20}
-                height={20}
-                className="cursor-pointer"
-              /> */}
-            </div>
-          )}
-        </div>
-        <div className="flex flex-wrap content-center items-center gap-[15px]">
-          <div className="w-full whitespace-pre-wrap text-base font-light leading-[152.5%] text-white">
-            {answer ? (
-              <div className="answer-container">
-                <div className="markdown-content" dangerouslySetInnerHTML={{ __html: htmlContent }} />
-                <style jsx>{`
-                .answer-container {
-                    font-family: Georgia, 'Times New Roman', Times, serif;
-                    
-                  }
-
-                  .markdown-content {
-                    /* Reset margins and paddings */
-                    margin: 0;
-                    padding: 0;
-                    /* Override existing styles for headings */
-                    h1, h2, h3, h4, h5, h6 {
-                      font-size: 18px; font-weight: 400; padding: 0;
-                      line-height: 1.2;
-                    }
-                    /* Optionally add more specific styling */
-                    h1 {
-                      font-size: 2.5em;
-                      color: white;
-                    }
-                    h2 {
-                      font-size: 2em;
-                      color: white;
-                    }
-                    h3 {
-                      font-size: 1.5em;
-                      color: white;
-                    }
-                    h4 {
-                      font-size: 1.2em;
-                      color: white;
-                    }
-                    /* Add more styles as needed */
-
-                    /* Table of Contents Styling */
-                    ul {
-                      list-style-type: none;
-                      padding-left: 0;
-                      margin-bottom: 1em;
-                    }
-                    ul > li {
-                      margin-bottom: 0.5em;
-                    }
-                    ul > li > ul {
-                      margin-left: 1em;
-                      list-style-type: disc;
-                    }
-                    ul > li > ul > li {
-                      margin-bottom: 0.3em;
-                    }
-                    ul > li > ul > li > ul {
-                      margin-left: 1em;
-                      list-style-type: circle;
-                    }
-                    ul > li > ul > li > ul > li {
-                      margin-bottom: 0.2em;
-                    }
-                  }
-                `}</style>
-              </div>
-            ) : (
-              <div className="flex w-full flex-col gap-2">
-                <div className="h-6 w-full animate-pulse rounded-md bg-gray-300" />
-                <div className="h-6 w-full animate-pulse rounded-md bg-gray-300" />
-                <div className="h-6 w-full animate-pulse rounded-md bg-gray-300" />
-                <div className="h-6 w-full animate-pulse rounded-md bg-gray-300" />
-              </div>
-            )}
+    <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+      <div className="flex items-center justify-end mb-4">
+        {answer && (
+          <button
+            aria-label="Copy answer to clipboard"
+            onClick={() => {
+              navigator.clipboard.writeText(answer.trim());
+              toast("Answer copied to clipboard", {
+                icon: "✂️",
+              });
+            }}
+            className="text-blue-500 hover:text-blue-600 transition-colors"
+          >
+            <Copy className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+      <div className="text-gray-700">
+        {answer ? (
+          <div className="answer-container">
+            <div className="markdown-content" dangerouslySetInnerHTML={{ __html: htmlContent }} />
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="h-4 w-full animate-pulse rounded-md bg-gray-200" />
+            <div className="h-4 w-3/4 animate-pulse rounded-md bg-gray-200" />
+            <div className="h-4 w-5/6 animate-pulse rounded-md bg-gray-200" />
+            <div className="h-4 w-2/3 animate-pulse rounded-md bg-gray-200" />
+          </div>
+        )}
       </div>
       <Toaster
         position="top-center"
         reverseOrder={false}
         toastOptions={{ duration: 2000 }}
       />
+      <style jsx>{`
+        .answer-container {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+        }
+        .markdown-content {
+          /* Reset margins and paddings */
+          margin: 0;
+          padding: 0;
+          /* Heading styles */
+          h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+            line-height: 1.25;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+          }
+          h1 { font-size: 2em; }
+          h2 { font-size: 1.5em; }
+          h3 { font-size: 1.25em; }
+          h4 { font-size: 1em; }
+          h5 { font-size: 0.875em; }
+          h6 { font-size: 0.85em; }
+          /* Paragraph and list styles */
+          p, ul, ol {
+            margin-bottom: 1em;
+          }
+          ul, ol {
+            padding-left: 1.5em;
+          }
+          /* Link styles */
+          a {
+            color: #0071e3;
+            text-decoration: none;
+          }
+          a:hover {
+            text-decoration: underline;
+          }
+          /* Code block styles */
+          pre {
+            background-color: #f5f7fa;
+            border-radius: 0.375rem;
+            padding: 1em;
+            overflow-x: auto;
+          }
+          code {
+            font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+          }
+        }
+      `}</style>
     </div>
   );
 }
