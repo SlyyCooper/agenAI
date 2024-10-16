@@ -199,3 +199,14 @@ async def api_stripe_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get('stripe-signature')
     return await handle_stripe_webhook(payload, sig_header)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    print(f"Incoming WebSocket connection from origin: {websocket.headers.get('origin')}")
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await manager.send_personal_message(f"You wrote: {data}", websocket)
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket)

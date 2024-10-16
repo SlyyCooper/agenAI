@@ -13,9 +13,22 @@ const getAuthHeaders = async () => {
 };
 
 // User profile operations
-export const createUserProfile = async (userId: string, data: any) => {
-  const headers = await getAuthHeaders();
-  return axios.post(`${API_URL}/api/user_profile`, { uid: userId, ...data }, headers);
+export const createUserProfile = async (uid: string, userData: any) => {
+  const idToken = await auth.currentUser?.getIdToken();
+  const response = await fetch(`${API_URL}/api/user_profile`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ uid, ...userData }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to create user profile');
+  }
+
+  return response.json();
 };
 
 export const getUserProfile = async (userId: string) => {
