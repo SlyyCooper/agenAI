@@ -3,30 +3,23 @@
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import getStripe from '@/config/stripe/get-stripejs';
+import { useAuth } from '@/config/firebase/AuthContext';
+import { createCheckoutSession } from '@/config/firebase/backendService';
 
 export default function PlansPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
 
   const handleCheckout = async (plan: string) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/checkout_sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          plan,
-          amount: plan === 'per-report' ? 100 : 2000 // $1 or $20 in cents
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
+      if (!user) {
+        throw new Error('User not authenticated');
       }
 
-      const { sessionId } = await response.json();
+      const response = await createCheckoutSession(plan, plan === 'per-report' ? 100 : 2000);
+      const { sessionId } = response.data;
       const stripe = await getStripe();
       const { error } = await stripe!.redirectToCheckout({ sessionId });
 

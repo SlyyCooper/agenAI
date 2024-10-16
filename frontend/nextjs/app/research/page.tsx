@@ -342,24 +342,12 @@ export default function ResearchPage() {
     const leftComponents: React.ReactNode[] = [];
     const rightComponents: React.ReactNode[] = [];
 
-    let accessReportComponent: React.ReactNode | null = null;
-
-    // First, find the AccessReport component
-    groupedData.forEach((data) => {
-      if (data.type === 'path') {
-        accessReportComponent = <AccessReport key="accessReport" accessData={data.output} report={answer} />;
-      }
-    });
-
-    // Add the AccessReport component at the very beginning if it exists
-    if (accessReportComponent) {
-      leftComponents.push(accessReportComponent);
-    }
-
-    // Add the Question component after the AccessReport
+    // Add the Question component at the beginning of leftComponents
     if (question) {
       leftComponents.push(<Question key="question" question={question} />);
     }
+
+    let accessReportComponent: React.ReactNode | null = null;
 
     groupedData.forEach((data, index) => {
       const uniqueKey = `${data.type}-${index}`;
@@ -387,12 +375,19 @@ export default function ResearchPage() {
           component = <Answer key={uniqueKey} answer={data.content} />;
         } else if (data.type === 'langgraphButton') {
           component = <div key={uniqueKey}></div>;
+        } else if (data.type === 'path') {
+          accessReportComponent = <AccessReport key={uniqueKey} accessData={data.output} report={answer} />;
         }
         if (component) {
           rightComponents.push(component);
         }
       }
     });
+
+    // Insert the AccessReport component at the beginning of rightComponents if it exists
+    if (accessReportComponent) {
+      rightComponents.unshift(accessReportComponent);
+    }
 
     return { leftComponents, rightComponents };
   };

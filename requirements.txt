@@ -31,6 +31,8 @@ json5
 loguru
 browser_cookie3
 firebase-admin
+stripe
+selenium
 
 # uncomment for testing
 # pytest

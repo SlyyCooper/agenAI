@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2022-11-15',
-});
+import { createPaymentIntent } from '@/config/firebase/backendService';
 
 export async function POST(req: NextRequest) {
   try {
     const { amount } = await req.json();
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: 'usd',
-      automatic_payment_methods: { enabled: true },
-    });
-
-    return NextResponse.json({ clientSecret: paymentIntent.client_secret });
+    const result = await createPaymentIntent(amount);
+    return NextResponse.json(result.data);
   } catch (err) {
+    console.error('Error creating payment intent:', err);
     const errorMessage = err instanceof Error ? err.message : 'Internal server error';
-    return NextResponse.json({ statusCode: 500, message: errorMessage }, { status: 500 });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

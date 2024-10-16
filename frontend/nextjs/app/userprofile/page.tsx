@@ -12,6 +12,7 @@ import DeleteAccount from '@/components/profile/DeleteAccount';
 import { Toaster, toast } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import styles from './UserProfile.module.css';
+import { getReports } from '@/config/firebase/backendService';
 
 interface CustomUser {
   id: string;
@@ -28,7 +29,7 @@ const tabs = [
 ];
 
 export default function UserProfile() {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('profile');
   const [papers, setPapers] = useState<Array<{ id: string; title: string; date: string }>>([]);
@@ -41,11 +42,19 @@ export default function UserProfile() {
 
   useEffect(() => {
     if (user) {
-      // Fetch user's research papers (placeholder data)
-      setPapers([
-        { id: '1', title: 'AI in Healthcare', date: '2023-05-15' },
-        { id: '2', title: 'Machine Learning Trends', date: '2023-07-22' },
-      ]);
+      // Fetch user's research papers
+      getReports(user.uid)
+        .then((reports) => {
+          setPapers(reports.map((report: any) => ({
+            id: report.id,
+            title: report.title,
+            date: report.createdAt
+          })));
+        })
+        .catch((error) => {
+          console.error('Error fetching reports:', error);
+          toast.error('Failed to load research papers');
+        });
     }
   }, [user]);
 

@@ -11,6 +11,7 @@ import GoogleSignInButton from '@/components/GoogleSignInButton'
 import XSignInButton from '@/components/XSigninButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
+import { createUserProfile } from '@/config/firebase/backendService'
 
 export default function SignupPage() {
   const [name, setName] = useState('')
@@ -22,60 +23,68 @@ export default function SignupPage() {
   const router = useRouter()
   const { user } = useAuth()
 
-  const handleEmailPasswordSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError('')
-    if (auth) {
-      try {
-        await createUserWithEmailAndPassword(auth, email, password)
-        // TODO: Save the name to the user profile
-        router.push('/research')
-      } catch (error: any) {
-        console.error('Error signing up:', error)
-        setError(error.message || 'An error occurred during sign up')
-      }
-    } else {
-      setError('Authentication not initialized')
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await createUserProfile(userCredential.user.uid, {
+        name: name,
+        email: email,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      });
+      router.push('/research');
+    } catch (error: any) {
+      console.error('Error signing up:', error);
+      setError(error.message || 'An error occurred during sign up');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false)
-  }
+  };
 
   const handleGoogleSignUp = async () => {
-    setIsLoading(true)
-    setError('')
-    const provider = new GoogleAuthProvider()
-    if (auth) {
-      try {
-        await signInWithPopup(auth, provider)
-        router.push('/research')
-      } catch (error: any) {
-        console.error('Error signing up with Google:', error)
-        setError(error.message || 'An error occurred during Google sign up')
-      }
-    } else {
-      setError('Authentication not initialized')
+    setIsLoading(true);
+    setError('');
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      await createUserProfile(result.user.uid, {
+        name: result.user.displayName || '',
+        email: result.user.email || '',
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      });
+      router.push('/research');
+    } catch (error: any) {
+      console.error('Error signing up with Google:', error);
+      setError(error.message || 'An error occurred during Google sign up');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false)
-  }
+  };
 
   const handleXSignUp = async () => {
-    setIsLoading(true)
-    setError('')
-    const provider = new TwitterAuthProvider()
-    if (auth) {
-      try {
-        await signInWithPopup(auth, provider)
-        router.push('/research')
-      } catch (error: any) {
-        console.error('Error signing up with X:', error)
-        setError(error.message || 'An error occurred during X sign up')
-      }
-    } else {
-      setError('Authentication not initialized')
+    setIsLoading(true);
+    setError('');
+    const provider = new TwitterAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      await createUserProfile(result.user.uid, {
+        name: result.user.displayName || '',
+        email: result.user.email || '',
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      });
+      router.push('/research');
+    } catch (error: any) {
+      console.error('Error signing up with X:', error);
+      setError(error.message || 'An error occurred during X sign up');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false)
-  }
+  };
 
   if (user) {
     router.push('/research')
@@ -106,7 +115,7 @@ export default function SignupPage() {
               <span className="block sm:inline">{error}</span>
             </div>
           )}
-          <form onSubmit={handleEmailPasswordSignUp} className="space-y-6">
+          <form onSubmit={handleSignUp} className="space-y-6">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                 Full Name

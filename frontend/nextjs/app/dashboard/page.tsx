@@ -3,8 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/config/firebase/AuthContext';
-import { Stripe } from 'stripe';
-import getStripe from '@/config/stripe/get-stripejs';
+import { getSubscription } from '@/config/firebase/backendService';
 
 const DashboardPage: React.FC = () => {
   const { user, loading } = useAuth();
@@ -19,13 +18,8 @@ const DashboardPage: React.FC = () => {
     const fetchSubscriptionStatus = async () => {
       if (user) {
         try {
-          const res = await fetch('/api/subscription_status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uid: user.uid }),
-          });
-          const data = await res.json();
-          setSubscriptionStatus(data.status || 'No Subscription');
+          const res = await getSubscription(user.uid);
+          setSubscriptionStatus(res.data.status || 'No Subscription');
         } catch (error) {
           console.error('Error fetching subscription status:', error);
           setSubscriptionStatus('Error fetching status');
