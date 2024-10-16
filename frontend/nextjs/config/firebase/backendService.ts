@@ -62,12 +62,16 @@ export const deleteReport = async (userId: string, reportId: string) => {
 };
 
 // WebSocket connection
-const connectWebSocket = (token: string) => {
-  const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws`);
-  ws.onopen = () => {
-    ws.send(JSON.stringify({ type: 'auth', token }));
-  };
-  // Rest of WebSocket logic
+const socket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws`);
+
+socket.onopen = async () => {
+  const token = await auth.currentUser?.getIdToken();
+  if (token) {
+    socket.send(JSON.stringify({ type: 'auth', token }));
+  } else {
+    console.error('No token available');
+    socket.close();
+  }
 };
 
 export const createCheckoutSession = async (plan: string, amount: number) => {
