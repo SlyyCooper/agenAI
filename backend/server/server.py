@@ -217,14 +217,18 @@ async def api_stripe_webhook(request: Request):
 # WebSocket route for real-time communication
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    await websocket.accept()
     try:
         while True:
-            data = await websocket.receive_json()
-            if data['type'] == 'auth':
-                # Authentication is handled in the connect method
-                pass
+            data = await websocket.receive_text()
+            if data.startswith("start"):
+                await handle_start_command(websocket, data, manager)
+            elif data.startswith("human_feedback"):
+                await handle_human_feedback(data)
             else:
-                await handle_websocket_communication(websocket, manager)
+                print("Error: Unknown command or not enough parameters provided.")
     except WebSocketDisconnect:
+        await manager.disconnect(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
         await manager.disconnect(websocket)

@@ -39,20 +39,9 @@ class WebSocketManager:
             else:
                 break
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        try:
-            data = await websocket.receive_json()
-            if data['type'] == 'auth':
-                token = data['token']
-                decoded_token = auth.verify_id_token(token)
-                user_id = decoded_token['uid']
-                self.active_connections.append((user_id, websocket))
-                await websocket.send_text(f"Connected as user {user_id}")
-            else:
-                await websocket.close(code=1008, reason="Invalid authentication")
-        except Exception as e:
-            await websocket.close(code=1008, reason="Authentication failed")
+    async def connect(self, websocket: WebSocket, user_id: str):
+        self.active_connections.append((user_id, websocket))
+        # No need to accept or read messages here
 
     async def disconnect(self, websocket: WebSocket):
         for connection in self.active_connections:
