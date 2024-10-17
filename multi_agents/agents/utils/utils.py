@@ -23,4 +23,14 @@ def sanitize_filename(filename: str) -> str:
     >>> sanitize_filename('valid_filename.txt')
     'valid_filename.txt'
     """
+    # Use a regular expression to replace invalid characters
+    # re.sub() is used for string substitution based on a pattern
+    # The pattern r'[<>:"/\\|?*]' matches any of the invalid characters
+    # These characters are replaced with an underscore '_'
+    # ^ is the start of the string, $ is the end of the string
+    # This ensures that the entire string is processed
     return re.sub(r'[<>:"/\\|?*]', '_', filename)
+
+# Note: This function is crucial for ensuring cross-platform compatibility
+# when dealing with filenames, especially when working with systems
+# that have different filename restrictions (like Windows vs. Unix-based systems).

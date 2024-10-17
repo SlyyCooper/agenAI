@@ -1,5 +1,6 @@
-'use client';
+'use client'; // Indicates that this is a client-side component
 
+// Importing necessary dependencies and components
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/config/firebase/AuthContext';
@@ -14,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import styles from './UserProfile.module.css';
 import { getReports } from '@/config/firebase/backendService';
 
+// Define the structure for the user object
 interface CustomUser {
   id: string;
   name: string;
@@ -21,6 +23,7 @@ interface CustomUser {
   avatar: string;
 }
 
+// Define the tabs for the user profile page
 const tabs = [
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'papers', label: 'Research Papers', icon: FileText },
@@ -28,18 +31,23 @@ const tabs = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
+// Main component for the user profile page
 export default function UserProfile() {
+  // Get user authentication data and loading state
   const { user, userProfile, loading } = useAuth();
   const router = useRouter();
+  // State for managing active tab and user's research papers
   const [activeTab, setActiveTab] = useState('profile');
   const [papers, setPapers] = useState<Array<{ id: string; title: string; date: string }>>([]);
 
+  // Effect to redirect to login page if user is not authenticated
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     }
   }, [user, loading, router]);
 
+  // Effect to fetch user's research papers when user is available
   useEffect(() => {
     if (user) {
       // Fetch user's research papers
@@ -58,6 +66,7 @@ export default function UserProfile() {
     }
   }, [user]);
 
+  // Show loading spinner while authentication state is being determined
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -66,10 +75,12 @@ export default function UserProfile() {
     );
   }
 
+  // Return null if user is not authenticated (will be redirected by useEffect)
   if (!user) {
-    return null; // The useEffect hook will redirect to login page
+    return null;
   }
 
+  // Create a custom user object with available user data
   const customUser: CustomUser = {
     id: user.uid,
     name: user.displayName || 'User',
@@ -77,6 +88,7 @@ export default function UserProfile() {
     avatar: user.photoURL || '',
   };
 
+  // Function to render the content of the active tab
   const renderTabContent = () => {
     switch (activeTab) {
       case 'profile':
@@ -97,6 +109,7 @@ export default function UserProfile() {
     }
   };
 
+  // Render the user profile page
   return (
     <div className={styles.profileContainer}>
       <Toaster position="top-right" />
@@ -107,6 +120,7 @@ export default function UserProfile() {
         className={styles.profileCard}
       >
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
+          {/* Sidebar with user info and navigation */}
           <div className={styles.profileSidebar}>
             <ProfileHeader user={customUser} />
             <nav className="mt-8">
@@ -127,6 +141,7 @@ export default function UserProfile() {
               </ul>
             </nav>
           </div>
+          {/* Main content area */}
           <div className={styles.contentArea}>
             <motion.div
               key={activeTab}

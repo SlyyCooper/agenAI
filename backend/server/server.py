@@ -1,21 +1,26 @@
+# This file serves as the main entry point for the backend server of our application.
+# It sets up the FastAPI server, initializes Firebase Admin SDK, and defines all the API routes.
+
 import os
 import re
 from typing import Dict, List
 from dotenv import load_dotenv
 
+# Firebase Admin SDK for server-side operations
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from backend.server.utils.auth_utils import get_authenticated_user_id
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, File, UploadFile, Header
+# FastAPI and related imports for building the API
+from fastapi import Depends, HTTPException, status, FastAPI, Request, WebSocket, WebSocketDisconnect, File, UploadFile, Header
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+# Custom utility imports
+from backend.server.utils.auth_utils import get_authenticated_user_id
 from backend.server.server_utils import generate_report_files
 from backend.server.utils import firebase_utils
 from backend.server.websocket_manager import WebSocketManager
@@ -42,7 +47,8 @@ from backend.server.utils.firebase_utils import (
 )
 from backend.server.utils.stripe_utils import create_checkout_session, retrieve_session, create_payment_intent, handle_stripe_webhook
 
-# Models
+# Models for request validation
+# These Pydantic models ensure that incoming requests have the correct structure
 
 class ResearchRequest(BaseModel):
     task: str
@@ -81,21 +87,25 @@ class ConfigUpdateRequest(BaseModel):
     max_subtopics: int = None
     report_source: str = None
 
-# App initialization
+# Initialize the FastAPI application
 app = FastAPI()
 
-# Static files and templates
+# Initialize Firebase Admin SDK for server-side operations
+initialize_firebase()
+
+# Set up static file serving and templating
 app.mount("/site", StaticFiles(directory="./frontend"), name="site")
 app.mount("/static", StaticFiles(directory="./frontend/static"), name="static")
 templates = Jinja2Templates(directory="./frontend")
 
-# WebSocket manager
+# Initialize WebSocket manager for real-time communication
 manager = WebSocketManager()
 
+# Utility function to sanitize filenames
 def sanitize_filename(filename):
     return re.sub(r"[^\w\s-]", "", filename).strip()
 
-# Middleware
+# Set up CORS middleware to allow cross-origin requests from specified domains
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -118,15 +128,14 @@ DOC_PATH = os.getenv("DOC_PATH", "./my-docs")
 # Load environment variables
 load_dotenv()
 
-# Initialize Firebase
-firebase_utils.initialize_firebase()
+# API Routes
 
-# Routes
-
+# Root route
 @app.get("/")
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "report": None})
 
+# Configuration route
 @app.get("/getConfig")
 async def get_config(
     langchain_api_key: str = Header(None),
@@ -146,6 +155,7 @@ async def get_config(
         searchapi_api_key, serpapi_api_key, serper_api_key, searx_url
     )
 
+# User profile routes
 @app.post("/api/user_profile")
 async def create_user_profile(user_data: dict, user_id: str = Depends(get_authenticated_user_id)):
     return await firebase_utils.create_user_profile(user_data, user_id)
@@ -158,6 +168,7 @@ async def get_user_profile(user_id: str, authenticated_user_id: str = Depends(ge
 async def update_user_profile(user_id: str, user_data: dict, authenticated_user_id: str = Depends(get_authenticated_user_id)):
     return await firebase_utils.update_user_profile(user_id, user_data, authenticated_user_id)
 
+# Subscription routes
 @app.post("/api/subscription")
 async def api_create_subscription(subscription_data: dict, user_id: str = Depends(get_authenticated_user_id)):
     return await firebase_utils.create_subscription(subscription_data, user_id)
@@ -170,6 +181,7 @@ async def api_get_subscription(user_id: str, authenticated_user_id: str = Depend
 async def api_update_subscription(user_id: str, subscription_data: dict, authenticated_user_id: str = Depends(get_authenticated_user_id)):
     return await firebase_utils.update_subscription(user_id, subscription_data, authenticated_user_id)
 
+# Report routes
 @app.post("/api/report")
 async def api_create_report(report_data: dict, user_id: str = Depends(get_authenticated_user_id)):
     return await firebase_utils.create_report(report_data, user_id)
@@ -182,13 +194,15 @@ async def api_get_reports(user_id: str, authenticated_user_id: str = Depends(get
 async def api_delete_report(user_id: str, report_id: str, authenticated_user_id: str = Depends(get_authenticated_user_id)):
     return await firebase_utils.delete_report(user_id, report_id, authenticated_user_id)
 
+# Payment routes
 @app.post("/api/checkout_sessions")
 async def api_create_checkout_session(data: dict, user_id: str = Depends(get_authenticated_user_id)):
     return await create_checkout_session(data['plan'], data['amount'], data['success_url'], data['cancel_url'])
 
 @app.get("/api/checkout_sessions/{session_id}")
 async def api_get_checkout_session(session_id: str, user_id: str = Depends(get_authenticated_user_id)):
-    return await retrieve_session(session_id)
+    session = await retrieve_session(session_id)
+    return JSONResponse(content=session)
 
 @app.post("/api/payment_intents")
 async def api_create_payment_intent(data: dict, user_id: str = Depends(get_authenticated_user_id)):
@@ -200,13 +214,17 @@ async def api_stripe_webhook(request: Request):
     sig_header = request.headers.get('stripe-signature')
     return await handle_stripe_webhook(payload, sig_header)
 
+# WebSocket route for real-time communication
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    print(f"Incoming WebSocket connection from origin: {websocket.headers.get('origin')}")
     await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_text()
-            await manager.send_personal_message(f"You wrote: {data}", websocket)
+            data = await websocket.receive_json()
+            if data['type'] == 'auth':
+                # Authentication is handled in the connect method
+                pass
+            else:
+                await handle_websocket_communication(websocket, manager)
     except WebSocketDisconnect:
         await manager.disconnect(websocket)

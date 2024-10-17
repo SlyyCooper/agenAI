@@ -1,5 +1,6 @@
 "use client";
 
+// Importing necessary dependencies and components
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/config/firebase/AuthContext";
@@ -22,16 +23,20 @@ import HumanFeedback from "@/components/HumanFeedback";
 import Settings from "@/components/Settings";
 import Image from 'next/image';
 
+// Main component for the research page
 export default function ResearchPage() {
+  // Using Firebase authentication
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  // Redirect to login page if user is not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
     }
   }, [user, authLoading, router]);
 
+  // State variables for managing the research process
   const [promptValue, setPromptValue] = useState("");
   const [showResult, setShowResult] = useState(false);
   const [answer, setAnswer] = useState("");
@@ -51,18 +56,21 @@ export default function ResearchPage() {
   const [hasOutput, setHasOutput] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
+  // Scroll to the bottom of the chat container when new data is added
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [orderedData]);
 
+  // Function to start the research process
   const startResearch = async (chatBoxSettings: {
     task?: string;
     report_type: string;
     report_source: string;
     tone: string;
   }) => {
+    // Retrieve API variables from local storage
     const storedConfig = localStorage.getItem('apiVariables');
     const apiVariables = storedConfig ? JSON.parse(storedConfig) : {};
     const headers = {
@@ -79,6 +87,7 @@ export default function ResearchPage() {
       'searx_url': apiVariables.SEARX_URL
     };
 
+    // If no WebSocket connection exists, create one
     if (!socket) {
       if (typeof window !== 'undefined') {
         const { protocol } = window.location;
@@ -89,7 +98,7 @@ export default function ResearchPage() {
         
         const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}/ws`;
         
-        // Get the Firebase ID token
+        // Get the Firebase ID token for authentication
         const idToken = await user?.getIdToken();
         if (!idToken) {
           console.error('Failed to retrieve ID token');
@@ -97,9 +106,11 @@ export default function ResearchPage() {
           return;
         }
         
+        // Create a new WebSocket connection
         const newSocket = new WebSocket(ws_uri);
         setSocket(newSocket as WebSocket);
 
+        // Handle incoming WebSocket messages
         newSocket.onmessage = (event) => {
           const data = JSON.parse(event.data);
           console.log('websocket data caught in frontend: ', data);
@@ -123,6 +134,7 @@ export default function ResearchPage() {
           
         };
 
+        // Handle WebSocket connection opening
         newSocket.onopen = () => {
           console.log('WebSocket connection opened');
           console.log('Sending auth message');
@@ -139,25 +151,27 @@ export default function ResearchPage() {
           });
           newSocket.send(data);
 
-          // Start sending heartbeat messages every 30 seconds
+          // Uncomment to start sending heartbeat messages every 30 seconds
           // heartbeatInterval.current = setInterval(() => {
           //   newSocket.send(JSON.stringify({ type: 'ping' }));
           // }, 30000);
         };
 
+        // Handle WebSocket connection closing
         newSocket.onclose = () => {
           clearInterval(heartbeatInterval.current as number);
           setSocket(null);
         };
       }
     } else {
+      // If a WebSocket connection already exists, send the research data
       const { task, report_type, report_source, tone } = chatBoxSettings;
       let data = "start " + JSON.stringify({ task: promptValue, report_type, report_source, tone, headers });
       socket.send(data);
     }
   };
 
-  // Add this function to handle feedback submission
+  // Function to handle human feedback submission
   const handleFeedbackSubmit = (feedback: string | null) => {
     console.log('user feedback is passed to handleFeedbackSubmit: ', feedback);
     if (socket) {
@@ -166,6 +180,7 @@ export default function ResearchPage() {
     setShowHumanFeedback(false);
   };
 
+  // Function to handle displaying research results
   const handleDisplayResult = async (newQuestion?: string) => {
     setIsTransitioning(true);
     newQuestion = newQuestion || promptValue;
@@ -188,6 +203,7 @@ export default function ResearchPage() {
     const langgraphHostUrl = apiVariables.LANGGRAPH_HOST_URL;
 
     if (report_type === 'multi_agents' && langgraphHostUrl) {
+      // Start Langgraph research process
       let { streamResponse, host, thread_id } = await startLanggraphResearch(newQuestion, report_source, langgraphHostUrl);
 
       const langsmithGuiLink = `https://smith.langchain.com/studio/thread/${thread_id}?baseUrl=${host}`;
@@ -198,6 +214,7 @@ export default function ResearchPage() {
 
       let previousChunk = null;
 
+      // Process the stream response
       for await (const chunk of streamResponse) {
         console.log(chunk);
         if (chunk.data.report != null && chunk.data.report != "Full report content here") {
@@ -212,6 +229,7 @@ export default function ResearchPage() {
         previousChunk = chunk;
       }
     } else {
+      // Start regular research process
       startResearch(chatBoxSettings);
       setHasOutput(true); // Set hasOutput to true when the research starts
     }
@@ -221,6 +239,7 @@ export default function ResearchPage() {
     }, 500); // Adjust this value to match your transition duration
   };
 
+  // Function to reset the research state
   const reset = () => {
     setShowResult(false);
     setPromptValue("");
@@ -230,6 +249,7 @@ export default function ResearchPage() {
     setSimilarQuestions([]);
   };
 
+  // Function to handle clicking on a suggested question
   const handleClickSuggestion = (value: string) => {
     setPromptValue(value);
     const element = document.getElementById('input-area');
@@ -238,6 +258,7 @@ export default function ResearchPage() {
     }
   };
 
+  // Function to preprocess the ordered data for rendering
   const preprocessOrderedData = (data: any[]): any[] => {
     const groupedData: any[] = [];
     let currentAccordionGroup: any = null;
@@ -247,36 +268,49 @@ export default function ResearchPage() {
     let sourceBlockEncountered = false;
     let lastSubqueriesIndex = -1;
   
+    // Group and organize the data for rendering
     data.forEach((item: any, index: number) => {
       const { type, content, metadata, output, link } = item;
   
+      // Handle report type items
       if (type === 'report') {
         if (!currentReportGroup) {
           currentReportGroup = { type: 'reportBlock', content: '' };
           groupedData.push(currentReportGroup);
         }
         currentReportGroup.content += output;
-      } else if (type === 'logs' && content === 'research_report') {
+      } 
+      // Handle final research report
+      else if (type === 'logs' && content === 'research_report') {
         if (!finalReportGroup) {
           finalReportGroup = { type: 'reportBlock', content: '' };
           groupedData.push(finalReportGroup);
         }
         finalReportGroup.content += output.report;
-      } else if (type === 'langgraphButton') {
+      } 
+      // Handle Langgraph button
+      else if (type === 'langgraphButton') {
         groupedData.push({ type: 'langgraphButton', link });
-      } else if (type === 'question') {
+      } 
+      // Handle question type items
+      else if (type === 'question') {
         groupedData.push({ type: 'question', content });
-      } else if (type === 'accordionBlock') {
+      } 
+      // Handle accordion block items
+      else if (type === 'accordionBlock') {
         if (!currentAccordionGroup) {
           currentAccordionGroup = { type: 'accordionBlock', items: [] };
           groupedData.push(currentAccordionGroup);
         }
         currentAccordionGroup.items.push(item);
-      } else {
+      } 
+      // Handle other types of items
+      else {
         if (currentReportGroup) {
           currentReportGroup = null;
         }
   
+        // Handle subqueries
         if (content === 'subqueries') {
           if (currentAccordionGroup) {
             currentAccordionGroup = null;
@@ -287,7 +321,9 @@ export default function ResearchPage() {
           }
           groupedData.push(item);
           lastSubqueriesIndex = groupedData.length - 1;
-        } else if (type === 'sourceBlock') {
+        } 
+        // Handle source blocks
+        else if (type === 'sourceBlock') {
           currentSourceGroup = item;
           if (lastSubqueriesIndex !== -1) {
             groupedData.splice(lastSubqueriesIndex + 1, 0, currentSourceGroup);
@@ -297,7 +333,9 @@ export default function ResearchPage() {
           }
           sourceBlockEncountered = true;
           currentSourceGroup = null;
-        } else if (content === 'added_source_url') {
+        } 
+        // Handle added source URLs
+        else if (content === 'added_source_url') {
           if (!currentSourceGroup) {
             currentSourceGroup = { type: 'sourceBlock', items: [] };
             if (lastSubqueriesIndex !== -1) {
@@ -310,7 +348,9 @@ export default function ResearchPage() {
           }
           const hostname = new URL(metadata).hostname.replace('www.', '');
           currentSourceGroup.items.push({ name: hostname, url: metadata });
-        } else if (type !== 'path' && content !== '') {
+        } 
+        // Handle other content types
+        else if (type !== 'path' && content !== '') {
           if (sourceBlockEncountered) {
             if (!currentAccordionGroup) {
               currentAccordionGroup = { type: 'accordionBlock', items: [] };
@@ -320,7 +360,9 @@ export default function ResearchPage() {
           } else {
             groupedData.push(item);
           }
-        } else {
+        } 
+        // Reset groups and push remaining items
+        else {
           if (currentAccordionGroup) {
             currentAccordionGroup = null;
           }
@@ -335,7 +377,9 @@ export default function ResearchPage() {
     return groupedData;
   };
 
+  // Function to render components in order
   const renderComponentsInOrder = () => {
+    // Preprocess the ordered data
     const groupedData = preprocessOrderedData(orderedData);
     console.log('orderedData in renderComponentsInOrder: ', groupedData);
 
@@ -349,9 +393,11 @@ export default function ResearchPage() {
 
     let accessReportComponent: React.ReactNode | null = null;
 
+    // Render components based on the grouped data
     groupedData.forEach((data, index) => {
       const uniqueKey = `${data.type}-${index}`;
 
+      // Handle different types of components
       if (data.type === 'sourceBlock') {
         leftComponents.push(<Sources key={uniqueKey} sources={data.items} />);
       } else if (data.type === 'accordionBlock') {
@@ -392,20 +438,24 @@ export default function ResearchPage() {
     return { leftComponents, rightComponents };
   };
 
+  // Check if authentication is still loading
   if (authLoading) {
     return <div>Loading...</div>;
   }
 
+  // Redirect if user is not authenticated
   if (!user) {
     return null; // or a loading spinner, as the useEffect will redirect
   }
 
+  // Render the main component
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow flex flex-col overflow-hidden relative">
         {/* Top container for Hero, InputArea, and Settings */}
         <div className="w-full relative p-4 bg-gray-50 shadow-sm">
           <div className="max-w-7xl mx-auto">
+            {/* Logo and Settings */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex-grow flex justify-center">
                 <Image 
@@ -419,6 +469,7 @@ export default function ResearchPage() {
               <Settings setChatBoxSettings={setChatBoxSettings} chatBoxSettings={chatBoxSettings} />
             </div>
             
+            {/* Input Area */}
             <div className={`transition-all duration-500 ease-in-out ${
               showResult ? 'translate-y-0 opacity-100' : 'translate-y-1/2 opacity-0'
             }`}>
@@ -431,6 +482,7 @@ export default function ResearchPage() {
               />
             </div>
             
+            {/* Hero component */}
             {!showResult && !isTransitioning && (
               <div className="mt-2">
                 <Hero
@@ -479,6 +531,7 @@ export default function ResearchPage() {
                 </div>
               )}
             </div>
+            {/* Human Feedback component */}
             {showHumanFeedback && (
               <div className="mt-4 bg-white rounded-lg shadow-sm p-4">
                 <HumanFeedback

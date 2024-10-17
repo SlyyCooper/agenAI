@@ -2,6 +2,7 @@ from typing import Dict, Any, Callable
 from fastapi import WebSocket
 from gpt_researcher.utils.logger import get_formatted_logger
 
+# Initialize a formatted logger for consistent logging throughout the module
 logger = get_formatted_logger()
 
 
@@ -9,23 +10,29 @@ async def stream_output(
     type, content, output, websocket=None, output_log=True, metadata=None
 ):
     """
-    Streams output to the websocket
+    Streams output to the websocket and/or logs it.
+    
     Args:
-        type:
-        content:
-        output:
+        type: The type of output (e.g., 'log', 'result')
+        content: The content to be streamed
+        output: The actual output text
+        websocket: Optional WebSocket connection for real-time communication
+        output_log: Boolean to determine if the output should be logged
+        metadata: Additional metadata to be sent with the output
 
     Returns:
         None
     """
+    # Log the output if required or if there's no WebSocket
     if not websocket or output_log:
         try:
             logger.info(f"{output}")
         except UnicodeEncodeError:
-            # Option 1: Replace problematic characters with a placeholder
+            # Handle Unicode encoding errors by replacing problematic characters
             logger.error(output.encode(
                 'cp1252', errors='replace').decode('cp1252'))
 
+    # If a WebSocket is provided, send the output as JSON
     if websocket:
         await websocket.send_json(
             {"type": type, "content": content,
@@ -35,7 +42,7 @@ async def stream_output(
 
 async def safe_send_json(websocket: WebSocket, data: Dict[str, Any]) -> None:
     """
-    Safely send JSON data through a WebSocket connection.
+    Safely send JSON data through a WebSocket connection, handling potential errors.
 
     Args:
         websocket (WebSocket): The WebSocket connection to send data through.
@@ -116,9 +123,11 @@ async def update_cost(
     Returns:
         None
     """
+    # Calculate the cost and total tokens
     cost = calculate_cost(prompt_tokens, completion_tokens, model)
     total_tokens = prompt_tokens + completion_tokens
 
+    # Send the cost information as JSON through the WebSocket
     await safe_send_json(websocket, {
         "type": "cost",
         "data": {
@@ -133,6 +142,9 @@ async def update_cost(
 def create_cost_callback(websocket: WebSocket) -> Callable:
     """
     Create a callback function for updating costs.
+
+    This function returns another function that can be used as a callback
+    to update costs whenever an API call is made.
 
     Args:
         websocket (WebSocket): The WebSocket connection to send data through.

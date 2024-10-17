@@ -40,36 +40,24 @@ class WebSocketManager:
                 break
 
     async def connect(self, websocket: WebSocket):
-        """Connect a websocket."""
         await websocket.accept()
         try:
-            auth_message = await websocket.receive_json()
-            if auth_message['type'] == 'auth':
-                token = auth_message['token']
-                try:
-                    user_id = await get_authenticated_user_id(token)
-                    print(f"Authenticated user: {user_id}")
-                    self.active_connections.append((user_id, websocket))
-                    self.message_queues[websocket] = asyncio.Queue()
-                    self.sender_tasks[websocket] = asyncio.create_task(
-                        self.start_sender(websocket))
-                except HTTPException as e:
-                    print(f"Token verification failed: {e}")
-                    await websocket.close(code=1008)  # Policy violation
-                    return
+            data = await websocket.receive_json()
+            if data['type'] == 'auth':
+                token = data['token']
+                decoded_token = auth.verify_id_token(token)
+                user_id = decoded_token['uid']
+                self.active_connections.append((user_id, websocket))
+                await websocket.send_text(f"Connected as user {user_id}")
             else:
-                await websocket.close(code=1008)  # Policy violation
-                return
+                await websocket.close(code=1008, reason="Invalid authentication")
         except Exception as e:
-            print(f"Authentication error: {e}")
-            await websocket.close(code=1008)  # Policy violation
-            return
+            await websocket.close(code=1008, reason="Authentication failed")
 
     async def disconnect(self, websocket: WebSocket):
-        """Disconnect a websocket."""
-        for user_id, ws in self.active_connections:
-            if ws == websocket:
-                self.active_connections.remove((user_id, ws))
+        for connection in self.active_connections:
+            if connection[1] == websocket:
+                self.active_connections.remove(connection)
                 break
         if websocket in self.sender_tasks:
             self.sender_tasks[websocket].cancel()

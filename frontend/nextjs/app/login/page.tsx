@@ -1,5 +1,7 @@
+// This is a client-side component, indicated by the 'use client' directive
 'use client'
 
+// Import necessary dependencies and components
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight, Brain, Eye, EyeOff } from 'lucide-react'
@@ -12,23 +14,29 @@ import XSignInButton from '@/components/XSigninButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
 
+// Define the LoginPage component
 export default function LoginPage() {
+  // State variables for form inputs, UI states, and error handling
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Hooks for routing and authentication
   const router = useRouter()
   const { user, loading } = useAuth()
 
+  // Function to handle email/password sign in
   const handleEmailPasswordSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError('')
     if (auth) {
       try {
+        // Attempt to sign in with email and password
         await signInWithEmailAndPassword(auth, email, password)
-        router.push('/research')
+        router.push('/research') // Redirect to research page on success
       } catch (error: any) {
         console.error('Error signing in:', error)
         setError(error.message || 'An error occurred during sign in')
@@ -39,14 +47,16 @@ export default function LoginPage() {
     setIsLoading(false)
   }
 
+  // Function to handle Google sign in
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     setError('')
     const provider = new GoogleAuthProvider()
     if (auth) {
       try {
+        // Attempt to sign in with Google
         await signInWithPopup(auth, provider)
-        router.push('/research')
+        router.push('/research') // Redirect to research page on success
       } catch (error: any) {
         console.error('Error signing in with Google:', error)
         setError(error.message || 'An error occurred during Google sign in')
@@ -57,14 +67,16 @@ export default function LoginPage() {
     setIsLoading(false)
   }
 
+  // Function to handle Twitter (X) sign in
   const handleXSignIn = async () => {
     setIsLoading(true)
     setError('')
     const provider = new TwitterAuthProvider()
     if (auth) {
       try {
+        // Attempt to sign in with Twitter
         await signInWithPopup(auth, provider)
-        router.push('/research')
+        router.push('/research') // Redirect to research page on success
       } catch (error: any) {
         console.error('Error signing in with X:', error)
         setError(error.message || 'An error occurred during X sign in')
@@ -75,13 +87,16 @@ export default function LoginPage() {
     setIsLoading(false)
   }
 
+  // If user is already logged in, redirect to research page
   if (user) {
     router.push('/research')
     return null
   }
 
+  // Render the login form
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900 flex flex-col justify-center items-center px-4">
+      {/* Animated container for the login form */}
       <motion.div 
         className="max-w-md w-full bg-white rounded-xl shadow-lg overflow-hidden"
         initial={{ opacity: 0, y: 20 }}
@@ -89,6 +104,7 @@ export default function LoginPage() {
         transition={{ duration: 0.5 }}
       >
         <div className="p-8">
+          {/* Logo */}
           <div className="flex justify-center mb-4">
             <Image
               src="/TAN.png"
@@ -99,12 +115,15 @@ export default function LoginPage() {
             />
           </div>
           <h2 className="text-3xl font-bold text-center mb-6">Welcome Back</h2>
+          {/* Error message display */}
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
               <span className="block sm:inline">{error}</span>
             </div>
           )}
+          {/* Login form */}
           <form onSubmit={handleEmailPasswordSignIn} className="space-y-6">
+            {/* Email input field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email Address
@@ -118,6 +137,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
+            {/* Password input field with show/hide toggle */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Password
@@ -144,6 +164,7 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+            {/* Submit button */}
             <div>
               <button
                 type="submit"
@@ -162,6 +183,7 @@ export default function LoginPage() {
             </div>
           </form>
           
+          {/* Divider */}
           <div className="mt-6 relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300"></div>
@@ -171,11 +193,13 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {/* Social login buttons */}
           <div className="mt-6 flex justify-center space-x-4">
             <GoogleSignInButton onClick={handleGoogleSignIn} />
             <XSignInButton onClick={handleXSignIn} />
           </div>
           
+          {/* Sign up link */}
           <div className="mt-4 text-center">
             <Link href="/signup" className="text-sm text-blue-600 hover:text-blue-800 transition-colors">
               Don&apos;t have an account? Sign up
@@ -183,6 +207,7 @@ export default function LoginPage() {
           </div>
         </div>
       </motion.div>
+      {/* Animated "Powered by AI" text */}
       <motion.div
         className="mt-8 flex items-center text-gray-600"
         initial={{ opacity: 0 }}

@@ -1,12 +1,17 @@
+// Import necessary dependencies
 import React, { useCallback, useEffect, useState } from "react";
 import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
 import {getHost} from "@/helpers/getHost"
 
+// Define the FileUpload component
 const FileUpload = () => {
+  // State to store the list of uploaded files
   const [files, setFiles] = useState([]);
+  // Get the host URL for API calls
   const host = getHost();
 
+  // Function to fetch the list of files from the server
   const fetchFiles = useCallback(async () => {
     try {
       const response = await axios.get(`${host}/files/`);
@@ -16,10 +21,12 @@ const FileUpload = () => {
     }
   }, [host]);
 
+  // Fetch files when the component mounts or when the host changes
   useEffect(() => {
     fetchFiles();
   }, [fetchFiles]);
 
+  // Function to handle file drop or selection
   const onDrop = async (acceptedFiles) => {
     const formData = new FormData();
     acceptedFiles.forEach(file => {
@@ -27,34 +34,41 @@ const FileUpload = () => {
     });
     
     try {
+      // Upload the files to the server
       await axios.post(`${host}/upload/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
+      // Refresh the file list after upload
       fetchFiles();
     } catch (error) {
       console.error('Error uploading files:', error);
     }
   };
 
+  // Function to delete a file
   const deleteFile = async (filename) => {
     try {
       await axios.delete(`${host}/files/${filename}`);
+      // Refresh the file list after deletion
       fetchFiles();
     } catch (error) {
       console.error('Error deleting file:', error);
     }
   };
 
+  // Set up the dropzone for file uploads
   const { getRootProps, getInputProps } = useDropzone({ onDrop });
 
   return (
     <div className={"mb-4 w-full"}>
+      {/* Dropzone area for file uploads */}
       <div {...getRootProps()} className="drop-box">
         <input {...getInputProps()} />
         <p>Drag &apos;n&apos; drop some files here, or click to select files</p>
       </div>
+      {/* Display the list of uploaded files if any */}
       {files.length > 0 && (
           <>
             <h2 className={"text-gray-900 mt-2 text-xl"}>Uploaded Files</h2>
@@ -62,6 +76,7 @@ const FileUpload = () => {
               {files.map(file => (
                 <li key={file} className={"flex justify-between gap-x-6 py-1"}>
                   <span className={"flex-1"}>{file}</span>
+                  {/* Delete button for each file */}
                   <button onClick={(e) => { e.preventDefault(); deleteFile(file) }}>
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5"
                          stroke="currentColor" className="size-6">

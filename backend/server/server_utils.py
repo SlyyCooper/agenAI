@@ -1,3 +1,6 @@
+# This file contains utility functions for the backend server, handling various operations
+# such as WebSocket communication, file management, and research task execution.
+
 import json
 import os
 import re
@@ -11,12 +14,13 @@ from backend.utils import write_md_to_pdf, write_md_to_word, write_text_to_md
 from gpt_researcher.orchestrator.actions.utils import stream_output
 from multi_agents.main import run_research_task
 
-
+# Sanitize filename to ensure it's safe for file system operations
 def sanitize_filename(filename: str) -> str:
     return re.sub(r"[^\w\s-]", "", filename).strip()
 
-
+# Handle the 'start' command received via WebSocket
 async def handle_start_command(websocket, data: str, manager):
+    # Parse the JSON data received from the client
     json_data = json.loads(data[6:])
     task, report_type, source_urls, tone, headers, report_source = extract_command_data(
         json_data)
@@ -25,33 +29,39 @@ async def handle_start_command(websocket, data: str, manager):
         print("Error: Missing task or report_type")
         return
 
+    # Create a sanitized filename based on the task and timestamp
     sanitized_filename = sanitize_filename(f"task_{int(time.time())}_{task}")
 
+    # Start streaming the research report
     report = await manager.start_streaming(
         task, report_type, report_source, source_urls, tone, websocket, headers
     )
     report = str(report)
+    
+    # Generate report files in different formats
     file_paths = await generate_report_files(report, sanitized_filename)
+    
+    # Send the file paths back to the client
     await send_file_paths(websocket, file_paths)
 
-
+# Handle human feedback received via WebSocket
 async def handle_human_feedback(data: str):
     feedback_data = json.loads(data[14:])  # Remove "human_feedback" prefix
     print(f"Received human feedback: {feedback_data}")
     # TODO: Add logic to forward the feedback to the appropriate agent or update the research state
 
-
+# Generate report files in different formats (PDF, DOCX, MD)
 async def generate_report_files(report: str, filename: str) -> Dict[str, str]:
     pdf_path = await write_md_to_pdf(report, filename)
     docx_path = await write_md_to_word(report, filename)
     md_path = await write_text_to_md(report, filename)
     return {"pdf": pdf_path, "docx": docx_path, "md": md_path}
 
-
+# Send file paths to the client via WebSocket
 async def send_file_paths(websocket, file_paths: Dict[str, str]):
     await websocket.send_json({"type": "path", "output": file_paths})
 
-
+# Get configuration dictionary from environment variables or provided values
 def get_config_dict(
     langchain_api_key: str, openai_api_key: str, tavily_api_key: str,
     google_api_key: str, google_cx_key: str, bing_api_key: str,
@@ -74,12 +84,12 @@ def get_config_dict(
         "EMBEDDING_MODEL": os.getenv("OPENAI_EMBEDDING_MODEL", "")
     }
 
-
+# Update environment variables with provided configuration
 def update_environment_variables(config: Dict[str, str]):
     for key, value in config.items():
         os.environ[key] = value
 
-
+# Handle file upload
 async def handle_file_upload(file, DOC_PATH: str) -> Dict[str, str]:
     file_path = os.path.join(DOC_PATH, file.filename)
     with open(file_path, "wb") as buffer:
@@ -91,7 +101,7 @@ async def handle_file_upload(file, DOC_PATH: str) -> Dict[str, str]:
 
     return {"filename": file.filename, "path": file_path}
 
-
+# Handle file deletion
 async def handle_file_deletion(filename: str, DOC_PATH: str) -> JSONResponse:
     file_path = os.path.join(DOC_PATH, filename)
     if os.path.exists(file_path):
@@ -102,7 +112,7 @@ async def handle_file_deletion(filename: str, DOC_PATH: str) -> JSONResponse:
         print(f"File not found: {file_path}")
         return JSONResponse(status_code=404, content={"message": "File not found"})
 
-
+# Execute multi-agent research task
 async def execute_multi_agents(manager) -> Dict[str, str]:
     websocket = manager.active_connections[0] if manager.active_connections else None
     if websocket:
@@ -111,10 +121,9 @@ async def execute_multi_agents(manager) -> Dict[str, str]:
     else:
         return JSONResponse(status_code=400, content={"message": "No active WebSocket connection"})
 
-
+# Handle WebSocket communication
 async def handle_websocket_communication(websocket, manager):
     try:
-        # Remove the authentication logic here
         while True:
             data = await websocket.receive_text()
             if data.startswith("start"):
@@ -127,7 +136,7 @@ async def handle_websocket_communication(websocket, manager):
         print(f"WebSocket error: {e}")
         await manager.disconnect(websocket)
 
-
+# Extract command data from JSON
 def extract_command_data(json_data: Dict) -> tuple:
     return (
         json_data.get("task"),

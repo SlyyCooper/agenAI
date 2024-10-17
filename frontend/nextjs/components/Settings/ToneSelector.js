@@ -1,17 +1,25 @@
+// Import React library for creating React components
 import React from 'react';
 
+// Define a functional component named ToneSelector
+// It receives two props: tone (current tone) and onToneChange (function to handle tone changes)
 export default function ToneSelector({ tone, onToneChange }) {
   return (
+    // Wrapper div for the form group
     <div className="form-group">
+      {/* Label for the tone selector */}
       <label htmlFor="tone" className="agent_question">Tone </label>
+      {/* Select element for choosing the tone */}
       <select 
         name="tone" 
         id="tone" 
-        value={tone} 
-        onChange={onToneChange} 
+        value={tone} // Set the current value to the tone prop
+        onChange={onToneChange} // Call onToneChange function when selection changes
         className="form-control drop-box" 
-        required
+        required // Make this field required
       >
+        {/* Option elements for different tones */}
+        {/* Each option has a value and descriptive text */}
         <option value="Objective">Objective - Impartial and unbiased presentation of facts and findings</option>
         <option value="Formal">Formal - Adheres to academic standards with sophisticated language and structure</option>
         <option value="Analytical">Analytical - Critical evaluation and detailed examination of data and theories</option>

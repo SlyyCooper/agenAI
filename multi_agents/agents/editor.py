@@ -14,6 +14,8 @@ class EditorAgent:
     """Agent responsible for editing and managing code."""
 
     def __init__(self, websocket=None, stream_output=None, headers=None):
+        # Initialize the EditorAgent with optional websocket for real-time communication,
+        # stream_output for outputting data, and headers for HTTP requests
         self.websocket = websocket
         self.stream_output = stream_output
         self.headers = headers or {}
@@ -25,23 +27,28 @@ class EditorAgent:
         :param research_state: Dictionary containing research state information
         :return: Dictionary with title, date, and planned sections
         """
+        # Extract relevant information from the research state
         initial_research = research_state.get("initial_research")
         task = research_state.get("task")
         include_human_feedback = task.get("include_human_feedback")
         human_feedback = research_state.get("human_feedback")
         max_sections = task.get("max_sections")
 
+        # Create a prompt for the language model to plan the research
         prompt = self._create_planning_prompt(
             initial_research, include_human_feedback, human_feedback, max_sections)
 
         print_agent_output(
             "Planning an outline layout based on initial research...", agent="EDITOR")
+        
+        # Call the language model to generate a plan
         plan = await call_model(
             prompt=prompt,
             model=task.get("model"),
             response_format="json",
         )
 
+        # Return the generated plan
         return {
             "title": plan.get("title"),
             "date": plan.get("date"),
@@ -55,24 +62,30 @@ class EditorAgent:
         :param research_state: Dictionary containing research state information
         :return: Dictionary with research results
         """
+        # Initialize agents and create a workflow
         agents = self._initialize_agents()
         workflow = self._create_workflow()
         chain = workflow.compile()
 
+        # Extract queries and title from the research state
         queries = research_state.get("sections")
         title = research_state.get("title")
 
+        # Log the start of parallel research
         self._log_parallel_research(queries)
 
+        # Create and run parallel research tasks
         final_drafts = [
             chain.ainvoke(self._create_task_input(
                 research_state, query, title))
             for query in queries
         ]
+        # Gather results from all parallel tasks
         research_results = [
             result["draft"] for result in await asyncio.gather(*final_drafts)
         ]
 
+        # Return the research results
         return {"research_data": research_results}
 
     def _create_planning_prompt(self, initial_research: str, include_human_feedback: bool,
@@ -127,13 +140,17 @@ class EditorAgent:
         agents = self._initialize_agents()
         workflow = StateGraph(DraftState)
 
+        # Add nodes for each step in the research process
         workflow.add_node("researcher", agents["research"].run_depth_research)
         workflow.add_node("reviewer", agents["reviewer"].run)
         workflow.add_node("reviser", agents["reviser"].run)
 
+        # Set the entry point and define the flow between nodes
         workflow.set_entry_point("researcher")
         workflow.add_edge("researcher", "reviewer")
         workflow.add_edge("reviser", "reviewer")
+        
+        # Add conditional edges based on the review outcome
         workflow.add_conditional_edges(
             "reviewer",
             lambda draft: "accept" if draft["review"] is None else "revise",
@@ -145,6 +162,7 @@ class EditorAgent:
     def _log_parallel_research(self, queries: List[str]) -> None:
         """Log the start of parallel research tasks."""
         if self.websocket and self.stream_output:
+            # If websocket is available, stream the output
             asyncio.create_task(self.stream_output(
                 "logs",
                 "parallel_research",
@@ -152,6 +170,7 @@ class EditorAgent:
                 self.websocket,
             ))
         else:
+            # Otherwise, print to console
             print_agent_output(
                 f"Running the following research tasks in parallel: {queries}...",
                 agent="EDITOR",
