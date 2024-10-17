@@ -1,4 +1,3 @@
-// Import necessary dependencies and components
 import React, { useState, useEffect } from "react";
 import './App.css';
 import ChatBox from './ChatBox';
@@ -6,12 +5,8 @@ import axios from 'axios';
 import { getHost } from '../../helpers/getHost';
 import { motion } from 'framer-motion';
 
-// Define the Modal component
 export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
-  // Force 'search' tab to be active
-  const [activeTab] = useState('search');
-
-  // Initialize state for API variables
+  const [activeTab] = useState('search'); // Force 'search' tab to be active
   const [apiVariables, setApiVariables] = useState({
     ANTHROPIC_API_KEY: '',
     TAVILY_API_KEY: '',
@@ -30,18 +25,14 @@ export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
     LANGGRAPH_HOST_URL: ''
   });
 
-  // Effect hook to load API variables from localStorage or fetch from server
   useEffect(() => {
     const storedConfig = localStorage.getItem('apiVariables');
     if (storedConfig) {
-      // If config exists in localStorage, use it
       setApiVariables(JSON.parse(storedConfig));
     } else {
-      // Otherwise, fetch config from server
       axios.get(`${getHost()}/getConfig`)
         .then(response => {
           setApiVariables(response.data);
-          // Store fetched config in localStorage
           localStorage.setItem('apiVariables', JSON.stringify(response.data));
         })
         .catch(error => {
@@ -50,27 +41,23 @@ export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
     }
   }, []);
 
-  // Function to handle saving changes
   const handleSaveChanges = () => {
     setChatBoxSettings(chatBoxSettings);
     localStorage.setItem('apiVariables', JSON.stringify(apiVariables));
   };
 
-  // Function to handle input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setApiVariables(prevState => ({
       ...prevState,
       [name]: value
     }));
-    // Update localStorage immediately on input change
     localStorage.setItem('apiVariables', JSON.stringify({
       ...apiVariables,
       [name]: value
     }));
   };
 
-  // Function to render conditional inputs based on selected retriever
   const renderConditionalInputs = () => {
     switch (apiVariables.RETRIEVER) {
       case 'google':
@@ -86,13 +73,47 @@ export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
             </div>
           </>
         );
-      // ... (other cases for different retrievers)
+      case 'bing':
+        return (
+          <div className="form-group">
+            <label className="form-group-label">BING_API_KEY</label>
+            <input type="text" name="BING_API_KEY" value={apiVariables.BING_API_KEY} onChange={handleInputChange} />
+          </div>
+        );
+      case 'searchapi':
+        return (
+          <div className="form-group">
+            <label className="form-group-label">SEARCHAPI_API_KEY</label>
+            <input type="text" name="SEARCHAPI_API_KEY" value={apiVariables.SEARCHAPI_API_KEY} onChange={handleInputChange} />
+          </div>
+        );
+      case 'serpapi':
+        return (
+          <div className="form-group">
+            <label className="form-group-label">SERPAPI_API_KEY</label>
+            <input type="text" name="SERPAPI_API_KEY" value={apiVariables.SERPAPI_API_KEY} onChange={handleInputChange} />
+          </div>
+        );
+      case 'googleSerp':
+        return (
+          <div className="form-group">
+            <label className="form-group-label">SERPER_API_KEY</label>
+            <input type="text" name="SERPER_API_KEY" value={apiVariables.SERPER_API_KEY} onChange={handleInputChange} />
+          </div>
+        );
+      case 'searx':
+        return (
+          <div className="form-group">
+            <label className="form-group-label">SEARX_URL</label>
+            <input type="text" name="SEARX_URL" value={apiVariables.SEARX_URL} onChange={handleInputChange} />
+          </div>
+        );
+      // Add cases for other retrievers if needed
       default:
         return null;
     }
   };
 
-  // Render the Modal component
   return (
     <motion.div
       className="settings-modal"
@@ -102,7 +123,11 @@ export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
       transition={{ duration: 0.3 }}
     >
       <div className="settings-content">
-        {/* Tabs are commented out, only 'search' tab is active */}
+        {/* Comment out the tabs */}
+        {/* <div className="settings-tabs">
+          <button onClick={() => setActiveTab('search')} className={`tab-button ${activeTab === 'search' ? 'active' : ''}`}>Search</button>
+          <button onClick={() => setActiveTab('api')} className={`tab-button ${activeTab === 'api' ? 'active' : ''}`}>API</button>
+        </div> */}
         <motion.div
           className="settings-body"
           initial={{ opacity: 0 }}
@@ -114,7 +139,12 @@ export default function Modal({ setChatBoxSettings, chatBoxSettings }) {
               <ChatBox setChatBoxSettings={setChatBoxSettings} chatBoxSettings={chatBoxSettings} />
             </div>
           )}
-          {/* API tab content is commented out */}
+          {/* Comment out the API tab content */}
+          {/* {activeTab === 'api' && (
+            <form className="settings-form">
+              ... API form content ...
+            </form>
+          )} */}
         </motion.div>
       </div>
       <motion.div
