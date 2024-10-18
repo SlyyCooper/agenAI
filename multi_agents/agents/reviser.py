@@ -1,9 +1,7 @@
-# Import necessary modules
 from .utils.views import print_agent_output
 from .utils.llms import call_model
 import json
 
-# Sample JSON structure for the expected output from the reviser
 sample_revision_notes = """
 {
   "draft": { 
@@ -16,23 +14,19 @@ sample_revision_notes = """
 
 class ReviserAgent:
     def __init__(self, websocket=None, stream_output=None, headers=None):
-        # Initialize the ReviserAgent with optional websocket, stream_output function, and headers
         self.websocket = websocket
         self.stream_output = stream_output
         self.headers = headers or {}
 
     async def revise_draft(self, draft_state: dict):
         """
-        Revise a draft article based on reviewer feedback
-        :param draft_state: A dictionary containing the current state of the draft
-        :return: A JSON response containing the revised draft and revision notes
+        Review a draft article
+        :param draft_state:
+        :return:
         """
-        # Extract relevant information from the draft_state
         review = draft_state.get("review")
         task = draft_state.get("task")
         draft_report = draft_state.get("draft")
-
-        # Construct the prompt for the language model
         prompt = [
             {
                 "role": "system",
@@ -50,7 +44,6 @@ You MUST return nothing but a JSON in the following format:
             },
         ]
 
-        # Call the language model to generate the revised draft
         response = await call_model(
             prompt,
             model=task.get("model"),
@@ -59,16 +52,11 @@ You MUST return nothing but a JSON in the following format:
         return response
 
     async def run(self, draft_state: dict):
-        # Print a message indicating that the draft is being rewritten
         print_agent_output(f"Rewriting draft based on feedback...", agent="REVISOR")
-
-        # Call the revise_draft method to get the revised draft
         revision = await self.revise_draft(draft_state)
 
-        # If verbose mode is enabled, output the revision notes
         if draft_state.get("task").get("verbose"):
             if self.websocket and self.stream_output:
-                # If websocket is available, stream the output
                 await self.stream_output(
                     "logs",
                     "revision_notes",
@@ -76,12 +64,10 @@ You MUST return nothing but a JSON in the following format:
                     self.websocket,
                 )
             else:
-                # Otherwise, print the output to the console
                 print_agent_output(
                     f"Revision notes: {revision.get('revision_notes')}", agent="REVISOR"
                 )
 
-        # Return a dictionary containing the revised draft and revision notes
         return {
             "draft": revision.get("draft"),
             "revision_notes": revision.get("revision_notes"),

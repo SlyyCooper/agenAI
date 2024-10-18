@@ -32,8 +32,6 @@ loguru
 browser_cookie3
 firebase-admin
 stripe
-selenium
-fastapi-limiter
 
 # uncomment for testing
 # pytest

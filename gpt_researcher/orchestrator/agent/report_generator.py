@@ -1,4 +1,3 @@
-# Import necessary modules and functions
 from typing import Dict, Optional
 
 from gpt_researcher.orchestrator.prompts import (
@@ -17,7 +16,6 @@ class ReportGenerator:
     """Generates reports based on research data."""
 
     def __init__(self, researcher):
-        # Initialize the ReportGenerator with a researcher object
         self.researcher = researcher
 
     async def write_report(self, existing_headers: list = [], relevant_written_contents: list = [], ext_context=None) -> str:
@@ -32,10 +30,7 @@ class ReportGenerator:
         Returns:
             str: The generated report.
         """
-        # Use external context if provided, otherwise use the researcher's context
         context = ext_context or self.researcher.context
-        
-        # Log the start of report writing if in verbose mode
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -44,7 +39,6 @@ class ReportGenerator:
                 self.researcher.websocket,
             )
 
-        # Prepare parameters for report generation
         report_params = {
             "query": self.researcher.query,
             "context": context,
@@ -57,7 +51,6 @@ class ReportGenerator:
             "headers": self.researcher.headers,
         }
 
-        # Add additional parameters for subtopic reports
         if self.researcher.report_type == "subtopic_report":
             report_params.update({
                 "main_topic": self.researcher.parent_query,
@@ -68,10 +61,8 @@ class ReportGenerator:
         else:
             report_params["cost_callback"] = self.researcher.add_costs
 
-        # Generate the report using the prepared parameters
         report = await generate_report(**report_params)
 
-        # Log the completion of report writing if in verbose mode
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -83,16 +74,6 @@ class ReportGenerator:
         return report
 
     async def write_report_conclusion(self, report_content: str) -> str:
-        """
-        Write a conclusion for the report.
-
-        Args:
-            report_content (str): The content of the report.
-
-        Returns:
-            str: The generated conclusion.
-        """
-        # Log the start of conclusion writing if in verbose mode
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -101,10 +82,10 @@ class ReportGenerator:
                 self.researcher.websocket,
             )
 
-        # Generate the prompt for the conclusion
+        # Generate the prompt
         conclusion_prompt = generate_report_conclusion(report_content)
 
-        # Use the LLM to generate the conclusion
+        # Send the prompt to the LLM and get the response
         conclusion = await create_chat_completion(
             model=self.researcher.cfg.smart_llm_model,
             messages=[
@@ -120,7 +101,6 @@ class ReportGenerator:
             cost_callback=self.researcher.add_costs,
         )
 
-        # Log the completion of conclusion writing if in verbose mode
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -132,13 +112,7 @@ class ReportGenerator:
         return conclusion
 
     async def write_introduction(self) -> str:
-        """
-        Write the introduction section of the report.
-
-        Returns:
-            str: The generated introduction.
-        """
-        # Log the start of introduction writing if in verbose mode
+        """Write the introduction section of the report."""
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -147,13 +121,13 @@ class ReportGenerator:
                 self.researcher.websocket,
             )
 
-        # Generate the prompt for the introduction
+        # Generate the prompt
         introduction_prompt = generate_report_introduction(
             question=self.researcher.query,
             research_summary=self.researcher.context
         )
 
-        # Use the LLM to generate the introduction
+        # Send the prompt to the LLM and get the response
         introduction = await create_chat_completion(
             model=self.researcher.cfg.smart_llm_model,
             messages=[
@@ -169,7 +143,6 @@ class ReportGenerator:
             cost_callback=self.researcher.add_costs,
         )
 
-        # Log the completion of introduction writing if in verbose mode
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -181,13 +154,7 @@ class ReportGenerator:
         return introduction
 
     async def get_subtopics(self):
-        """
-        Retrieve subtopics for the research.
-
-        Returns:
-            list: A list of generated subtopics.
-        """
-        # Log the start of subtopic generation if in verbose mode
+        """Retrieve subtopics for the research."""
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -196,7 +163,6 @@ class ReportGenerator:
                 self.researcher.websocket,
             )
 
-        # Generate subtopics using the construct_subtopics function
         subtopics = await construct_subtopics(
             task=self.researcher.query,
             data=self.researcher.context,
@@ -204,7 +170,6 @@ class ReportGenerator:
             subtopics=self.researcher.subtopics,
         )
 
-        # Log the completion of subtopic generation if in verbose mode
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -216,16 +181,7 @@ class ReportGenerator:
         return subtopics
 
     async def get_draft_section_titles(self, current_subtopic: str):
-        """
-        Generate draft section titles for the report.
-
-        Args:
-            current_subtopic (str): The current subtopic being processed.
-
-        Returns:
-            list: A list of generated draft section titles.
-        """
-        # Log the start of draft section title generation if in verbose mode
+        """Generate draft section titles for the report."""
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -234,7 +190,6 @@ class ReportGenerator:
                 self.researcher.websocket,
             )
 
-        # Generate draft section titles using the generate_draft_section_titles function
         draft_section_titles = await generate_draft_section_titles(
             query=self.researcher.query,
             current_subtopic=current_subtopic,
@@ -245,7 +200,6 @@ class ReportGenerator:
             cost_callback=self.researcher.add_costs,
         )
 
-        # Log the completion of draft section title generation if in verbose mode
         if self.researcher.verbose:
             await stream_output(
                 "logs",

@@ -1,42 +1,66 @@
-// This file defines an API route for creating Stripe checkout sessions
-// It's part of a Next.js application, handling POST requests to initiate the checkout process
-
 import { NextRequest, NextResponse } from 'next/server';
-import { createCheckoutSession } from '@/config/firebase/backendService';
+import Stripe from 'stripe';
 
-// Big Picture:
-// This API endpoint is crucial for initiating the payment flow in the application.
-// It allows the frontend to create a new Stripe checkout session, which is the first step
-// in processing a payment or subscription.
-
-// How it works:
-// 1. The route handles POST requests to /api/checkout_sessions
-// 2. It extracts the plan and amount from the request body
-// 3. It calls a backend service to create a new Stripe checkout session
-// 4. The created session details are returned as a JSON response
-
-// Relation to [sessionId]/route.ts:
-// While this file (route.ts) handles creating new checkout sessions,
-// [sessionId]/route.ts is responsible for retrieving existing session details.
-// Together, they form a complete flow for managing Stripe checkout sessions:
-// - route.ts initiates the checkout process
-// - [sessionId]/route.ts allows for checking the status or details of that process
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2022-11-15',
+});
 
 export async function POST(req: NextRequest) {
   try {
-    // Extract plan and amount from the request body
     const { plan, amount } = await req.json();
 
-    // Call the backend service to create a new checkout session
-    const result = await createCheckoutSession(plan, amount);
+    let params: Stripe.Checkout.SessionCreateParams;
 
-    // Return the created session data as a JSON response
-    return NextResponse.json(result.data);
+    if (plan === 'per-report') {
+      params = {
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: 'Per Report Plan',
+              },
+              unit_amount: amount,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${req.headers.get('origin')}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${req.headers.get('origin')}/cancel`,
+      };
+    } else if (plan === 'subscription') {
+      params = {
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: 'Subscription Plan',
+              },
+              unit_amount: amount,
+              recurring: {
+                interval: 'month',
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${req.headers.get('origin')}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${req.headers.get('origin')}/cancel`,
+      };
+    } else {
+      throw new Error('Invalid plan');
+    }
+
+    const session = await stripe.checkout.sessions.create(params);
+
+    return NextResponse.json({ sessionId: session.id });
   } catch (err) {
-    // Handle any errors that occur during the process
     const errorMessage = err instanceof Error ? err.message : 'Internal server error';
-
-    // Return an error response with a 500 status code
     return NextResponse.json({ statusCode: 500, message: errorMessage }, { status: 500 });
   }
 }

@@ -1,22 +1,23 @@
 import asyncio
 import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from dotenv import load_dotenv
-from fastapi import WebSocket, HTTPException, Depends
-from firebase_admin import auth
+
+from fastapi import WebSocket
 
 from backend.report_type import BasicReport, DetailedReport
 from gpt_researcher.utils.enum import ReportType, Tone
 from multi_agents.main import run_research_task
-from gpt_researcher.orchestrator.actions import stream_output
-from backend.server.server import get_authenticated_user_id
+from gpt_researcher.orchestrator.actions import stream_output  # Import stream_output
+from backend.server.server_utils import verify_firebase_token
+
 
 class WebSocketManager:
     """Manage websockets"""
 
     def __init__(self):
         """Initialize the WebSocketManager class."""
-        self.active_connections: List[Tuple[str, WebSocket]] = []
+        self.active_connections: List[WebSocket] = []
         self.sender_tasks: Dict[WebSocket, asyncio.Task] = {}
         self.message_queues: Dict[WebSocket, asyncio.Queue] = {}
 
@@ -39,33 +40,39 @@ class WebSocketManager:
             else:
                 break
 
-    async def connect(self, websocket: WebSocket, user_id: str):
-        self.active_connections.append((user_id, websocket))
-        # No need to accept or read messages here
+    async def connect(self, websocket: WebSocket):
+        """Connect a websocket."""
+        await websocket.accept()
+        try:
+            auth_message = await websocket.receive_json()
+            print(f"Received auth message: {auth_message}")
+            if auth_message['type'] == 'auth':
+                token = auth_message['token']
+                decoded_token = await verify_firebase_token(token)
+                if not decoded_token:
+                    await websocket.close(code=1008)  # Policy violation
+                    return
+            else:
+                await websocket.close(code=1008)  # Policy violation
+                return
+        except Exception as e:
+            print(f"Authentication error: {e}")
+            await websocket.close(code=1008)  # Policy violation
+            return
+
+        self.active_connections.append(websocket)
+        self.message_queues[websocket] = asyncio.Queue()
+        self.sender_tasks[websocket] = asyncio.create_task(
+            self.start_sender(websocket))
 
     async def disconnect(self, websocket: WebSocket):
-        for connection in self.active_connections:
-            if connection[1] == websocket:
-                self.active_connections.remove(connection)
-                break
-        if websocket in self.sender_tasks:
+        """Disconnect a websocket."""
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
             self.sender_tasks[websocket].cancel()
             await self.message_queues[websocket].put(None)
             del self.sender_tasks[websocket]
             del self.message_queues[websocket]
-
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        await self.message_queues[websocket].put(message)
-
-    async def broadcast(self, message: str):
-        for _, websocket in self.active_connections:
-            await self.send_personal_message(message, websocket)
-
-    def get_websocket_for_user(self, user_id: str) -> WebSocket:
-        for uid, websocket in self.active_connections:
-            if uid == user_id:
-                return websocket
-        return None
 
     async def start_streaming(self, task, report_type, report_source, source_urls, tone, websocket, headers=None):
         """Start streaming the output."""

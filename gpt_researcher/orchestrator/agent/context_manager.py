@@ -14,10 +14,7 @@ class ContextManager:
         self.researcher = researcher
 
     async def get_context(self):
-        """
-        Retrieve context based on the specified report source.
-        This method acts as a router to different context retrieval methods.
-        """
+        """Retrieve context based on source URLs if available."""
         if self.researcher.source_urls:
             return await self.__get_context_by_urls(self.researcher.source_urls)
         elif self.researcher.report_source == ReportSource.Local.value:
@@ -32,10 +29,6 @@ class ContextManager:
             return await self.__get_context_by_search(self.researcher.query)
 
     async def __get_context_by_urls(self, urls):
-        """
-        Retrieve context from specified URLs.
-        It scrapes new URLs and gets similar content based on the query.
-        """
         new_search_urls = await self.__get_new_urls(urls)
         if self.researcher.verbose:
             await stream_output(
@@ -49,30 +42,20 @@ class ContextManager:
         return await self.get_similar_content_by_query(self.researcher.query, scraped_sites)
 
     async def __get_context_from_local_documents(self):
-        """Retrieve context from local documents."""
         document_data = await DocumentLoader(self.researcher.cfg.doc_path).load()
         return await self.__get_context_by_search(self.researcher.query, document_data)
 
     async def __get_hybrid_context(self):
-        """
-        Retrieve context from both local documents and web sources.
-        This method combines local and web-based context.
-        """
         document_data = await DocumentLoader(self.researcher.cfg.doc_path).load()
         docs_context = await self.__get_context_by_search(self.researcher.query, document_data)
         web_context = await self.__get_context_by_search(self.researcher.query)
         return f"Context from local documents: {docs_context}\n\nContext from web sources: {web_context}"
 
     async def __get_context_from_langchain_documents(self):
-        """Retrieve context from LangChain documents."""
         langchain_documents_data = await LangChainDocumentLoader(self.researcher.documents).load()
         return await self.__get_context_by_search(self.researcher.query, langchain_documents_data)
 
     async def __get_context_by_vectorstore(self, query, filter: Optional[dict] = None):
-        """
-        Retrieve context from a vector store based on the query and optional filter.
-        This method processes multiple sub-queries in parallel.
-        """
         sub_queries = await self.__get_sub_queries(query)
         if self.researcher.report_type != "subtopic_report":
             sub_queries.append(query)
@@ -93,10 +76,6 @@ class ContextManager:
         return context
 
     async def __get_context_by_search(self, query, scraped_data: list = []):
-        """
-        Retrieve context by searching based on the query.
-        This method processes multiple sub-queries in parallel.
-        """
         sub_queries = await self.__get_sub_queries(query)
         if self.researcher.report_type != "subtopic_report":
             sub_queries.append(query)
@@ -117,10 +96,6 @@ class ContextManager:
         return context
 
     async def __process_sub_query_with_vectorstore(self, sub_query: str, filter: Optional[dict] = None):
-        """
-        Process a sub-query using a vector store.
-        This method retrieves similar content based on the sub-query and optional filter.
-        """
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -145,10 +120,6 @@ class ContextManager:
         return content
 
     async def __process_sub_query(self, sub_query: str, scraped_data: list = []):
-        """
-        Process a sub-query by scraping data or using existing scraped data.
-        This method retrieves similar content based on the sub-query.
-        """
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -176,10 +147,6 @@ class ContextManager:
         return content
 
     async def __get_new_urls(self, url_set_input):
-        """
-        Get new URLs that haven't been visited before.
-        This method updates the set of visited URLs and logs new additions.
-        """
         new_urls = []
         for url in url_set_input:
             if url not in self.researcher.visited_urls:
@@ -197,10 +164,6 @@ class ContextManager:
         return new_urls
 
     async def __get_similar_content_by_query_with_vectorstore(self, query, filter):
-        """
-        Get similar content from a vector store based on the query and filter.
-        This method uses a VectorstoreCompressor to retrieve relevant context.
-        """
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -216,10 +179,6 @@ class ContextManager:
         )
 
     async def get_similar_content_by_query(self, query, pages):
-        """
-        Get similar content based on the query and given pages.
-        This method uses a ContextCompressor to retrieve relevant context.
-        """
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -236,10 +195,6 @@ class ContextManager:
         )
 
     async def __get_sub_queries(self, query):
-        """
-        Generate sub-queries based on the main query.
-        This method uses an external function to create sub-queries.
-        """
         from gpt_researcher.orchestrator.actions import get_sub_queries
         return await get_sub_queries(
             query=query,
@@ -257,10 +212,6 @@ class ContextManager:
         written_contents: List[Dict],
         max_results: int = 10
     ) -> List[str]:
-        """
-        Get similar written contents based on the current subtopic and draft section titles.
-        This method processes multiple queries in parallel and combines the results.
-        """
         all_queries = [current_subtopic] + draft_section_titles
 
         async def process_query(query: str) -> Set[str]:
@@ -284,10 +235,6 @@ class ContextManager:
                                                       similarity_threshold: float = 0.5,
                                                       max_results: int = 10
                                                       ) -> List[str]:
-        """
-        Get similar written contents based on a single query.
-        This method uses a WrittenContentCompressor to retrieve relevant context.
-        """
         if self.researcher.verbose:
             await stream_output(
                 "logs",

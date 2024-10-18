@@ -1,10 +1,8 @@
-# Import necessary modules
 from datetime import datetime
 import json5 as json
 from .utils.views import print_agent_output
 from .utils.llms import call_model
 
-# Sample JSON structure for the expected output
 sample_json = """
 {
   "table_of_contents": A table of contents in markdown syntax (using '-') based on the research headers and subheaders,
@@ -17,13 +15,11 @@ sample_json = """
 
 class WriterAgent:
     def __init__(self, websocket=None, stream_output=None, headers=None):
-        # Initialize the WriterAgent with optional websocket, stream_output function, and headers
         self.websocket = websocket
         self.stream_output = stream_output
         self.headers = headers
 
     def get_headers(self, research_state: dict):
-        # Generate a dictionary of headers based on the research state
         return {
             "title": research_state.get("title"),
             "date": "Date",
@@ -34,14 +30,12 @@ class WriterAgent:
         }
 
     async def write_sections(self, research_state: dict):
-        # Extract necessary information from the research state
         query = research_state.get("title")
         data = research_state.get("research_data")
         task = research_state.get("task")
         follow_guidelines = task.get("follow_guidelines")
         guidelines = task.get("guidelines")
 
-        # Prepare the prompt for the language model
         prompt = [
             {
                 "role": "system",
@@ -65,7 +59,6 @@ class WriterAgent:
             },
         ]
 
-        # Call the language model to generate the research sections
         response = await call_model(
             prompt,
             task.get("model"),
@@ -74,7 +67,6 @@ class WriterAgent:
         return response
 
     async def revise_headers(self, task: dict, headers: dict):
-        # Prepare the prompt for revising headers based on guidelines
         prompt = [
             {
                 "role": "system",
@@ -92,7 +84,6 @@ Headers Data: {headers}\n
             },
         ]
 
-        # Call the language model to revise the headers
         response = await call_model(
             prompt,
             task.get("model"),
@@ -101,9 +92,6 @@ Headers Data: {headers}\n
         return {"headers": response}
 
     async def run(self, research_state: dict):
-        # Main function to run the WriterAgent
-
-        # Output progress message
         if self.websocket and self.stream_output:
             await self.stream_output(
                 "logs",
@@ -117,10 +105,8 @@ Headers Data: {headers}\n
                 agent="WRITER",
             )
 
-        # Generate research layout content
         research_layout_content = await self.write_sections(research_state)
 
-        # Output verbose information if required
         if research_state.get("task").get("verbose"):
             if self.websocket and self.stream_output:
                 research_layout_content_str = json.dumps(
@@ -135,7 +121,6 @@ Headers Data: {headers}\n
             else:
                 print_agent_output(research_layout_content, agent="WRITER")
 
-        # Get headers and revise them if guidelines are to be followed
         headers = self.get_headers(research_state)
         if research_state.get("task").get("follow_guidelines"):
             if self.websocket and self.stream_output:
@@ -154,5 +139,4 @@ Headers Data: {headers}\n
             )
             headers = headers.get("headers")
 
-        # Return the final research layout content with headers
         return {**research_layout_content, "headers": headers}

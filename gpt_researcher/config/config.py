@@ -6,11 +6,9 @@ import os
 class Config:
     """Config class for GPT Researcher."""
 
-    # Singleton instance
     _instance = None
 
     def __new__(cls, *args, **kwargs):
-        # Ensure only one instance of Config is created
         if cls._instance is None:
             cls._instance = super(Config, cls).__new__(cls)
             cls._instance.initialize()
@@ -22,7 +20,6 @@ class Config:
 
     def load_config(self):
         """Load configuration from environment variables and config file."""
-        # Load configuration from environment variables
         self.config_file = os.getenv("CONFIG_FILE")
         self.retrievers = self.parse_retrievers(os.getenv("RETRIEVER", "tavily"))
         self.embedding_provider = os.getenv("EMBEDDING_PROVIDER", "openai")
@@ -57,12 +54,10 @@ class Config:
         self.doc_path = os.getenv("DOC_PATH", "./my-docs")
         self.llm_kwargs = {}
 
-        # Load additional configuration from file
         self.load_config_file()
         if not hasattr(self, "llm_kwargs"):
             self.llm_kwargs = {}
 
-        # Validate document path if set
         if self.doc_path:
             self.validate_doc_path()
 
@@ -80,7 +75,6 @@ class Config:
 
     def parse_retrievers(self, retriever_str: str):
         """Parse the retriever string into a list of retrievers and validate them."""
-        # List of valid retrievers
         VALID_RETRIEVERS = [
             "arxiv",
             "bing",
@@ -96,9 +90,7 @@ class Config:
             "tavily",
             "pubmed_central",
         ]
-        # Split the input string into a list of retrievers
         retrievers = [retriever.strip() for retriever in retriever_str.split(",")]
-        # Check for any invalid retrievers
         invalid_retrievers = [r for r in retrievers if r not in VALID_RETRIEVERS]
         if invalid_retrievers:
             raise ValueError(
@@ -113,12 +105,9 @@ class Config:
 
     def load_config_file(self) -> None:
         """Load the config file."""
-        # If no config file is specified, return
         if self.config_file is None:
             return None
-        # Read and parse the JSON config file
         with open(self.config_file, "r") as f:
             config = json.load(f)
-        # Update class attributes with values from the config file
         for key, value in config.items():
             setattr(self, key.lower(), value)

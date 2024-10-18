@@ -1,61 +1,53 @@
-/* This CSS file defines styles for PDF output */
-
-/* Set the base font and text styles for the entire document */
 body {
-    font-family: 'Libre Baskerville', serif; /* Use a serif font for academic look */
-    font-size: 12pt; /* Standard size for academic papers */
-    line-height: 1.6; /* Increase line height for better readability */
-    color: #333; /* Dark grey color, softer on the eyes than pure black */
-    background-color: #fff; /* White background for clean look */
-    margin: 0; /* Remove default body margin */
-    padding: 0; /* Remove default body padding */
+    font-family: 'Libre Baskerville', serif;
+    font-size: 12pt; /* standard size for academic papers */
+    line-height: 1.6; /* for readability */
+    color: #333; /* softer on the eyes than black */
+    background-color: #fff; /* white background */
+    margin: 0;
+    padding: 0;
 }
 
-/* Style all heading levels */
 h1, h2, h3, h4, h5, h6 {
-    font-family: 'Libre Baskerville', serif; /* Match body font for consistency */
-    color: #000; /* Pure black for headers to stand out */
-    margin-top: 1em; /* Add space above headers */
+    font-family: 'Libre Baskerville', serif;
+    color: #000; /* darker than the body text */
+    margin-top: 1em; /* space above headers */
 }
 
-/* Style the main title */
 h1 {
-    font-size: 2em; /* Make main title twice the size of body text */
+    font-size: 2em; /* make h1 twice the size of the body text */
 }
 
-/* Style secondary headings */
 h2 {
-    font-size: 1.5em; /* Make h2 1.5 times the size of body text */
+    font-size: 1.5em;
 }
 
-/* Add space between paragraphs for better readability */
+/* Add some space between paragraphs */
 p {
     margin-bottom: 1em;
 }
 
-/* Style blockquotes, commonly used in academic papers */
+/* Style for blockquotes, often used in academic papers */
 blockquote {
-    font-style: italic; /* Italicize quote text */
-    margin: 1em 0; /* Add vertical margin */
-    padding: 1em; /* Add padding inside the blockquote */
-    background-color: #f9f9f9; /* Light grey background to distinguish from main text */
+    font-style: italic;
+    margin: 1em 0;
+    padding: 1em;
+    background-color: #f9f9f9; /* a light grey background */
 }
 
-/* Style tables for data presentation */
+/* You might want to style tables, figures, etc. too */
 table {
-    border-collapse: collapse; /* Combine cell borders */
-    width: 100%; /* Make table full width of its container */
+    border-collapse: collapse;
+    width: 100%;
 }
 
-/* Style table cells and headers */
 table, th, td {
-    border: 1px solid #ddd; /* Light grey border for cells */
-    text-align: left; /* Align text to the left */
-    padding: 8px; /* Add padding inside cells */
+    border: 1px solid #ddd;
+    text-align: left;
+    padding: 8px;
 }
 
-/* Style table headers */
 th {
-    background-color: #f2f2f2; /* Light grey background for headers */
-    color: black; /* Black text for contrast */
+    background-color: #f2f2f2;
+    color: black;
 }

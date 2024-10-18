@@ -13,7 +13,6 @@ from gpt_researcher.orchestrator.prompts import (
 )
 from gpt_researcher.utils.enum import Tone
 
-# Initialize a formatted logger for consistent logging throughout the module
 logger = get_formatted_logger()
 
 
@@ -28,9 +27,6 @@ async def get_report_introduction(
     """
     Generate an introduction for the report.
 
-    This function uses the LLM to create an introduction based on the given query and context.
-    It utilizes the agent's role and configuration settings to tailor the output.
-
     Args:
         query (str): The research query.
         context (str): Context for the report.
@@ -43,7 +39,6 @@ async def get_report_introduction(
         str: The generated introduction.
     """
     try:
-        # Use the LLM to generate the introduction
         introduction = await create_chat_completion(
             model=config.smart_llm_model,
             messages=[
@@ -76,9 +71,6 @@ async def write_conclusion(
     """
     Write a conclusion for the report.
 
-    This function uses the LLM to create a conclusion based on the given query and context.
-    It follows a similar pattern to the introduction generation.
-
     Args:
         query (str): The research query.
         context (str): Context for the report.
@@ -91,7 +83,6 @@ async def write_conclusion(
         str: The generated conclusion.
     """
     try:
-        # Use the LLM to generate the conclusion
         conclusion = await create_chat_completion(
             model=config.smart_llm_model,
             messages=[
@@ -124,9 +115,6 @@ async def summarize_url(
     """
     Summarize the content of a URL.
 
-    This function uses the LLM to create a summary of the content from a given URL.
-    It's useful for condensing information from web sources.
-
     Args:
         url (str): The URL to summarize.
         content (str): The content of the URL.
@@ -139,7 +127,6 @@ async def summarize_url(
         str: The summarized content.
     """
     try:
-        # Use the LLM to generate the summary
         summary = await create_chat_completion(
             model=config.smart_llm_model,
             messages=[
@@ -172,12 +159,8 @@ async def generate_draft_section_titles(
     """
     Generate draft section titles for the report.
 
-    This function uses the LLM to create a list of potential section titles
-    based on the query, current subtopic, and context.
-
     Args:
         query (str): The research query.
-        current_subtopic (str): The current subtopic being addressed.
         context (str): Context for the report.
         role (str): The role of the agent.
         config (Config): Configuration object.
@@ -188,7 +171,6 @@ async def generate_draft_section_titles(
         List[str]: A list of generated section titles.
     """
     try:
-        # Use the LLM to generate section titles
         section_titles = await create_chat_completion(
             model=config.smart_llm_model,
             messages=[
@@ -226,42 +208,32 @@ async def generate_report(
     headers=None,
 ):
     """
-    Generates the final report based on the provided parameters and context.
-
-    This function is the main driver for creating the complete report. It uses
-    different prompts based on the report type and combines all the gathered
-    information to produce a coherent output.
-
+    generates the final report
     Args:
-        query (str): The main research query.
-        context: The context information for the report.
-        agent_role_prompt (str): The role prompt for the agent.
-        report_type (str): The type of report to generate.
-        tone (Tone): The desired tone of the report.
-        report_source (str): The source of the report data.
-        websocket: WebSocket connection for streaming output.
-        cfg: Configuration object.
-        main_topic (str): The main topic of the report (if applicable).
-        existing_headers (list): List of existing headers (if any).
-        relevant_written_contents (list): List of relevant content already written.
-        cost_callback (callable, optional): Callback for calculating LLM costs.
-        headers: Additional headers (if any).
+        query:
+        context:
+        agent_role_prompt:
+        report_type:
+        websocket:
+        tone:
+        cfg:
+        main_topic:
+        existing_headers:
+        relevant_written_contents:
+        cost_callback:
 
     Returns:
-        str: The generated report.
+        report:
+
     """
-    # Get the appropriate prompt based on the report type
     generate_prompt = get_prompt_by_report_type(report_type)
     report = ""
 
-    # Prepare the content for the LLM based on the report type
     if report_type == "subtopic_report":
         content = f"{generate_prompt(query, existing_headers, relevant_written_contents, main_topic, context, report_format=cfg.report_format, tone=tone, total_words=cfg.total_words)}"
     else:
         content = f"{generate_prompt(query, context, report_source, report_format=cfg.report_format, tone=tone, total_words=cfg.total_words)}"
-    
     try:
-        # Use the LLM to generate the final report
         report = await create_chat_completion(
             model=cfg.smart_llm_model,
             messages=[

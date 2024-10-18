@@ -20,7 +20,6 @@ class ChiefEditorAgent:
     """Agent responsible for managing and coordinating editing tasks."""
 
     def __init__(self, task: dict, websocket=None, stream_output=None, tone=None, headers=None):
-        # Initialize the ChiefEditorAgent with task details and optional parameters
         self.task = task
         self.websocket = websocket
         self.stream_output = stream_output
@@ -30,11 +29,10 @@ class ChiefEditorAgent:
         self.output_dir = self._create_output_directory()
 
     def _generate_task_id(self):
-        # Generate a unique task ID based on the current timestamp
+        # Currently time based, but can be any unique identifier
         return int(time.time())
 
     def _create_output_directory(self):
-        # Create a directory to store output files for this task
         output_dir = "./outputs/" + \
             sanitize_filename(
                 f"run_{self.task_id}_{self.task.get('query')[0:40]}")
@@ -43,7 +41,6 @@ class ChiefEditorAgent:
         return output_dir
 
     def _initialize_agents(self):
-        # Initialize and return a dictionary of agent instances
         return {
             "writer": WriterAgent(self.websocket, self.stream_output, self.headers),
             "editor": EditorAgent(self.websocket, self.stream_output, self.headers),
@@ -53,10 +50,9 @@ class ChiefEditorAgent:
         }
 
     def _create_workflow(self, agents):
-        # Create a StateGraph to represent the workflow
         workflow = StateGraph(ResearchState)
 
-        # Add nodes for each agent's task in the workflow
+        # Add nodes for each agent
         workflow.add_node("browser", agents["research"].run_initial_research)
         workflow.add_node("planner", agents["editor"].plan_research)
         workflow.add_node("researcher", agents["editor"].run_parallel_research)
@@ -64,13 +60,12 @@ class ChiefEditorAgent:
         workflow.add_node("publisher", agents["publisher"].run)
         workflow.add_node("human", agents["human"].review_plan)
 
-        # Add edges to connect the nodes in the workflow
+        # Add edges
         self._add_workflow_edges(workflow)
 
         return workflow
 
     def _add_workflow_edges(self, workflow):
-        # Define the connections between different stages of the workflow
         workflow.add_edge('browser', 'planner')
         workflow.add_edge('planner', 'human')
         workflow.add_edge('researcher', 'writer')
@@ -78,7 +73,7 @@ class ChiefEditorAgent:
         workflow.set_entry_point("browser")
         workflow.add_edge('publisher', END)
 
-        # Add conditional edge for human review
+        # Add human in the loop
         workflow.add_conditional_edges(
             'human',
             lambda review: "accept" if review['human_feedback'] is None else "revise",
@@ -91,7 +86,6 @@ class ChiefEditorAgent:
         return self._create_workflow(agents)
 
     async def _log_research_start(self):
-        # Log the start of the research process
         message = f"Starting the research process for query '{self.task.get('query')}'..."
         if self.websocket and self.stream_output:
             await self.stream_output("logs", "starting_research", message, self.websocket)
@@ -108,14 +102,11 @@ class ChiefEditorAgent:
         Returns:
             The result of the research task.
         """
-        # Initialize the research team and compile the workflow
         research_team = self.init_research_team()
         chain = research_team.compile()
 
-        # Log the start of the research process
         await self._log_research_start()
 
-        # Configure the task with a thread ID and timestamp
         config = {
             "configurable": {
                 "thread_id": task_id,
@@ -123,6 +114,5 @@ class ChiefEditorAgent:
             }
         }
 
-        # Execute the research task and return the result
         result = await chain.ainvoke({"task": self.task}, config=config)
         return result
