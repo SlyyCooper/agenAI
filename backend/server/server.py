@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
 
-from backend.server.server_utils import cancel_subscription, generate_report_files, get_payment_history, get_stripe_webhook_secret, get_subscription_details, verify_stripe_payment
+from backend.server.server_utils import cancel_subscription, generate_report_files, get_payment_history, get_stripe_webhook_secret, get_subscription_details, verify_stripe_payment, cancel_stripe_payment
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
 from gpt_researcher.document.document import DocumentLoader
@@ -274,3 +274,9 @@ async def verify_payment(session_id: str, current_user: dict = Depends(get_curre
     user_id = current_user['uid']
     payment_status = await verify_stripe_payment(user_id, session_id)
     return {"status": payment_status}
+
+@app.post("/cancel-payment/{session_id}")
+async def cancel_payment(session_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    cancellation_status = await cancel_stripe_payment(user_id, session_id)
+    return {"status": cancellation_status}

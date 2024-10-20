@@ -460,3 +460,22 @@ async def verify_stripe_payment(user_id: str, session_id: str):
     except stripe.error.StripeError as e:
         print(f"Error verifying Stripe payment: {e}")
         return "error"
+
+async def cancel_stripe_payment(user_id: str, session_id: str):
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+        if session.payment_status == 'unpaid':
+            # Cancel the Stripe session
+            stripe.checkout.Session.expire(session_id)
+            
+            # Update user's data in Firestore to reflect the cancellation
+            await update_user_data(user_id, {
+                "last_cancelled_payment": firestore.SERVER_TIMESTAMP,
+                "last_cancelled_amount": session.amount_total
+            })
+            return "cancelled"
+        else:
+            return "already_paid"
+    except stripe.error.StripeError as e:
+        print(f"Error cancelling Stripe payment: {e}")
+        return "error"

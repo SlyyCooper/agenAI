@@ -1,10 +1,49 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { XCircle, ArrowLeft, HelpCircle } from 'lucide-react';
+import { Suspense } from 'react';
+import { useAuth } from '@/config/firebase/AuthContext';
+import { cancelPayment } from '@/actions/apiActions';
 
-export default function CancelPage() {
+function CancelContent() {
+  const [status, setStatus] = useState<'loading' | 'cancelled' | 'error'>('loading');
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const handleCancellation = async () => {
+      const sessionId = searchParams.get('session_id');
+      if (sessionId && user) {
+        try {
+          const token = await user.getIdToken();
+          const result = await cancelPayment(token, sessionId);
+          if (result.status === 'cancelled') {
+            setStatus('cancelled');
+          } else {
+            setStatus('error');
+          }
+        } catch (error) {
+          console.error('Error cancelling payment:', error);
+          setStatus('error');
+        }
+      }
+    };
+
+    handleCancellation();
+  }, [searchParams, user]);
+
+  if (status === 'loading') {
+    return <div>Cancelling your payment...</div>;
+  }
+
+  if (status === 'error') {
+    return <div>An error occurred while cancelling your payment. Please contact support.</div>;
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-red-50 to-white text-gray-900">
       <motion.div 
@@ -21,9 +60,7 @@ export default function CancelPage() {
           <XCircle className="w-24 h-24 text-red-500 mx-auto mb-6" />
         </motion.div>
         <h1 className="text-4xl font-bold mb-4">Payment Cancelled</h1>
-        <p className="text-xl text-gray-600 mb-8">
-          Your payment was cancelled. If you encountered any issues or have questions, please don&apos;t hesitate to contact our support team.
-        </p>
+        <p className="text-xl text-gray-600 mb-8">Your payment was successfully cancelled.</p>
         <div className="flex flex-col space-y-4">
           <motion.div
             initial={{ opacity: 0 }}
@@ -46,5 +83,13 @@ export default function CancelPage() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function CancelPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <CancelContent />
+    </Suspense>
   );
 }

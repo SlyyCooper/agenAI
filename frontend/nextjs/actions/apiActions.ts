@@ -225,3 +225,18 @@ export async function verifyPayment(token: string, sessionId: string) {
   }
   return response.json();
 }
+
+// Add this function to the existing apiActions.ts file
+export async function cancelPayment(token: string, sessionId: string) {
+  const response = await fetch(`https://dolphin-app-49eto.ondigitalocean.app/backend/cancel-payment/${sessionId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    throw new Error('Failed to cancel payment');
+  }
+  return response.json();
+}
