@@ -217,20 +217,32 @@ async def create_customer(current_user: dict = Depends(get_current_user)):
     return {"customer_id": customer_id}
 
 @app.post("/create-payment-intent")
-async def create_intent(data: dict, current_user: dict = Depends(get_current_user)):
-    user_data = await get_user_data(current_user['uid'])
+async def create_intent(data: dict, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    decoded_token = await verify_firebase_token(token)
+    if not decoded_token:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    
+    user_data = await get_user_data(decoded_token['uid'])
     customer_id = user_data.get('stripe_customer_id')
     if not customer_id:
-        raise HTTPException(status_code=400, detail="Stripe customer not found")
+        customer_id = await create_stripe_customer(decoded_token['uid'])
+    
     intent = await create_payment_intent(data['amount'], data['currency'], customer_id)
     return {"client_secret": intent.client_secret}
 
 @app.post("/create-subscription")
-async def create_sub(data: dict, current_user: dict = Depends(get_current_user)):
-    user_data = await get_user_data(current_user['uid'])
+async def create_sub(data: dict, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    decoded_token = await verify_firebase_token(token)
+    if not decoded_token:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    
+    user_data = await get_user_data(decoded_token['uid'])
     customer_id = user_data.get('stripe_customer_id')
     if not customer_id:
-        raise HTTPException(status_code=400, detail="Stripe customer not found")
+        customer_id = await create_stripe_customer(decoded_token['uid'])
+    
     subscription = await create_subscription(customer_id, data['price_id'])
     return {"subscription_id": subscription.id}
 
@@ -304,3 +316,4 @@ async def get_payments(limit: int = 10, current_user: dict = Depends(get_current
     user_id = current_user['uid']
     payments = await get_user_payments(user_id, limit)
     return {"payments": payments}
+
