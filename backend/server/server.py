@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
 
-from backend.server.server_utils import generate_report_files
+from backend.server.server_utils import generate_report_files, get_stripe_webhook_secret
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
 from gpt_researcher.document.document import DocumentLoader
@@ -24,7 +24,9 @@ from backend.server.server_utils import (
     generate_report_files, send_file_paths, get_config_dict,
     update_environment_variables, handle_file_upload, handle_file_deletion,
     execute_multi_agents, handle_websocket_communication, extract_command_data,
-    verify_firebase_token, get_user_data, update_user_data
+    verify_firebase_token, get_user_data, update_user_data,
+    create_stripe_customer, create_payment_intent, 
+    create_subscription, handle_stripe_webhook
 )
 
 # Models
@@ -205,3 +207,49 @@ async def create_user_profile(data: dict, current_user: dict = Depends(get_curre
     user_id = current_user['uid']
     await create_user_profile(user_id, data.get('email'), data.get('name'))
     return {"message": "Profile created successfully"}
+
+@app.post("/create-stripe-customer")
+async def create_customer(current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    email = current_user['email']
+    customer_id = await create_stripe_customer(user_id, email)
+    return {"customer_id": customer_id}
+
+@app.post("/create-payment-intent")
+async def create_intent(data: dict, current_user: dict = Depends(get_current_user)):
+    user_data = await get_user_data(current_user['uid'])
+    customer_id = user_data.get('stripe_customer_id')
+    if not customer_id:
+        raise HTTPException(status_code=400, detail="Stripe customer not found")
+    intent = await create_payment_intent(data['amount'], data['currency'], customer_id)
+    return {"client_secret": intent.client_secret}
+
+@app.post("/create-subscription")
+async def create_sub(data: dict, current_user: dict = Depends(get_current_user)):
+    user_data = await get_user_data(current_user['uid'])
+    customer_id = user_data.get('stripe_customer_id')
+    if not customer_id:
+        raise HTTPException(status_code=400, detail="Stripe customer not found")
+    subscription = await create_subscription(customer_id, data['price_id'])
+    return {"subscription_id": subscription.id}
+
+@app.post("/stripe-webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get("Stripe-Signature")
+    webhook_secret = get_stripe_webhook_secret(request.url.netloc)
+    
+    event = await handle_stripe_webhook(payload, sig_header, webhook_secret)
+
+    # Handle the event
+    if event['type'] == 'payment_intent.succeeded':
+        payment_intent = event['data']['object']
+        # Handle successful payment
+        print(f"Payment succeeded: {payment_intent['id']}")
+    elif event['type'] == 'customer.subscription.created':
+        subscription = event['data']['object']
+        # Handle subscription creation
+        print(f"Subscription created: {subscription['id']}")
+    # Add more event handlers as needed
+
+    return {"status": "success"}

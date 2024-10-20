@@ -2,37 +2,108 @@
 
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
-import getStripe from '@/config/stripe/get-stripejs';
+import { useAuth } from '@/config/firebase/AuthContext';
+import axios from 'axios';
+import { loadStripe } from '@stripe/stripe-js';
+import {
+  Elements,
+  CardElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
 
-export default function PlansPage() {
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
+function CheckoutForm() {
+  const stripe = useStripe();
+  const elements = useElements();
+  const { user } = useAuth();
+  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleCheckout = async (plan: string) => {
+  const handleSubmit = async (event: React.FormEvent, amount: number) => {
+    event.preventDefault();
+    if (!stripe || !elements || !user) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.post('https://dolphin-app-49eto.ondigitalocean.app/backend/create-payment-intent', {
+        amount,
+        currency: 'usd',
+      }, {
+        headers: { Authorization: `Bearer ${await user.getIdToken()}` }
+      });
+
+      const { client_secret } = response.data;
+
+      const result = await stripe.confirmCardPayment(client_secret, {
+        payment_method: {
+          card: elements.getElement(CardElement)!,
+          billing_details: {
+            name: user.displayName || undefined,
+          },
+        }
+      });
+
+      if (result.error) {
+        setError(result.error.message || 'An error occurred');
+      } else {
+        window.location.href = '/success';
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      setError('An error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <CardElement />
+      {error && <div className="text-red-500 mt-2">{error}</div>}
+    </div>
+  );
+}
+
+function PlanCard({ title, price, features, amount }: { title: string; price: string; features: string[]; amount: number }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handlePayment = async () => {
+    if (!stripe || !elements || !user) return;
+
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/checkout_sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          plan,
-          amount: plan === 'per-report' ? 100 : 2000 // $1 or $20 in cents
-        }),
+      const response = await axios.post('https://dolphin-app-49eto.ondigitalocean.app/backend/create-payment-intent', {
+        amount,
+        currency: 'usd',
+      }, {
+        headers: { Authorization: `Bearer ${await user.getIdToken()}` }
       });
 
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
+      const { client_secret } = response.data;
 
-      const { sessionId } = await response.json();
-      const stripe = await getStripe();
-      const { error } = await stripe!.redirectToCheckout({ sessionId });
+      const result = await stripe.confirmCardPayment(client_secret, {
+        payment_method: {
+          card: elements.getElement(CardElement)!,
+          billing_details: {
+            name: user.displayName || undefined,
+          },
+        }
+      });
 
-      if (error) {
-        console.error('Stripe checkout error:', error);
-        throw new Error(error.message);
+      if (result.error) {
+        throw new Error(result.error.message);
+      } else {
+        window.location.href = '/success';
       }
     } catch (error) {
       console.error('Payment error:', error);
@@ -43,57 +114,63 @@ export default function PlansPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900 py-20">
-      <div className="container mx-auto px-6">
-        <h1 className="text-4xl font-bold mb-12 text-center">Choose Your Plan</h1>
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          <div className="bg-white p-8 rounded-xl shadow-lg flex flex-col">
-            <div>
-              <h3 className="text-2xl font-bold mb-4">Per Report</h3>
-              <p className="text-gray-600 mb-4">Perfect for one-time insights or occasional use.</p>
-              <div className="flex items-start mb-6">
-                <p className="text-4xl font-bold">$1<span className="text-xl text-gray-600 font-normal">/report</span></p>
-                <p className="text-xs text-gray-500 ml-2 mt-1 italic">*Minimum of 5 reports</p>
-              </div>
-              <ul className="mb-8 space-y-2">
-                <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> 5 Detailed Reports using gpt-4o</li>
-                <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> 10 Summary Reports</li>
-                <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Ability to Save Reports to Account</li>
-                <li className="invisible flex items-center"><ArrowRight className="mr-2 h-5 w-5" /> &nbsp;</li>
-                <li className="invisible flex items-center"><ArrowRight className="mr-2 h-5 w-5" /> &nbsp;</li>
-              </ul>
-            </div>
-            <div className="mt-auto">
-              <button 
-                onClick={() => handleCheckout('per-report')}
-                disabled={isLoading}
-                className="w-full bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-colors inline-block text-center disabled:opacity-50"
-              >
-                {isLoading ? 'Processing...' : 'Get Started'}
-              </button>
-            </div>
+    <div className="bg-white p-8 rounded-xl shadow-lg flex flex-col">
+      <h3 className="text-2xl font-bold mb-4">{title}</h3>
+      <p className="text-gray-600 mb-4">Perfect for one-time insights or occasional use.</p>
+      <p className="text-4xl font-bold mb-6">{price}</p>
+      <ul className="mb-8 space-y-2">
+        {features.map((feature, index) => (
+          <li key={index} className="flex items-center">
+            <ArrowRight className="mr-2 h-5 w-5 text-green-500" /> {feature}
+          </li>
+        ))}
+      </ul>
+      <button 
+        onClick={handlePayment} 
+        disabled={isLoading} 
+        className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+      >
+        {isLoading ? 'Processing...' : 'Select Plan'}
+      </button>
+    </div>
+  );
+}
+
+export default function PlansPage() {
+  return (
+    <Elements stripe={stripePromise}>
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900 py-20">
+        <div className="container mx-auto px-6">
+          <h1 className="text-4xl font-bold mb-12 text-center">Choose Your Plan</h1>
+          <div className="mb-8">
+            <CheckoutForm />
           </div>
-          <div className="bg-white p-8 rounded-xl shadow-lg border-2 border-blue-500 flex flex-col">
-            <h3 className="text-2xl font-bold mb-4">Subscription</h3>
-            <p className="text-gray-600 mb-4">For ongoing insights and continuous support.</p>
-            <p className="text-4xl font-bold mb-6">$20<span className="text-xl text-gray-600 font-normal">/month</span></p>
-            <ul className="mb-8 space-y-2">
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> 30 Detailed Reports using gpt-4o</li>
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Access to the latest AI models</li>
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Unlimited Summary Reports</li>
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Ability to Save Reports to Account</li>
-              <li className="flex items-center"><ArrowRight className="mr-2 h-5 w-5 text-green-500" /> Priority support</li>
-            </ul>
-            <button 
-              onClick={() => handleCheckout('subscription')}
-              disabled={isLoading}
-              className="w-full bg-blue-500 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-600 transition-colors inline-block text-center disabled:opacity-50"
-            >
-              {isLoading ? 'Processing...' : 'Subscribe Now'}
-            </button>
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <PlanCard 
+              title="Per Report" 
+              price="$1/report" 
+              features={[
+                "5 Detailed Reports using gpt-4o",
+                "10 Summary Reports",
+                "Ability to Save Reports to Account"
+              ]}
+              amount={100}
+            />
+            <PlanCard 
+              title="Subscription" 
+              price="$20/month" 
+              features={[
+                "30 Detailed Reports using gpt-4o",
+                "Access to the latest AI models",
+                "Unlimited Summary Reports",
+                "Ability to Save Reports to Account",
+                "Priority support"
+              ]}
+              amount={2000}
+            />
           </div>
         </div>
       </div>
-    </div>
+    </Elements>
   );
 }

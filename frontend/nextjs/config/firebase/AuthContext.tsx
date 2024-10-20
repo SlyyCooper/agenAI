@@ -26,6 +26,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any | null>(null);
 
+  const createStripeCustomer = async (token: string) => {
+    try {
+      const response = await axios.post('https://dolphin-app-49eto.ondigitalocean.app/backend/create-stripe-customer', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data.customer_id;
+    } catch (error) {
+      console.error('Error creating Stripe customer:', error);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
@@ -37,6 +48,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             headers: { Authorization: `Bearer ${token}` }
           });
           setUserProfile(response.data);
+          if (!response.data.stripe_customer_id) {
+            await createStripeCustomer(token);
+          }
         } catch (error) {
           console.error('Error fetching user profile:', error);
         }
