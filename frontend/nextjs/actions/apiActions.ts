@@ -210,3 +210,18 @@ export async function getUserReports(token: string) {
   }
   return response.json();
 }
+
+// Add this function to the existing apiActions.ts file
+export async function verifyPayment(token: string, sessionId: string) {
+  const response = await fetch(`https://dolphin-app-49eto.ondigitalocean.app/backend/verify-payment/${sessionId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    throw new Error('Failed to verify payment');
+  }
+  return response.json();
+}

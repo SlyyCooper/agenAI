@@ -443,3 +443,20 @@ async def cancel_subscription(user_id: str):
     except stripe.error.StripeError as e:
         print(f"Error cancelling subscription: {e}")
         return False
+
+async def verify_stripe_payment(user_id: str, session_id: str):
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+        if session.payment_status == 'paid':
+            # Update user's subscription status in Firestore
+            await update_user_data(user_id, {
+                "subscription_status": "active",
+                "last_payment_date": firestore.SERVER_TIMESTAMP,
+                "last_payment_amount": session.amount_total
+            })
+            return "paid"
+        else:
+            return "unpaid"
+    except stripe.error.StripeError as e:
+        print(f"Error verifying Stripe payment: {e}")
+        return "error"

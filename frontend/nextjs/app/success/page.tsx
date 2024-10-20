@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useAuth } from '@/config/firebase/AuthContext';
-import axios from 'axios';
+import { verifyPayment } from '@/actions/apiActions';
 
 function SuccessContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
@@ -12,14 +12,13 @@ function SuccessContent() {
   const { user } = useAuth();
 
   useEffect(() => {
-    const verifyPayment = async () => {
+    const checkPayment = async () => {
       const sessionId = searchParams.get('session_id');
       if (sessionId && user) {
         try {
-          const response = await axios.get(`https://dolphin-app-49eto.ondigitalocean.app/backend/verify-payment/${sessionId}`, {
-            headers: { Authorization: `Bearer ${await user.getIdToken()}` }
-          });
-          if (response.data.status === 'paid') {
+          const token = await user.getIdToken();
+          const result = await verifyPayment(token, sessionId);
+          if (result.status === 'paid') {
             setStatus('success');
           } else {
             setStatus('error');
@@ -31,7 +30,7 @@ function SuccessContent() {
       }
     };
 
-    verifyPayment();
+    checkPayment();
   }, [searchParams, user]);
 
   if (status === 'loading') {
