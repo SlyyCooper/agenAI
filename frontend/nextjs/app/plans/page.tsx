@@ -41,17 +41,32 @@ function CheckoutForm({ amount, isSubscription, priceId }: { amount: number; isS
         clientSecret = response.clientSecret;
       }
 
-      const result = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card: elements.getElement(CardElement)!,
-          billing_details: {
-            name: user.displayName || undefined,
-          },
-        }
+      const cardElement = elements.getElement(CardElement);
+      if (!cardElement) {
+        throw new Error('Card Element not found');
+      }
+
+      // Create a PaymentMethod and attach it to the PaymentIntent
+      const { error: paymentMethodError, paymentMethod } = await stripe.createPaymentMethod({
+        type: 'card',
+        card: cardElement,
+        billing_details: {
+          name: user.displayName || undefined,
+        },
       });
 
-      if (result.error) {
-        setError(result.error.message || 'An error occurred');
+      if (paymentMethodError) {
+        setError(paymentMethodError.message || 'An error occurred while creating the payment method');
+        return;
+      }
+
+      // Confirm the PaymentIntent with the created PaymentMethod
+      const { error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: paymentMethod.id,
+      });
+
+      if (confirmError) {
+        setError(confirmError.message || 'An error occurred while confirming the payment');
       } else {
         window.location.href = '/success';
       }
