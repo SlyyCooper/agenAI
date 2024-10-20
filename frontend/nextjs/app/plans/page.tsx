@@ -32,13 +32,16 @@ function CheckoutForm({ amount, isSubscription, priceId }: { amount: number; isS
     try {
       const token = await user.getIdToken();
       let clientSecret;
+      let sessionId;
 
       if (isSubscription && priceId) {
         const response = await createSubscription(token, priceId);
         clientSecret = response.clientSecret;
+        sessionId = response.sessionId;
       } else {
         const response = await createPaymentIntent(token, amount, 'usd');
         clientSecret = response.clientSecret;
+        sessionId = response.sessionId;
       }
 
       const cardElement = elements.getElement(CardElement);
@@ -46,7 +49,6 @@ function CheckoutForm({ amount, isSubscription, priceId }: { amount: number; isS
         throw new Error('Card Element not found');
       }
 
-      // Create a PaymentMethod and attach it to the PaymentIntent
       const { error: paymentMethodError, paymentMethod } = await stripe.createPaymentMethod({
         type: 'card',
         card: cardElement,
@@ -60,7 +62,6 @@ function CheckoutForm({ amount, isSubscription, priceId }: { amount: number; isS
         return;
       }
 
-      // Confirm the PaymentIntent with the created PaymentMethod
       const { error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
         payment_method: paymentMethod.id,
       });
@@ -68,7 +69,7 @@ function CheckoutForm({ amount, isSubscription, priceId }: { amount: number; isS
       if (confirmError) {
         setError(confirmError.message || 'An error occurred while confirming the payment');
       } else {
-        window.location.href = '/success';
+        window.location.href = `/success?session_id=${sessionId}`;
       }
     } catch (error) {
       console.error('Payment error:', error);

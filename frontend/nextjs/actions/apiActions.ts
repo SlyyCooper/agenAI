@@ -184,7 +184,8 @@ export async function createPaymentIntent(token: string, amount: number, currenc
   if (!response.ok) {
     throw new Error('Failed to create payment intent');
   }
-  return response.json();
+  const data = await response.json();
+  return { clientSecret: data.client_secret, sessionId: data.session_id };
 }
 
 export async function createSubscription(token: string, priceId: string) {
@@ -199,7 +200,8 @@ export async function createSubscription(token: string, priceId: string) {
   if (!response.ok) {
     throw new Error('Failed to create subscription');
   }
-  return response.json();
+  const data = await response.json();
+  return { clientSecret: data.client_secret, sessionId: data.session_id };
 }
 
 export async function getUserProfile(token: string) {
