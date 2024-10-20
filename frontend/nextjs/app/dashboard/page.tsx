@@ -3,51 +3,106 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/config/firebase/AuthContext';
-import { Stripe } from 'stripe';
-import getStripe from '@/config/stripe/get-stripejs';
+import axios from 'axios';
+
+interface UserData {
+  email: string;
+  stripe_customer_id?: string;
+  subscription_status?: string;
+  subscription_plan?: string;
+  subscription_start_date?: string;
+  subscription_current_period_end?: string;
+  total_amount_paid?: number;
+  reports_generated?: number;
+  last_payment_date?: string;
+  last_payment_amount?: number;
+}
 
 const DashboardPage: React.FC = () => {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [subscriptionStatus, setSubscriptionStatus] = useState<string>('Fetching...');
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     }
 
-    const fetchSubscriptionStatus = async () => {
+    const fetchUserData = async () => {
       if (user) {
         try {
-          const res = await fetch('/api/subscription_status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uid: user.uid }),
+          const token = await user.getIdToken();
+          const response = await axios.get<UserData>('https://dolphin-app-49eto.ondigitalocean.app/backend/user/profile', {
+            headers: { Authorization: `Bearer ${token}` }
           });
-          const data = await res.json();
-          setSubscriptionStatus(data.status || 'No Subscription');
+          setUserData(response.data);
         } catch (error) {
-          console.error('Error fetching subscription status:', error);
-          setSubscriptionStatus('Error fetching status');
+          console.error('Error fetching user data:', error);
+        } finally {
+          setIsLoading(false);
         }
       }
     };
 
-    fetchSubscriptionStatus();
+    fetchUserData();
   }, [user, loading, router]);
 
-  if (loading) {
+  if (loading || isLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  }
+
+  if (!userData) {
+    return <div className="flex justify-center items-center h-screen">Error loading user data</div>;
   }
 
   return (
     <div className="container mx-auto px-6 py-12">
       <h1 className="text-4xl font-bold gradient-text mb-6">Welcome to your Dashboard</h1>
-      <div className="card">
-        <p className="text-custom-secondary mb-4">
-          Subscription Status: <span className="text-custom-primary">{subscriptionStatus}</span>
-        </p>
-        {/* Add more personalized dashboard content here */}
+      <div className="bg-white shadow-lg rounded-lg p-6">
+        <h2 className="text-2xl font-semibold mb-4">Your Account Information</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p className="text-gray-600">Email:</p>
+            <p className="font-medium">{userData.email}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">Subscription Status:</p>
+            <p className="font-medium">{userData.subscription_status || 'No active subscription'}</p>
+          </div>
+          {userData.subscription_plan && (
+            <div>
+              <p className="text-gray-600">Current Plan:</p>
+              <p className="font-medium">{userData.subscription_plan}</p>
+            </div>
+          )}
+          {userData.subscription_current_period_end && (
+            <div>
+              <p className="text-gray-600">Next Billing Date:</p>
+              <p className="font-medium">{new Date(userData.subscription_current_period_end).toLocaleDateString()}</p>
+            </div>
+          )}
+          <div>
+            <p className="text-gray-600">Total Amount Paid:</p>
+            <p className="font-medium">${(userData.total_amount_paid || 0) / 100}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">Reports Generated:</p>
+            <p className="font-medium">{userData.reports_generated || 0}</p>
+          </div>
+          {userData.last_payment_date && (
+            <div>
+              <p className="text-gray-600">Last Payment Date:</p>
+              <p className="font-medium">{new Date(userData.last_payment_date).toLocaleDateString()}</p>
+            </div>
+          )}
+          {userData.last_payment_amount && (
+            <div>
+              <p className="text-gray-600">Last Payment Amount:</p>
+              <p className="font-medium">${userData.last_payment_amount / 100}</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

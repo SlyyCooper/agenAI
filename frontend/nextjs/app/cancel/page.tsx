@@ -1,15 +1,50 @@
+'use client';
+
 import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { XCircle, ArrowLeft, HelpCircle } from 'lucide-react';
 
 export default function CancelPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md text-center">
-        <h1 className="text-2xl font-bold mb-4">Payment Cancelled</h1>
-        <p className="mb-6">Your payment was cancelled. If you have any questions, please contact support.</p>
-        <Link href="/plans" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
-          Try Again
-        </Link>
-      </div>
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-red-50 to-white text-gray-900">
+      <motion.div 
+        className="bg-white p-12 rounded-2xl shadow-xl text-center max-w-lg"
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 10 }}
+        >
+          <XCircle className="w-24 h-24 text-red-500 mx-auto mb-6" />
+        </motion.div>
+        <h1 className="text-4xl font-bold mb-4">Payment Cancelled</h1>
+        <p className="text-xl text-gray-600 mb-8">
+          Your payment was cancelled. If you encountered any issues or have questions, please don&apos;t hesitate to contact our support team.
+        </p>
+        <div className="flex flex-col space-y-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+          >
+            <Link href="/plans" className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors inline-flex items-center justify-center w-full">
+              <ArrowLeft className="mr-2 h-5 w-5" /> Try Again
+            </Link>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+          >
+            <Link href="/support" className="bg-gray-200 text-gray-800 px-8 py-3 rounded-lg hover:bg-gray-300 transition-colors inline-flex items-center justify-center w-full">
+              <HelpCircle className="mr-2 h-5 w-5" /> Contact Support
+            </Link>
+          </motion.div>
+        </div>
+      </motion.div>
     </div>
   );
 }

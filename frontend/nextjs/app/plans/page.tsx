@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/config/firebase/AuthContext';
 import axios from 'axios';
 import { loadStripe } from '@stripe/stripe-js';
@@ -11,6 +11,7 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
+import { Check, ChevronRight, CreditCard } from 'lucide-react';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -23,9 +24,7 @@ function CheckoutForm() {
 
   const handleSubmit = async (event: React.FormEvent, amount: number) => {
     event.preventDefault();
-    if (!stripe || !elements || !user) {
-      return;
-    }
+    if (!stripe || !elements || !user) return;
 
     setIsLoading(true);
     setError(null);
@@ -63,14 +62,32 @@ function CheckoutForm() {
   };
 
   return (
-    <div>
-      <CardElement />
-      {error && <div className="text-red-500 mt-2">{error}</div>}
+    <div className="mt-8 max-w-md mx-auto">
+      <div className="bg-white shadow-lg rounded-lg p-6">
+        <h3 className="text-xl font-semibold mb-4">Enter your card details</h3>
+        <CardElement
+          options={{
+            style: {
+              base: {
+                fontSize: '16px',
+                color: '#424770',
+                '::placeholder': {
+                  color: '#aab7c4',
+                },
+              },
+              invalid: {
+                color: '#9e2146',
+              },
+            },
+          }}
+        />
+        {error && <div className="text-red-500 mt-2 text-sm">{error}</div>}
+      </div>
     </div>
   );
 }
 
-function PlanCard({ title, price, features, amount }: { title: string; price: string; features: string[]; amount: number }) {
+function PlanCard({ title, price, features, amount, isPopular }: { title: string; price: string; features: string[]; amount: number; isPopular?: boolean }) {
   const stripe = useStripe();
   const elements = useElements();
   const { user } = useAuth();
@@ -78,7 +95,6 @@ function PlanCard({ title, price, features, amount }: { title: string; price: st
 
   const handlePayment = async () => {
     if (!stripe || !elements || !user) return;
-
     setIsLoading(true);
 
     try {
@@ -114,45 +130,75 @@ function PlanCard({ title, price, features, amount }: { title: string; price: st
   };
 
   return (
-    <div className="bg-white p-8 rounded-xl shadow-lg flex flex-col">
-      <h3 className="text-2xl font-bold mb-4">{title}</h3>
-      <p className="text-gray-600 mb-4">Perfect for one-time insights or occasional use.</p>
-      <p className="text-4xl font-bold mb-6">{price}</p>
-      <ul className="mb-8 space-y-2">
-        {features.map((feature, index) => (
-          <li key={index} className="flex items-center">
-            <ArrowRight className="mr-2 h-5 w-5 text-green-500" /> {feature}
-          </li>
-        ))}
-      </ul>
-      <button 
-        onClick={handlePayment} 
-        disabled={isLoading} 
-        className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
-      >
-        {isLoading ? 'Processing...' : 'Select Plan'}
-      </button>
-    </div>
+    <motion.div
+      className={`bg-white rounded-2xl shadow-xl overflow-hidden ${isPopular ? 'border-2 border-blue-500' : ''}`}
+      initial={{ opacity: 0, y: 50 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      {isPopular && (
+        <div className="bg-blue-500 text-white text-center py-2 font-semibold">
+          Most Popular
+        </div>
+      )}
+      <div className="p-8">
+        <h3 className="text-2xl font-bold mb-2">{title}</h3>
+        <p className="text-gray-600 mb-4">Perfect for your research needs</p>
+        <p className="text-4xl font-bold mb-6">{price}</p>
+        <ul className="mb-8 space-y-4">
+          {features.map((feature, index) => (
+            <li key={index} className="flex items-center">
+              <Check className="mr-2 h-5 w-5 text-green-500" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+        <button 
+          onClick={handlePayment} 
+          disabled={isLoading} 
+          className={`w-full py-3 px-4 rounded-lg text-white font-semibold flex items-center justify-center transition-colors ${
+            isPopular ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-800 hover:bg-gray-900'
+          }`}
+        >
+          {isLoading ? (
+            <motion.div
+              className="h-5 w-5 border-t-2 border-b-2 border-white rounded-full"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            />
+          ) : (
+            <>
+              Select Plan <ChevronRight className="ml-2 h-5 w-5" />
+            </>
+          )}
+        </button>
+      </div>
+    </motion.div>
   );
 }
 
 export default function PlansPage() {
   return (
     <Elements stripe={stripePromise}>
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900 py-20">
-        <div className="container mx-auto px-6">
-          <h1 className="text-4xl font-bold mb-12 text-center">Choose Your Plan</h1>
-          <div className="mb-8">
-            <CheckoutForm />
-          </div>
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 text-gray-900 py-20">
+        <motion.div 
+          className="container mx-auto px-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <h1 className="text-5xl font-bold mb-4 text-center">Choose Your Plan</h1>
+          <p className="text-xl text-gray-600 text-center mb-12">Select the perfect plan for your research needs</p>
+          
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <PlanCard 
               title="Per Report" 
               price="$1/report" 
               features={[
-                "5 Detailed Reports using gpt-4o",
+                "5 Detailed Reports using GPT-4",
                 "10 Summary Reports",
-                "Ability to Save Reports to Account"
+                "Save Reports to Account",
+                "24/7 Support"
               ]}
               amount={100}
             />
@@ -160,16 +206,25 @@ export default function PlansPage() {
               title="Subscription" 
               price="$20/month" 
               features={[
-                "30 Detailed Reports using gpt-4o",
-                "Access to the latest AI models",
+                "30 Detailed Reports using GPT-4o",
+                "Latest AI Models Access",
                 "Unlimited Summary Reports",
-                "Ability to Save Reports to Account",
-                "Priority support"
+                "Save Reports to Account",
+                "Priority Support"
               ]}
               amount={2000}
+              isPopular
             />
           </div>
-        </div>
+          
+          <CheckoutForm />
+          
+          <div className="mt-12 text-center">
+            <p className="text-gray-600 flex items-center justify-center">
+              <CreditCard className="mr-2" /> Secure payment powered by Stripe
+            </p>
+          </div>
+        </motion.div>
       </div>
     </Elements>
   );
