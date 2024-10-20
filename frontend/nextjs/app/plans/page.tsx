@@ -188,7 +188,7 @@ export default function PlansPage() {
               "24/7 Support"
             ]}
             amount={100}
-            priceId="price_1234567890" // Replace with actual Stripe Price ID
+            priceId="prod_R0bEOf1dWZCjyY" // Replace with actual Stripe Price ID
           />
           <PlanCard 
             title="Subscription" 
@@ -202,7 +202,7 @@ export default function PlansPage() {
             ]}
             amount={2000}
             isPopular
-            priceId="price_0987654321" // Replace with actual Stripe Price ID
+            priceId="prod_Qvu89XrhkHjzZU" // Replace with actual Stripe Price ID
           />
         </div>
         

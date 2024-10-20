@@ -5,6 +5,8 @@
 * Firebase Admin, Firestore, Stripe SDK in Backend
 * Frontend: Next.js 14 with Typescript
 * Firebase auth in Frontend that connects to Backend
+* one time payment product id prod_R0bEOf1dWZCjyY
+* subscription product id prod_Qvu89XrhkHjzZU
 
 #Project Strucutre
 
