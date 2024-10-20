@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/config/firebase/AuthContext';
 import axios from 'axios';
+import Link from 'next/link';
 
 interface UserData {
   email: string;
@@ -18,10 +19,18 @@ interface UserData {
   last_payment_amount?: number;
 }
 
+interface Report {
+  id: string;
+  task: string;
+  type: string;
+  created_at: string;
+}
+
 const DashboardPage: React.FC = () => {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [reports, setReports] = useState<Report[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -29,23 +38,29 @@ const DashboardPage: React.FC = () => {
       router.push('/login');
     }
 
-    const fetchUserData = async () => {
+    const fetchData = async () => {
       if (user) {
         try {
           const token = await user.getIdToken();
-          const response = await axios.get<UserData>('https://dolphin-app-49eto.ondigitalocean.app/backend/user/profile', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setUserData(response.data);
+          const [userResponse, reportsResponse] = await Promise.all([
+            axios.get<UserData>('https://dolphin-app-49eto.ondigitalocean.app/backend/user/profile', {
+              headers: { Authorization: `Bearer ${token}` }
+            }),
+            axios.get<{ reports: Report[] }>('https://dolphin-app-49eto.ondigitalocean.app/backend/user/reports', {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+          ]);
+          setUserData(userResponse.data);
+          setReports(reportsResponse.data.reports);
         } catch (error) {
-          console.error('Error fetching user data:', error);
+          console.error('Error fetching data:', error);
         } finally {
           setIsLoading(false);
         }
       }
     };
 
-    fetchUserData();
+    fetchData();
   }, [user, loading, router]);
 
   if (loading || isLoading) {
@@ -59,7 +74,9 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="container mx-auto px-6 py-12">
       <h1 className="text-4xl font-bold gradient-text mb-6">Welcome to your Dashboard</h1>
-      <div className="bg-white shadow-lg rounded-lg p-6">
+      
+      {/* User Account Information */}
+      <div className="bg-white shadow-lg rounded-lg p-6 mb-8">
         <h2 className="text-2xl font-semibold mb-4">Your Account Information</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -103,6 +120,35 @@ const DashboardPage: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Recent Reports */}
+      <div className="bg-white shadow-lg rounded-lg p-6">
+        <h2 className="text-2xl font-semibold mb-4">Your Recent Reports</h2>
+        {reports.length > 0 ? (
+          <ul className="divide-y divide-gray-200">
+            {reports.map((report) => (
+              <li key={report.id} className="py-4">
+                <div className="flex justify-between">
+                  <div>
+                    <p className="font-medium">{report.task}</p>
+                    <p className="text-sm text-gray-500">{report.type}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">
+                      {new Date(report.created_at).toLocaleDateString()}
+                    </p>
+                    <Link href={`/report/${report.id}`} className="text-blue-500 hover:underline">
+                      View Report
+                    </Link>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>You haven&apos;t generated any reports yet.</p>
+        )}
       </div>
     </div>
   );

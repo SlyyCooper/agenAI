@@ -28,6 +28,7 @@ from backend.server.server_utils import (
     create_stripe_customer, create_payment_intent, 
     create_subscription, handle_stripe_webhook
 )
+from backend.server.server_utils import get_user_reports
 
 # Models
 
@@ -243,3 +244,9 @@ async def stripe_webhook(request: Request):
 
     # The webhook handling is now done in the handle_stripe_webhook function
     return {"status": "success"}
+
+@app.get("/user/reports")
+async def get_user_report_list(limit: int = 10, current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    reports = await get_user_reports(user_id, limit)
+    return {"reports": reports}

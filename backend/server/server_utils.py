@@ -38,6 +38,14 @@ async def handle_start_command(websocket, data: str, manager):
     )
     report = str(report)
     file_paths = await generate_report_files(report, sanitized_filename)
+    
+    # Save the report to Firestore
+    user_id = websocket.scope.get('user_id')  # Assuming you've set this when authenticating the WebSocket
+    if user_id:
+        report_id = await save_report_to_firestore(user_id, report, report_type, task)
+        if report_id:
+            file_paths['report_id'] = report_id
+
     await send_file_paths(websocket, file_paths)
 
 # Handle human feedback (placeholder for future implementation)
@@ -336,3 +344,47 @@ async def handle_stripe_webhook(payload, sig_header, webhook_secret):
         raise HTTPException(status_code=400, detail="Invalid payload")
     except stripe.error.SignatureVerificationError as e:
         raise HTTPException(status_code=400, detail="Invalid signature")
+
+async def save_report_to_firestore(user_id: str, report: str, report_type: str, task: str):
+    try:
+        # Get a reference to the user's document
+        user_ref = db.collection('users').document(user_id)
+        
+        # Create a new report document in a subcollection
+        report_ref = user_ref.collection('reports').document()
+        
+        report_data = {
+            'content': report,
+            'type': report_type,
+            'task': task,
+            'created_at': firestore.SERVER_TIMESTAMP
+        }
+        
+        # Save the report
+        report_ref.set(report_data)
+        
+        # Update the user's report count
+        user_ref.update({
+            'reports_generated': firestore.Increment(1)
+        })
+        
+        return report_ref.id
+    except Exception as e:
+        print(f"Error saving report to Firestore: {e}")
+        return None
+
+async def get_user_reports(user_id: str, limit: int = 10) -> List[Dict]:
+    try:
+        user_ref = db.collection('users').document(user_id)
+        reports_ref = user_ref.collection('reports').order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit)
+        
+        reports = []
+        for doc in reports_ref.stream():
+            report_data = doc.to_dict()
+            report_data['id'] = doc.id
+            reports.append(report_data)
+        
+        return reports
+    except Exception as e:
+        print(f"Error fetching user reports: {e}")
+        return []
