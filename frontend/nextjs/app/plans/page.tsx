@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/config/firebase/AuthContext';
-import axios from 'axios';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -12,17 +11,18 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { Check, ChevronRight, CreditCard } from 'lucide-react';
+import { createPaymentIntent, createSubscription, getUserSubscription, Subscription } from '@/actions/apiActions';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-function CheckoutForm() {
+function CheckoutForm({ amount, isSubscription, priceId }: { amount: number; isSubscription: boolean; priceId?: string }) {
   const stripe = useStripe();
   const elements = useElements();
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (event: React.FormEvent, amount: number) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!stripe || !elements || !user) return;
 
@@ -30,16 +30,18 @@ function CheckoutForm() {
     setError(null);
 
     try {
-      const response = await axios.post('https://dolphin-app-49eto.ondigitalocean.app/backend/create-payment-intent', {
-        amount,
-        currency: 'usd',
-      }, {
-        headers: { Authorization: `Bearer ${await user.getIdToken()}` }
-      });
+      const token = await user.getIdToken();
+      let clientSecret;
 
-      const { client_secret } = response.data;
+      if (isSubscription && priceId) {
+        const response = await createSubscription(token, priceId);
+        clientSecret = response.clientSecret;
+      } else {
+        const response = await createPaymentIntent(token, amount, 'usd');
+        clientSecret = response.clientSecret;
+      }
 
-      const result = await stripe.confirmCardPayment(client_secret, {
+      const result = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
           card: elements.getElement(CardElement)!,
           billing_details: {
@@ -62,7 +64,7 @@ function CheckoutForm() {
   };
 
   return (
-    <div className="mt-8 max-w-md mx-auto">
+    <form onSubmit={handleSubmit} className="mt-8 max-w-md mx-auto">
       <div className="bg-white shadow-lg rounded-lg p-6">
         <h3 className="text-xl font-semibold mb-4">Enter your card details</h3>
         <CardElement
@@ -82,52 +84,20 @@ function CheckoutForm() {
           }}
         />
         {error && <div className="text-red-500 mt-2 text-sm">{error}</div>}
+        <button 
+          type="submit"
+          disabled={isLoading} 
+          className="mt-4 w-full py-3 px-4 rounded-lg text-white font-semibold bg-blue-500 hover:bg-blue-600 transition-colors"
+        >
+          {isLoading ? 'Processing...' : 'Pay Now'}
+        </button>
       </div>
-    </div>
+    </form>
   );
 }
 
-function PlanCard({ title, price, features, amount, isPopular }: { title: string; price: string; features: string[]; amount: number; isPopular?: boolean }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handlePayment = async () => {
-    if (!stripe || !elements || !user) return;
-    setIsLoading(true);
-
-    try {
-      const response = await axios.post('https://dolphin-app-49eto.ondigitalocean.app/backend/create-payment-intent', {
-        amount,
-        currency: 'usd',
-      }, {
-        headers: { Authorization: `Bearer ${await user.getIdToken()}` }
-      });
-
-      const { client_secret } = response.data;
-
-      const result = await stripe.confirmCardPayment(client_secret, {
-        payment_method: {
-          card: elements.getElement(CardElement)!,
-          billing_details: {
-            name: user.displayName || undefined,
-          },
-        }
-      });
-
-      if (result.error) {
-        throw new Error(result.error.message);
-      } else {
-        window.location.href = '/success';
-      }
-    } catch (error) {
-      console.error('Payment error:', error);
-      alert('An error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+function PlanCard({ title, price, features, amount, isPopular, priceId }: { title: string; price: string; features: string[]; amount: number; isPopular?: boolean; priceId: string }) {
+  const [showCheckout, setShowCheckout] = useState(false);
 
   return (
     <motion.div
@@ -154,78 +124,94 @@ function PlanCard({ title, price, features, amount, isPopular }: { title: string
           ))}
         </ul>
         <button 
-          onClick={handlePayment} 
-          disabled={isLoading} 
+          onClick={() => setShowCheckout(true)} 
           className={`w-full py-3 px-4 rounded-lg text-white font-semibold flex items-center justify-center transition-colors ${
             isPopular ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-800 hover:bg-gray-900'
           }`}
         >
-          {isLoading ? (
-            <motion.div
-              className="h-5 w-5 border-t-2 border-b-2 border-white rounded-full"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            />
-          ) : (
-            <>
-              Select Plan <ChevronRight className="ml-2 h-5 w-5" />
-            </>
-          )}
+          Select Plan <ChevronRight className="ml-2 h-5 w-5" />
         </button>
       </div>
+      {showCheckout && (
+        <Elements stripe={stripePromise}>
+          <CheckoutForm amount={amount} isSubscription={title === "Subscription"} priceId={priceId} />
+        </Elements>
+      )}
     </motion.div>
   );
 }
 
 export default function PlansPage() {
+  const { user } = useAuth();
+  const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
+
+  useEffect(() => {
+    async function fetchSubscription() {
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          const subscription = await getUserSubscription(token);
+          setCurrentSubscription(subscription);
+        } catch (error) {
+          console.error('Error fetching subscription:', error);
+        }
+      }
+    }
+    fetchSubscription();
+  }, [user]);
+
   return (
-    <Elements stripe={stripePromise}>
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 text-gray-900 py-20">
-        <motion.div 
-          className="container mx-auto px-6"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h1 className="text-5xl font-bold mb-4 text-center">Choose Your Plan</h1>
-          <p className="text-xl text-gray-600 text-center mb-12">Select the perfect plan for your research needs</p>
-          
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <PlanCard 
-              title="Per Report" 
-              price="$1/report" 
-              features={[
-                "5 Detailed Reports using GPT-4",
-                "10 Summary Reports",
-                "Save Reports to Account",
-                "24/7 Support"
-              ]}
-              amount={100}
-            />
-            <PlanCard 
-              title="Subscription" 
-              price="$20/month" 
-              features={[
-                "30 Detailed Reports using GPT-4o",
-                "Latest AI Models Access",
-                "Unlimited Summary Reports",
-                "Save Reports to Account",
-                "Priority Support"
-              ]}
-              amount={2000}
-              isPopular
-            />
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 text-gray-900 py-20">
+      <motion.div 
+        className="container mx-auto px-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h1 className="text-5xl font-bold mb-4 text-center">Choose Your Plan</h1>
+        <p className="text-xl text-gray-600 text-center mb-12">Select the perfect plan for your research needs</p>
+        
+        {currentSubscription && (
+          <div className="mb-8 p-4 bg-blue-100 rounded-lg text-center">
+            <p className="text-lg">You currently have an active {currentSubscription.plan} subscription.</p>
           </div>
-          
-          <CheckoutForm />
-          
-          <div className="mt-12 text-center">
-            <p className="text-gray-600 flex items-center justify-center">
-              <CreditCard className="mr-2" /> Secure payment powered by Stripe
-            </p>
-          </div>
-        </motion.div>
-      </div>
-    </Elements>
+        )}
+
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <PlanCard 
+            title="Per Report" 
+            price="$1/report" 
+            features={[
+              "5 Detailed Reports using GPT-4",
+              "10 Summary Reports",
+              "Save Reports to Account",
+              "24/7 Support"
+            ]}
+            amount={100}
+            priceId="price_1234567890" // Replace with actual Stripe Price ID
+          />
+          <PlanCard 
+            title="Subscription" 
+            price="$20/month" 
+            features={[
+              "30 Detailed Reports using GPT-4",
+              "Latest AI Models Access",
+              "Unlimited Summary Reports",
+              "Save Reports to Account",
+              "Priority Support"
+            ]}
+            amount={2000}
+            isPopular
+            priceId="price_0987654321" // Replace with actual Stripe Price ID
+          />
+        </div>
+        
+        <div className="mt-12 text-center">
+          <p className="text-gray-600 flex items-center justify-center">
+            <CreditCard className="mr-2" /> Secure payment powered by Stripe
+          </p>
+        </div>
+      </motion.div>
+    </div>
   );
 }

@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
 
-from backend.server.server_utils import cancel_subscription, generate_report_files, get_payment_history, get_stripe_webhook_secret, get_subscription_details, verify_stripe_payment, cancel_stripe_payment
+from backend.server.server_utils import cancel_subscription, generate_report_files, get_payment_history, get_stripe_webhook_secret, get_subscription_details, get_user_payments, record_one_time_payment, update_user_subscription, verify_stripe_payment, cancel_stripe_payment
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
 from gpt_researcher.document.document import DocumentLoader
@@ -280,3 +280,27 @@ async def cancel_payment(session_id: str, current_user: dict = Depends(get_curre
     user_id = current_user['uid']
     cancellation_status = await cancel_stripe_payment(user_id, session_id)
     return {"status": cancellation_status}
+
+@app.post("/update-subscription")
+async def update_subscription(data: dict, current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    await update_user_subscription(user_id, data)
+    return {"message": "Subscription updated successfully"}
+
+@app.post("/record-payment")
+async def record_payment(data: dict, current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    await record_one_time_payment(user_id, data)
+    return {"message": "Payment recorded successfully"}
+
+@app.get("/user-subscription")
+async def get_subscription(current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    subscription = await get_user_subscription(user_id)
+    return {"subscription": subscription}
+
+@app.get("/user-payments")
+async def get_payments(limit: int = 10, current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    payments = await get_user_payments(user_id, limit)
+    return {"payments": payments}

@@ -1,5 +1,13 @@
 import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
 
+export interface Subscription {
+  id: string;
+  status: string;
+  plan: string;
+  current_period_end: number;
+  cancel_at_period_end: boolean;
+}
+
 export async function handleSourcesAndAnswer(question: string) {
   let sourcesResponse = await fetch("/api/getSources", {
     method: "POST",
@@ -107,14 +115,17 @@ export async function handleLanggraphAnswer(question: string) {
   }
 }
 
-export async function getUserSubscription() {
-  const response = await fetch('/user/subscription', {
-    method: 'GET',
-    headers: {
+export async function getUserSubscription(token: string): Promise<Subscription | null> {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/subscription', {
+    headers: { 
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-    },
+    }
   });
   if (!response.ok) {
+    if (response.status === 404) {
+      return null; // User has no subscription
+    }
     throw new Error('Failed to fetch subscription data');
   }
   return response.json();

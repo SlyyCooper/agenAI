@@ -479,3 +479,30 @@ async def cancel_stripe_payment(user_id: str, session_id: str):
     except stripe.error.StripeError as e:
         print(f"Error cancelling Stripe payment: {e}")
         return "error"
+
+async def update_user_subscription(user_id: str, subscription_data: dict):
+    user_ref = db.collection('users').document(user_id)
+    user_ref.update({
+        'subscription': subscription_data,
+        'last_updated': firestore.SERVER_TIMESTAMP
+    })
+
+async def record_one_time_payment(user_id: str, payment_data: dict):
+    user_ref = db.collection('users').document(user_id)
+    payments_ref = user_ref.collection('payments')
+    payments_ref.add({
+        **payment_data,
+        'timestamp': firestore.SERVER_TIMESTAMP
+    })
+
+async def get_user_subscription(user_id: str):
+    user_ref = db.collection('users').document(user_id)
+    user_doc = user_ref.get()
+    if user_doc.exists:
+        return user_doc.to_dict().get('subscription')
+    return None
+
+async def get_user_payments(user_id: str, limit: int = 10):
+    user_ref = db.collection('users').document(user_id)
+    payments_ref = user_ref.collection('payments').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(limit)
+    return [payment.to_dict() for payment in payments_ref.stream()]
