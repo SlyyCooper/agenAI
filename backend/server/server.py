@@ -241,15 +241,5 @@ async def stripe_webhook(request: Request):
     
     event = await handle_stripe_webhook(payload, sig_header, webhook_secret)
 
-    # Handle the event
-    if event['type'] == 'payment_intent.succeeded':
-        payment_intent = event['data']['object']
-        # Handle successful payment
-        print(f"Payment succeeded: {payment_intent['id']}")
-    elif event['type'] == 'customer.subscription.created':
-        subscription = event['data']['object']
-        # Handle subscription creation
-        print(f"Subscription created: {subscription['id']}")
-    # Add more event handlers as needed
-
+    # The webhook handling is now done in the handle_stripe_webhook function
     return {"status": "success"}

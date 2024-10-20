@@ -242,11 +242,31 @@ async def create_stripe_customer(user_id: str, email: str):
             email=email,
             metadata={"user_id": user_id}
         )
-        # Store the Stripe customer ID in Firestore
-        await update_user_data(user_id, {"stripe_customer_id": customer.id})
+        # Store the Stripe customer ID and initial data in Firestore
+        await update_user_data(user_id, {
+            "stripe_customer_id": customer.id,
+            "stripe_created_at": firestore.SERVER_TIMESTAMP,
+            "total_amount_paid": 0,
+            "reports_generated": 0
+        })
         return customer.id
     except StripeError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+async def update_subscription_data(user_id: str, subscription: stripe.Subscription):
+    subscription_data = {
+        "subscription_id": subscription.id,
+        "subscription_status": subscription.status,
+        "subscription_plan": subscription.plan.id,
+        "subscription_start_date": firestore.Timestamp.from_seconds(subscription.start_date),
+        "subscription_current_period_end": firestore.Timestamp.from_seconds(subscription.current_period_end),
+        "subscription_cancel_at_period_end": subscription.cancel_at_period_end
+    }
+    
+    if subscription.canceled_at:
+        subscription_data["subscription_canceled_at"] = firestore.Timestamp.from_seconds(subscription.canceled_at)
+    
+    await update_user_data(user_id, subscription_data)
 
 # Create a Stripe PaymentIntent
 async def create_payment_intent(amount: int, currency: str, customer_id: str):
@@ -267,9 +287,32 @@ async def create_subscription(customer_id: str, price_id: str):
             customer=customer_id,
             items=[{'price': price_id}],
         )
+        # Get the user_id from the customer's metadata
+        customer = stripe.Customer.retrieve(customer_id)
+        user_id = customer.metadata.get('user_id')
+        
+        if user_id:
+            await update_subscription_data(user_id, subscription)
+        
         return subscription
     except StripeError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+async def handle_successful_payment(payment_intent: stripe.PaymentIntent):
+    customer_id = payment_intent.customer
+    amount = payment_intent.amount
+    
+    customer = stripe.Customer.retrieve(customer_id)
+    user_id = customer.metadata.get('user_id')
+    
+    if user_id:
+        user_data = await get_user_data(user_id)
+        new_total = user_data.get('total_amount_paid', 0) + amount
+        await update_user_data(user_id, {
+            "total_amount_paid": new_total,
+            "last_payment_date": firestore.SERVER_TIMESTAMP,
+            "last_payment_amount": amount
+        })
 
 # Handle Stripe webhook events
 async def handle_stripe_webhook(payload, sig_header, webhook_secret):
@@ -277,6 +320,17 @@ async def handle_stripe_webhook(payload, sig_header, webhook_secret):
         event = stripe.Webhook.construct_event(
             payload, sig_header, webhook_secret
         )
+        
+        if event['type'] == 'payment_intent.succeeded':
+            payment_intent = event['data']['object']
+            await handle_successful_payment(payment_intent)
+        elif event['type'] == 'customer.subscription.updated':
+            subscription = event['data']['object']
+            customer = stripe.Customer.retrieve(subscription.customer)
+            user_id = customer.metadata.get('user_id')
+            if user_id:
+                await update_subscription_data(user_id, subscription)
+        
         return event
     except ValueError as e:
         raise HTTPException(status_code=400, detail="Invalid payload")
