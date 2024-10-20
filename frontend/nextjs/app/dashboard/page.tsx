@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/config/firebase/AuthContext';
-import axios from 'axios';
 import Link from 'next/link';
+import { getUserProfile, getUserReports } from '@/actions/apiActions';
 
 interface UserData {
   email: string;
@@ -42,16 +42,12 @@ const DashboardPage: React.FC = () => {
       if (user) {
         try {
           const token = await user.getIdToken();
-          const [userResponse, reportsResponse] = await Promise.all([
-            axios.get<UserData>('https://dolphin-app-49eto.ondigitalocean.app/backend/user/profile', {
-              headers: { Authorization: `Bearer ${token}` }
-            }),
-            axios.get<{ reports: Report[] }>('https://dolphin-app-49eto.ondigitalocean.app/backend/user/reports', {
-              headers: { Authorization: `Bearer ${token}` }
-            })
+          const [userProfileData, userReportsData] = await Promise.all([
+            getUserProfile(token),
+            getUserReports(token)
           ]);
-          setUserData(userResponse.data);
-          setReports(reportsResponse.data.reports);
+          setUserData(userProfileData);
+          setReports(userReportsData.reports);
         } catch (error) {
           console.error('Error fetching data:', error);
         } finally {

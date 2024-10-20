@@ -106,3 +106,107 @@ export async function handleLanggraphAnswer(question: string) {
     parser.feed(chunkValue);
   }
 }
+
+export async function getUserSubscription() {
+  const response = await fetch('/user/subscription', {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch subscription data');
+  }
+  return response.json();
+}
+
+export async function getUserPaymentHistory() {
+  const response = await fetch('/user/payment-history', {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch payment history');
+  }
+  return response.json();
+}
+
+export async function cancelUserSubscription() {
+  const response = await fetch('/user/cancel-subscription', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    throw new Error('Failed to cancel subscription');
+  }
+  return response.json();
+}
+
+export async function createStripeCustomer(token: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-stripe-customer', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    throw new Error('Failed to create Stripe customer');
+  }
+  const data = await response.json();
+  return data.customer_id;
+}
+
+export async function createPaymentIntent(token: string, amount: number, currency: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-payment-intent', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ amount, currency }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to create payment intent');
+  }
+  return response.json();
+}
+
+export async function createSubscription(token: string, priceId: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-subscription', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ price_id: priceId }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to create subscription');
+  }
+  return response.json();
+}
+
+export async function getUserProfile(token: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/profile', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch user profile');
+  }
+  return response.json();
+}
+
+export async function getUserReports(token: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/reports', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch user reports');
+  }
+  return response.json();
+}

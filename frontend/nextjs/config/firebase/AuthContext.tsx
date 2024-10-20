@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, getAuth, User } from 'firebase/auth';
 import { app } from './firebase';
 import axios from 'axios';
+import { createStripeCustomer } from '@/actions/apiActions';
 
 const auth = getAuth(app);
 
@@ -25,17 +26,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any | null>(null);
-
-  const createStripeCustomer = async (token: string) => {
-    try {
-      const response = await axios.post('https://dolphin-app-49eto.ondigitalocean.app/backend/create-stripe-customer', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      return response.data.customer_id;
-    } catch (error) {
-      console.error('Error creating Stripe customer:', error);
-    }
-  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {

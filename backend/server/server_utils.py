@@ -388,3 +388,58 @@ async def get_user_reports(user_id: str, limit: int = 10) -> List[Dict]:
     except Exception as e:
         print(f"Error fetching user reports: {e}")
         return []
+
+async def get_subscription_details(user_id: str):
+    user_data = await get_user_data(user_id)
+    subscription_id = user_data.get('subscription_id')
+    if not subscription_id:
+        return None
+    
+    try:
+        subscription = stripe.Subscription.retrieve(subscription_id)
+        return {
+            'id': subscription.id,
+            'status': subscription.status,
+            'plan': subscription.plan.nickname,
+            'current_period_end': subscription.current_period_end,
+            'cancel_at_period_end': subscription.cancel_at_period_end
+        }
+    except stripe.error.StripeError as e:
+        print(f"Error retrieving subscription: {e}")
+        return None
+
+async def get_payment_history(user_id: str, limit: int = 10):
+    user_data = await get_user_data(user_id)
+    customer_id = user_data.get('stripe_customer_id')
+    if not customer_id:
+        return []
+    
+    try:
+        charges = stripe.Charge.list(customer=customer_id, limit=limit)
+        return [{
+            'id': charge.id,
+            'amount': charge.amount,
+            'currency': charge.currency,
+            'status': charge.status,
+            'date': charge.created
+        } for charge in charges.data]
+    except stripe.error.StripeError as e:
+        print(f"Error retrieving payment history: {e}")
+        return []
+
+async def cancel_subscription(user_id: str):
+    user_data = await get_user_data(user_id)
+    subscription_id = user_data.get('subscription_id')
+    if not subscription_id:
+        return False
+    
+    try:
+        subscription = stripe.Subscription.modify(
+            subscription_id,
+            cancel_at_period_end=True
+        )
+        await update_subscription_data(user_id, subscription)
+        return True
+    except stripe.error.StripeError as e:
+        print(f"Error cancelling subscription: {e}")
+        return False

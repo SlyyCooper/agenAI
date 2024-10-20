@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
 
-from backend.server.server_utils import generate_report_files, get_stripe_webhook_secret
+from backend.server.server_utils import cancel_subscription, generate_report_files, get_payment_history, get_stripe_webhook_secret, get_subscription_details
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
 from gpt_researcher.document.document import DocumentLoader
@@ -250,3 +250,21 @@ async def get_user_report_list(limit: int = 10, current_user: dict = Depends(get
     user_id = current_user['uid']
     reports = await get_user_reports(user_id, limit)
     return {"reports": reports}
+
+@app.get("/user/subscription")
+async def get_user_subscription(current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    subscription = await get_subscription_details(user_id)
+    return {"subscription": subscription}
+
+@app.get("/user/payment-history")
+async def get_user_payment_history(current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    history = await get_payment_history(user_id)
+    return {"payment_history": history}
+
+@app.post("/user/cancel-subscription")
+async def cancel_user_subscription(current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    success = await cancel_subscription(user_id)
+    return {"success": success}
