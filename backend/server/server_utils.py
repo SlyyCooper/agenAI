@@ -262,13 +262,30 @@ async def create_stripe_customer(user_id: str, email: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 async def update_subscription_data(user_id: str, subscription: stripe.Subscription):
+    plan = subscription.plan
     subscription_data = {
         "subscription_id": subscription.id,
         "subscription_status": subscription.status,
-        "subscription_plan": subscription.plan.id,
+        "subscription_plan": {
+            "id": plan.id,
+            "nickname": plan.nickname,
+            "amount": plan.amount,
+            "currency": plan.currency,
+            "interval": plan.interval,
+            "interval_count": plan.interval_count,
+        },
         "subscription_start_date": firestore.Timestamp.from_seconds(subscription.start_date),
         "subscription_current_period_end": firestore.Timestamp.from_seconds(subscription.current_period_end),
-        "subscription_cancel_at_period_end": subscription.cancel_at_period_end
+        "subscription_cancel_at_period_end": subscription.cancel_at_period_end,
+        "subscription_items": [{
+            "id": item.id,
+            "price": {
+                "id": item.price.id,
+                "nickname": item.price.nickname,
+                "unit_amount": item.price.unit_amount,
+                "currency": item.price.currency,
+            }
+        } for item in subscription.items.data],
     }
     
     if subscription.canceled_at:
@@ -338,6 +355,8 @@ async def handle_stripe_webhook(payload, sig_header, webhook_secret):
             user_id = customer.metadata.get('user_id')
             if user_id:
                 await update_subscription_data(user_id, subscription)
+        elif event['type'] == 'checkout.session.completed':
+            await handle_checkout_session_completed(event)
         
         return event
     except ValueError as e:
@@ -397,10 +416,18 @@ async def get_subscription_details(user_id: str):
     
     try:
         subscription = stripe.Subscription.retrieve(subscription_id)
+        plan = subscription.plan
         return {
             'id': subscription.id,
             'status': subscription.status,
-            'plan': subscription.plan.nickname,
+            'plan': {
+                'id': plan.id,
+                'nickname': plan.nickname,
+                'amount': plan.amount,
+                'currency': plan.currency,
+                'interval': plan.interval,
+                'interval_count': plan.interval_count,
+            },
             'current_period_end': subscription.current_period_end,
             'cancel_at_period_end': subscription.cancel_at_period_end
         }
@@ -409,36 +436,38 @@ async def get_subscription_details(user_id: str):
         return None
 
 async def get_payment_history(user_id: str, limit: int = 10):
-    user_data = await get_user_data(user_id)
-    customer_id = user_data.get('stripe_customer_id')
-    if not customer_id:
-        return []
-    
     try:
+        user_data = await get_user_data(user_id)
+        customer_id = user_data.get('stripe_customer_id')
+        if not customer_id:
+            return []
+        
         charges = stripe.Charge.list(customer=customer_id, limit=limit)
         return [{
             'id': charge.id,
             'amount': charge.amount,
             'currency': charge.currency,
             'status': charge.status,
-            'date': charge.created
+            'created': charge.created
         } for charge in charges.data]
     except stripe.error.StripeError as e:
         print(f"Error retrieving payment history: {e}")
         return []
 
 async def cancel_subscription(user_id: str):
-    user_data = await get_user_data(user_id)
-    subscription_id = user_data.get('subscription_id')
-    if not subscription_id:
-        return False
-    
     try:
+        user_data = await get_user_data(user_id)
+        subscription_id = user_data.get('subscription_id')
+        if not subscription_id:
+            return False
+        
         subscription = stripe.Subscription.modify(
             subscription_id,
             cancel_at_period_end=True
         )
-        await update_subscription_data(user_id, subscription)
+        await update_user_data(user_id, {
+            'subscription_cancel_at_period_end': True
+        })
         return True
     except stripe.error.StripeError as e:
         print(f"Error cancelling subscription: {e}")
@@ -474,8 +503,10 @@ async def cancel_stripe_payment(user_id: str, session_id: str):
                 "last_cancelled_amount": session.amount_total
             })
             return "cancelled"
-        else:
+        elif session.payment_status == 'paid':
             return "already_paid"
+        else:
+            return "error"
     except stripe.error.StripeError as e:
         print(f"Error cancelling Stripe payment: {e}")
         return "error"
@@ -506,3 +537,84 @@ async def get_user_payments(user_id: str, limit: int = 10):
     user_ref = db.collection('users').document(user_id)
     payments_ref = user_ref.collection('payments').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(limit)
     return [payment.to_dict() for payment in payments_ref.stream()]
+
+async def create_stripe_checkout_session(user_id: str, price_id: str, origin: str):
+    user_data = await get_user_data(user_id)
+    customer_id = user_data.get('stripe_customer_id')
+    
+    if not customer_id:
+        customer = stripe.Customer.create(
+            metadata={"user_id": user_id}
+        )
+        customer_id = customer.id
+        await update_user_data(user_id, {"stripe_customer_id": customer_id})
+    
+    # Parse the origin URL
+    parsed_origin = urlparse(origin)
+    base_url = f"{parsed_origin.scheme}://{parsed_origin.netloc}"
+    
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        payment_method_types=['card'],
+        line_items=[{
+            'price': price_id,
+            'quantity': 1,
+        }],
+        mode='subscription' if price_id == 'prod_Qvu89XrhkHjzZU' else 'payment',
+        success_url=f'{base_url}/success?session_id={{CHECKOUT_SESSION_ID}}',
+        cancel_url=f'{base_url}/cancel',
+    )
+    
+    # Store the Checkout session information in Firestore
+    db = firestore.client()
+    checkout_ref = db.collection('users').document(user_id).collection('checkout_sessions').document(session.id)
+    checkout_ref.set({
+        'session_id': session.id,
+        'customer_id': customer_id,
+        'price_id': price_id,
+        'status': 'created',
+        'created_at': firestore.SERVER_TIMESTAMP,
+        'mode': 'subscription' if price_id == 'prod_Qvu89XrhkHjzZU' else 'payment',
+        'origin': origin,
+    })
+    
+    return session
+
+# Add this new function to handle Stripe webhook events
+async def handle_checkout_session_completed(event):
+    session = event['data']['object']
+    session_id = session['id']
+    customer_id = session['customer']
+    
+    customer = stripe.Customer.retrieve(customer_id)
+    user_id = customer.metadata.get('user_id')
+    
+    if not user_id:
+        print(f"Error: Unable to find user_id for customer {customer_id}")
+        return
+    
+    db = firestore.client()
+    user_ref = db.collection('users').document(user_id)
+    checkout_ref = user_ref.collection('checkout_sessions').document(session_id)
+    
+    checkout_ref.update({
+        'status': 'completed',
+        'completed_at': firestore.SERVER_TIMESTAMP,
+    })
+    
+    if session['mode'] == 'subscription':
+        subscription_id = session['subscription']
+        subscription = stripe.Subscription.retrieve(subscription_id)
+        await update_subscription_data(user_id, subscription)
+    elif session['mode'] == 'payment':
+        payment_intent_id = session['payment_intent']
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        
+        user_ref.collection('payments').add({
+            'payment_intent_id': payment_intent_id,
+            'amount': payment_intent.amount,
+            'currency': payment_intent.currency,
+            'status': payment_intent.status,
+            'created_at': firestore.SERVER_TIMESTAMP,
+        })
+

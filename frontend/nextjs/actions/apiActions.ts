@@ -131,12 +131,12 @@ export async function getUserSubscription(token: string): Promise<Subscription |
   return response.json();
 }
 
-export async function getUserPaymentHistory() {
-  const response = await fetch('/user/payment-history', {
-    method: 'GET',
-    headers: {
+export async function getUserPaymentHistory(token: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/payment-history', {
+    headers: { 
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-    },
+    }
   });
   if (!response.ok) {
     throw new Error('Failed to fetch payment history');
@@ -144,10 +144,11 @@ export async function getUserPaymentHistory() {
   return response.json();
 }
 
-export async function cancelUserSubscription() {
-  const response = await fetch('/user/cancel-subscription', {
+export async function cancelUserSubscription(token: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/cancel-subscription', {
     method: 'POST',
     headers: {
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
   });
@@ -224,8 +225,7 @@ export async function getUserReports(token: string) {
   return response.json();
 }
 
-// Add this function to the existing apiActions.ts file
-export async function verifyPayment(token: string, sessionId: string) {
+export async function verifyPayment(token: string, sessionId: string): Promise<{ status: 'paid' | 'unpaid' | 'error' }> {
   const response = await fetch(`https://dolphin-app-49eto.ondigitalocean.app/backend/verify-payment/${sessionId}`, {
     method: 'GET',
     headers: {
@@ -236,11 +236,11 @@ export async function verifyPayment(token: string, sessionId: string) {
   if (!response.ok) {
     throw new Error('Failed to verify payment');
   }
-  return response.json();
+  const data = await response.json();
+  return { status: data.status };
 }
 
-// Add this function to the existing apiActions.ts file
-export async function cancelPayment(token: string, sessionId: string) {
+export async function cancelPayment(token: string, sessionId: string): Promise<{ status: 'cancelled' | 'already_paid' | 'error' }> {
   const response = await fetch(`https://dolphin-app-49eto.ondigitalocean.app/backend/cancel-payment/${sessionId}`, {
     method: 'POST',
     headers: {
@@ -250,6 +250,51 @@ export async function cancelPayment(token: string, sessionId: string) {
   });
   if (!response.ok) {
     throw new Error('Failed to cancel payment');
+  }
+  const data = await response.json();
+  return { status: data.status };
+}
+
+export async function getCheckoutSession(token: string, sessionId: string) {
+  const response = await fetch(`https://dolphin-app-49eto.ondigitalocean.app/backend/checkout-sessions/${sessionId}`, {
+    headers: { 
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+  });
+  if (!response.ok) {
+    throw new Error('Failed to retrieve checkout session');
+  }
+  return response.json();
+}
+
+export async function createCheckoutSession(token: string, priceId: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-checkout-session', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Origin': window.location.origin,
+    },
+    body: JSON.stringify({ price_id: priceId }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to create checkout session');
+  }
+  return response.json();
+}
+
+export async function handleStripeWebhook(body: string, signature: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/stripe-webhook', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Stripe-Signature': signature,
+    },
+    body: body,
+  });
+  if (!response.ok) {
+    throw new Error('Failed to handle Stripe webhook');
   }
   return response.json();
 }

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/config/firebase/AuthContext';
 import Link from 'next/link';
-import { getUserProfile, getUserReports } from '@/actions/apiActions';
+import { getUserProfile, getUserReports, getUserSubscription, getUserPaymentHistory, cancelUserSubscription } from '@/actions/apiActions';
 
 interface UserData {
   email: string;
@@ -26,11 +26,28 @@ interface Report {
   created_at: string;
 }
 
+interface Subscription {
+  status: string;
+  plan: string;
+  current_period_end: number;
+  cancel_at_period_end: boolean;
+}
+
+interface PaymentHistory {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created: number;
+}
+
 const DashboardPage: React.FC = () => {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -42,12 +59,16 @@ const DashboardPage: React.FC = () => {
       if (user) {
         try {
           const token = await user.getIdToken();
-          const [userProfileData, userReportsData] = await Promise.all([
+          const [userProfileData, userReportsData, userSubscription, userPaymentHistory] = await Promise.all([
             getUserProfile(token),
-            getUserReports(token)
+            getUserReports(token),
+            getUserSubscription(token),
+            getUserPaymentHistory(token)
           ]);
           setUserData(userProfileData);
           setReports(userReportsData.reports);
+          setSubscription(userSubscription);
+          setPaymentHistory(userPaymentHistory.payment_history);
         } catch (error) {
           console.error('Error fetching data:', error);
         } finally {
@@ -58,6 +79,20 @@ const DashboardPage: React.FC = () => {
 
     fetchData();
   }, [user, loading, router]);
+
+  const handleCancelSubscription = async () => {
+    if (user) {
+      try {
+        const token = await user.getIdToken();
+        await cancelUserSubscription(token);
+        // Refresh subscription data
+        const updatedSubscription = await getUserSubscription(token);
+        setSubscription(updatedSubscription);
+      } catch (error) {
+        console.error('Error cancelling subscription:', error);
+      }
+    }
+  };
 
   if (loading || isLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
@@ -116,6 +151,59 @@ const DashboardPage: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Subscription Information */}
+      <div className="bg-white shadow-lg rounded-lg p-6 mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Your Subscription</h2>
+        {subscription ? (
+          <div>
+            <p>Status: {subscription.status}</p>
+            <p>Plan: {subscription.plan}</p>
+            <p>Next billing date: {new Date(subscription.current_period_end * 1000).toLocaleDateString()}</p>
+            {subscription.cancel_at_period_end ? (
+              <p>Your subscription will end on the next billing date.</p>
+            ) : (
+              <button
+                onClick={handleCancelSubscription}
+                className="bg-red-500 text-white px-4 py-2 rounded mt-2"
+              >
+                Cancel Subscription
+              </button>
+            )}
+          </div>
+        ) : (
+          <div>
+            <p>You don&apos;t have an active subscription.</p>
+            <Link href="/plans" className="text-blue-500 hover:underline">
+              View available plans
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* Payment History */}
+      <div className="bg-white shadow-lg rounded-lg p-6 mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Payment History</h2>
+        {paymentHistory.length > 0 ? (
+          <ul className="divide-y divide-gray-200">
+            {paymentHistory.map((payment) => (
+              <li key={payment.id} className="py-4">
+                <div className="flex justify-between">
+                  <div>
+                    <p className="font-medium">${payment.amount / 100} {payment.currency.toUpperCase()}</p>
+                    <p className="text-sm text-gray-500">{payment.status}</p>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {new Date(payment.created * 1000).toLocaleDateString()}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No payment history available.</p>
+        )}
       </div>
 
       {/* Recent Reports */}

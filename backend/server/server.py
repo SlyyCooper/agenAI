@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
 
-from backend.server.server_utils import cancel_subscription, generate_report_files, get_payment_history, get_stripe_webhook_secret, get_subscription_details, get_user_payments, record_one_time_payment, update_user_subscription, verify_stripe_payment, cancel_stripe_payment
+from backend.server.server_utils import cancel_subscription, create_stripe_checkout_session, generate_report_files, get_payment_history, get_stripe_webhook_secret, get_subscription_details, get_user_payments, record_one_time_payment, update_user_subscription, verify_stripe_payment, cancel_stripe_payment
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
 from gpt_researcher.document.document import DocumentLoader
@@ -317,3 +317,40 @@ async def get_payments(limit: int = 10, current_user: dict = Depends(get_current
     payments = await get_user_payments(user_id, limit)
     return {"payments": payments}
 
+@app.post("/create-checkout-session")
+async def create_checkout_session(data: dict, request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    decoded_token = await verify_firebase_token(token)
+    if not decoded_token:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    
+    user_id = decoded_token['uid']
+    price_id = data.get('price_id')
+    
+    if not price_id:
+        raise HTTPException(status_code=400, detail="Price ID is required")
+    
+    # Get the origin from the request headers
+    origin = request.headers.get("Origin")
+    if not origin:
+        raise HTTPException(status_code=400, detail="Origin header is required")
+    
+    # Check if the origin is in the list of allowed origins
+    allowed_origins = [
+        "https://gpt-researcher-costom.vercel.app",
+        "https://www.tanalyze.app",
+        "https://tanalyze.app",
+        "https://agenai.app",
+        "https://www.agenai.app",
+        "http://agenai.app",
+        "http://www.agenai.app"
+    ]
+    
+    if origin not in allowed_origins:
+        raise HTTPException(status_code=400, detail="Invalid origin")
+    
+    try:
+        session = await create_stripe_checkout_session(user_id, price_id, origin)
+        return {"sessionId": session.id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
