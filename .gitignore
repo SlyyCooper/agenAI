@@ -20,6 +20,8 @@ outputs/
 *.lock
 dist/
 gpt_researcher.egg-info/
+/notes
+notes.md
 
 #Ignore my local docs
 my-docs/

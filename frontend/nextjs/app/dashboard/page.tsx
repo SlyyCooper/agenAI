@@ -49,6 +49,12 @@ const DashboardPage: React.FC = () => {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refreshData = () => {
+    setRefreshKey(oldKey => oldKey + 1);
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -57,20 +63,23 @@ const DashboardPage: React.FC = () => {
 
     const fetchData = async () => {
       if (user) {
+        setIsLoading(true);
+        setErrors({});
         try {
           const token = await user.getIdToken();
           const [userProfileData, userReportsData, userSubscription, userPaymentHistory] = await Promise.all([
-            getUserProfile(token),
-            getUserReports(token),
-            getUserSubscription(token),
-            getUserPaymentHistory(token)
+            getUserProfile(token).catch(e => { setErrors(prev => ({...prev, profile: e.message})); return null; }),
+            getUserReports(token).catch(e => { setErrors(prev => ({...prev, reports: e.message})); return {reports: []}; }),
+            getUserSubscription(token).catch(e => { setErrors(prev => ({...prev, subscription: e.message})); return null; }),
+            getUserPaymentHistory(token).catch(e => { setErrors(prev => ({...prev, paymentHistory: e.message})); return {payment_history: []}; })
           ]);
-          setUserData(userProfileData);
-          setReports(userReportsData.reports);
-          setSubscription(userSubscription);
-          setPaymentHistory(userPaymentHistory.payment_history);
+          if (userProfileData) setUserData(userProfileData);
+          if (userReportsData) setReports(userReportsData.reports);
+          if (userSubscription) setSubscription(userSubscription);
+          if (userPaymentHistory) setPaymentHistory(userPaymentHistory.payment_history);
         } catch (error) {
           console.error('Error fetching data:', error);
+          setErrors(prev => ({...prev, general: 'Failed to fetch user data'}));
         } finally {
           setIsLoading(false);
         }
@@ -78,18 +87,17 @@ const DashboardPage: React.FC = () => {
     };
 
     fetchData();
-  }, [user, loading, router]);
+  }, [user, loading, router, refreshKey]);
 
   const handleCancelSubscription = async () => {
     if (user) {
       try {
         const token = await user.getIdToken();
         await cancelUserSubscription(token);
-        // Refresh subscription data
-        const updatedSubscription = await getUserSubscription(token);
-        setSubscription(updatedSubscription);
+        refreshData();  // Refresh data after cancellation
       } catch (error) {
         console.error('Error cancelling subscription:', error);
+        setErrors(prev => ({...prev, subscription: 'Failed to cancel subscription'}));
       }
     }
   };
@@ -98,65 +106,84 @@ const DashboardPage: React.FC = () => {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
-  if (!userData) {
-    return <div className="flex justify-center items-center h-screen">Error loading user data</div>;
-  }
-
   return (
     <div className="container mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold gradient-text mb-6">Welcome to your Dashboard</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-4xl font-bold gradient-text">Welcome to your Dashboard</h1>
+        <button 
+          onClick={refreshData}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+        >
+          Refresh Data
+        </button>
+      </div>
       
+      {errors.general && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+          <strong className="font-bold">Error:</strong>
+          <span className="block sm:inline"> {errors.general}</span>
+        </div>
+      )}
+
       {/* User Account Information */}
       <div className="bg-white shadow-lg rounded-lg p-6 mb-8">
         <h2 className="text-2xl font-semibold mb-4">Your Account Information</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <p className="text-gray-600">Email:</p>
-            <p className="font-medium">{userData.email}</p>
-          </div>
-          <div>
-            <p className="text-gray-600">Subscription Status:</p>
-            <p className="font-medium">{userData.subscription_status || 'No active subscription'}</p>
-          </div>
-          {userData.subscription_plan && (
+        {errors.profile ? (
+          <p className="text-red-500">Error loading profile: {errors.profile}</p>
+        ) : userData ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-gray-600">Current Plan:</p>
-              <p className="font-medium">{userData.subscription_plan}</p>
+              <p className="text-gray-600">Email:</p>
+              <p className="font-medium">{userData.email}</p>
             </div>
-          )}
-          {userData.subscription_current_period_end && (
             <div>
-              <p className="text-gray-600">Next Billing Date:</p>
-              <p className="font-medium">{new Date(userData.subscription_current_period_end).toLocaleDateString()}</p>
+              <p className="text-gray-600">Subscription Status:</p>
+              <p className="font-medium">{userData.subscription_status || 'No active subscription'}</p>
             </div>
-          )}
-          <div>
-            <p className="text-gray-600">Total Amount Paid:</p>
-            <p className="font-medium">${(userData.total_amount_paid || 0) / 100}</p>
+            {userData.subscription_plan && (
+              <div>
+                <p className="text-gray-600">Current Plan:</p>
+                <p className="font-medium">{userData.subscription_plan}</p>
+              </div>
+            )}
+            {userData.subscription_current_period_end && (
+              <div>
+                <p className="text-gray-600">Next Billing Date:</p>
+                <p className="font-medium">{new Date(userData.subscription_current_period_end).toLocaleDateString()}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-gray-600">Total Amount Paid:</p>
+              <p className="font-medium">${(userData.total_amount_paid || 0) / 100}</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Reports Generated:</p>
+              <p className="font-medium">{userData.reports_generated || 0}</p>
+            </div>
+            {userData.last_payment_date && (
+              <div>
+                <p className="text-gray-600">Last Payment Date:</p>
+                <p className="font-medium">{new Date(userData.last_payment_date).toLocaleDateString()}</p>
+              </div>
+            )}
+            {userData.last_payment_amount && (
+              <div>
+                <p className="text-gray-600">Last Payment Amount:</p>
+                <p className="font-medium">${userData.last_payment_amount / 100}</p>
+              </div>
+            )}
           </div>
-          <div>
-            <p className="text-gray-600">Reports Generated:</p>
-            <p className="font-medium">{userData.reports_generated || 0}</p>
-          </div>
-          {userData.last_payment_date && (
-            <div>
-              <p className="text-gray-600">Last Payment Date:</p>
-              <p className="font-medium">{new Date(userData.last_payment_date).toLocaleDateString()}</p>
-            </div>
-          )}
-          {userData.last_payment_amount && (
-            <div>
-              <p className="text-gray-600">Last Payment Amount:</p>
-              <p className="font-medium">${userData.last_payment_amount / 100}</p>
-            </div>
-          )}
-        </div>
+        ) : (
+          <p>No user data available.</p>
+        )}
       </div>
 
       {/* Subscription Information */}
       <div className="bg-white shadow-lg rounded-lg p-6 mb-8">
         <h2 className="text-2xl font-semibold mb-4">Your Subscription</h2>
-        {subscription ? (
+        {errors.subscription ? (
+          <p className="text-red-500">Error loading subscription: {errors.subscription}</p>
+        ) : subscription ? (
           <div>
             <p>Status: {subscription.status}</p>
             <p>Plan: {subscription.plan}</p>
@@ -166,7 +193,7 @@ const DashboardPage: React.FC = () => {
             ) : (
               <button
                 onClick={handleCancelSubscription}
-                className="bg-red-500 text-white px-4 py-2 rounded mt-2"
+                className="bg-red-500 text-white px-4 py-2 rounded mt-2 hover:bg-red-600 transition-colors"
               >
                 Cancel Subscription
               </button>
