@@ -1,12 +1,27 @@
 * **Name of the Project or Codebase**: `gpt-researcher_costom`
 * **Primary Programming Language(s) Used**: Python (98.1%), TypeScript (1.2%), JavaScript (0.3%), CSS (0.2%), HTML (0.1%), PowerShell (0.1%)
 * **Main Purpose or Functionality**: The project is an LLM-based autonomous agent that performs comprehensive online research on any given topic.
-* Backend: FastAPI
-* Firebase Admin, Firestore, Stripe SDK in Backend
-* Frontend: Next.js 14 with Typescript
-* Firebase auth in Frontend that connects to Backend
-* one time payment product id prod_R0bEOf1dWZCjyY
-* subscription product id prod_Qvu89XrhkHjzZU
+
+* Backend:
+    * Hosted on https://dolphin-app-49eto.ondigitalocean.app/backend
+    * FastAPI
+    * Firebase Admin, Firestore, Stripe SDK
+    * Stripe Checkout for payments and subscriptions
+        * one time payment product id prod_R0bEOf1dWZCjyY
+        * subscription product id prod_Qvu89XrhkHjzZU
+* Frontend:
+    * Hosted on **ALL** of the following domains:
+        * https://gpt-researcher-costom.vercel.app
+        * https://www.tanalyze.app
+        * https://tanalyze.app
+        * https://agenai.app
+        * https://www.agenai.app
+        * http://agenai.app
+        * http://www.agenai.app
+    * Next.js 14 with Typescript
+    * Firebase auth in Frontend that connects to Backend
+
+
 
 #Project Strucutre
 
@@ -233,3 +248,38 @@
 ├── setup.py
 └── utils.py
 ```
+
+<environment_circumstances>
+- Backend:
+    * Hosted on https://dolphin-app-49eto.ondigitalocean.app/backend
+    * FastAPI
+    * Firebase Admin, Firestore, Stripe SDK
+    * Stripe Chekcouts for payments and subscriptions
+        * one time payment product id prod_R0bEOf1dWZCjyY
+        * subscription product id prod_Qvu89XrhkHjzZU
+    * Backend Environment Variables are safely in @.env 
+- Frontend:
+    * Hosted on **ALL** of the following domains:
+        * https://gpt-researcher-costom.vercel.app
+        * https://www.tanalyze.app
+        * https://tanalyze.app
+        * https://agenai.app
+        * https://www.agenai.app
+        * http://agenai.app
+        * http://www.agenai.app
+    * Next.js 14 with Typescript
+    * Firebase auth in Frontend that connects to Backend
+    * Frontend Environment Variables are safely in @.env.local 
+- The backend file @server.py contains the routes that correspond to the API actions 
+- The backend file @server_utils.py  contains helper functions and utilities used by the routes
+- The user has appropriate user credentials, is authenticated with my Firebase Admin SDK in my FastAPi backend server @server.py and @server_utils.py , and is correctly using my frontend client-side Firebase SDK@firebase.ts for authorization context in @AuthContext.tsx
+- The user is correctly stored in my firestore database in my backend Server @server.py and @server_utils.py , using my safe environment variables that are stored in Digital Ocean, but in this .env @.env  for local testing, and is thus **OK** 
+- The routes for the Stripe and Firebase frontend logic that allows the frontend and backend to communicate is in@apiActions.ts  
+- Use of Stripe SDK and Stripe checkout in my backend @server.py and @server_utils.py  for my **two** stripe product IDs:
+- One time payment product id: prod_R0bEOf1dWZCjyY 
+- Subscription product id: prod_Qvu89XrhkHjzZU
+- Stripe initiation in frontend @get-stripejs.ts  and Stripe related functions in the frontend @apiActions.ts to communicate with the backend Stripe SDK and firestore routes in@server.py and @server_utils.py , that is used by the payment plan page @page.tsx  which sends the user to the applicable Stripe Checkout depnding on the product id they select (One time payment product id: prod_R0bEOf1dWZCjyY and Subscription product id: prod_Qvu89XrhkHjzZU)
+- The Stripe Firestore datapoints shown in the backend @server.py and @server_utils.py , should be correctly stored when both new and existing users checkout in @page.tsx , and tracked in @page.tsx 
+- The frontend Stripe success payment page is @page.tsx 
+- The frontend Stripe cancel payment page is @page.tsx 
+</environment_circumstances>

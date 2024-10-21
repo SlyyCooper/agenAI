@@ -12,67 +12,38 @@ import {
 } from '@stripe/react-stripe-js';
 import { Check, ChevronRight, CreditCard } from 'lucide-react';
 import { createPaymentIntent, createSubscription, getUserSubscription, Subscription } from '@/actions/apiActions';
+import { createCheckoutSession } from '@/actions/apiActions';
+import getStripe from '@/config/stripe/get-stripejs';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-function CheckoutForm({ amount, isSubscription, priceId }: { amount: number; isSubscription: boolean; priceId?: string }) {
-  const stripe = useStripe();
-  const elements = useElements();
+function CheckoutForm({ priceId }: { priceId: string }) {
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!stripe || !elements || !user) return;
+    if (!user) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
       const token = await user.getIdToken();
-      let clientSecret;
-      let sessionId;
-
-      if (isSubscription && priceId) {
-        const response = await createSubscription(token, priceId);
-        clientSecret = response.clientSecret;
-        sessionId = response.sessionId;
+      const { sessionId } = await createCheckoutSession(token, priceId);
+      
+      const stripe = await getStripe();
+      if (stripe) {
+        const { error } = await stripe.redirectToCheckout({ sessionId });
+        if (error) {
+          setError(error.message || 'An error occurred during checkout');
+        }
       } else {
-        const response = await createPaymentIntent(token, amount, 'usd');
-        clientSecret = response.clientSecret;
-        sessionId = response.sessionId;
-      }
-
-      const cardElement = elements.getElement(CardElement);
-      if (!cardElement) {
-        throw new Error('Card Element not found');
-      }
-
-      const { error: paymentMethodError, paymentMethod } = await stripe.createPaymentMethod({
-        type: 'card',
-        card: cardElement,
-        billing_details: {
-          name: user.displayName || undefined,
-        },
-      });
-
-      if (paymentMethodError) {
-        setError(paymentMethodError.message || 'An error occurred while creating the payment method');
-        return;
-      }
-
-      const { error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: paymentMethod.id,
-      });
-
-      if (confirmError) {
-        setError(confirmError.message || 'An error occurred while confirming the payment');
-      } else {
-        window.location.href = `/success?session_id=${sessionId}`;
+        setError('Failed to load Stripe');
       }
     } catch (error) {
-      console.error('Payment error:', error);
+      console.error('Checkout error:', error);
       setError('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -82,37 +53,26 @@ function CheckoutForm({ amount, isSubscription, priceId }: { amount: number; isS
   return (
     <form onSubmit={handleSubmit} className="mt-8 max-w-md mx-auto">
       <div className="bg-white shadow-lg rounded-lg p-6">
-        <h3 className="text-xl font-semibold mb-4">Enter your card details</h3>
-        <CardElement
-          options={{
-            style: {
-              base: {
-                fontSize: '16px',
-                color: '#424770',
-                '::placeholder': {
-                  color: '#aab7c4',
-                },
-              },
-              invalid: {
-                color: '#9e2146',
-              },
-            },
-          }}
-        />
         {error && <div className="text-red-500 mt-2 text-sm">{error}</div>}
         <button 
           type="submit"
           disabled={isLoading} 
           className="mt-4 w-full py-3 px-4 rounded-lg text-white font-semibold bg-blue-500 hover:bg-blue-600 transition-colors"
         >
-          {isLoading ? 'Processing...' : 'Pay Now'}
+          {isLoading ? 'Processing...' : 'Proceed to Checkout'}
         </button>
       </div>
     </form>
   );
 }
 
-function PlanCard({ title, price, features, amount, isPopular, priceId }: { title: string; price: string; features: string[]; amount: number; isPopular?: boolean; priceId: string }) {
+function PlanCard({ title, price, features, isPopular, priceId }: { 
+  title: string; 
+  price: string; 
+  features: string[]; 
+  isPopular?: boolean; 
+  priceId: string 
+}) {
   const [showCheckout, setShowCheckout] = useState(false);
 
   return (
@@ -148,11 +108,7 @@ function PlanCard({ title, price, features, amount, isPopular, priceId }: { titl
           Select Plan <ChevronRight className="ml-2 h-5 w-5" />
         </button>
       </div>
-      {showCheckout && (
-        <Elements stripe={stripePromise}>
-          <CheckoutForm amount={amount} isSubscription={title === "Subscription"} priceId={priceId} />
-        </Elements>
-      )}
+      {showCheckout && <CheckoutForm priceId={priceId} />}
     </motion.div>
   );
 }
@@ -203,7 +159,6 @@ export default function PlansPage() {
               "Save Reports to Account",
               "24/7 Support"
             ]}
-            amount={100}
             priceId="prod_R0bEOf1dWZCjyY"
           />
           <PlanCard 
@@ -216,7 +171,6 @@ export default function PlansPage() {
               "Save Reports to Account",
               "Priority Support"
             ]}
-            amount={2000}
             isPopular
             priceId="prod_Qvu89XrhkHjzZU"
           />

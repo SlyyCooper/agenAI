@@ -1,0 +1,1 @@
+The current implementation is mixing the PaymentIntent API with the Checkout Session API. It's creating a PaymentIntent and then trying to confirm it directly in the frontend, which is not the correct flow for a Stripe Checkout session. We need to modify this to use the Checkout Session API exclusively.
