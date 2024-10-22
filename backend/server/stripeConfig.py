@@ -1,0 +1,5 @@
+# Stripe product and price IDs
+ONE_TIME_PRODUCT_ID = "prod_R0bEOf1dWZCjyY"
+ONE_TIME_PRICE_ID = "price_1Q8a1z060pc64aKuwy1n1wzz"
+SUBSCRIPTION_PRODUCT_ID = "prod_Qvu89XrhkHjzZU"
+SUBSCRIPTION_PRICE_ID = "price_1Q42KT060pc64aKupjCogJZN"

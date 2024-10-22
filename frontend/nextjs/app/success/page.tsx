@@ -2,53 +2,49 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { CheckCircle, ArrowLeft, HelpCircle, Loader } from 'lucide-react';
 import { Suspense } from 'react';
 import { useAuth } from '@/config/firebase/AuthContext';
-import { verifyPayment } from '@/actions/apiActions';
-import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, AlertTriangle, Loader } from 'lucide-react';
-import Link from 'next/link';
+import { getUserSubscription, getUserPayments } from '@/actions/stripeAPI';
 
 function SuccessContent() {
-  const [status, setStatus] = useState<'loading' | 'success' | 'unpaid' | 'error'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [paymentDetails, setPaymentDetails] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
   useEffect(() => {
-    const checkPayment = async () => {
-      const sessionId = searchParams.get('session_id');
-      if (!sessionId) {
-        setStatus('error');
-        setErrorMessage('No session ID found. Please try your purchase again.');
-        return;
-      }
+    const checkPaymentStatus = async () => {
       if (!user) {
         setStatus('error');
-        setErrorMessage('User not authenticated. Please log in and try again.');
+        setErrorMessage('User not authenticated. Please log in to view payment details.');
         return;
       }
 
       try {
         const token = await user.getIdToken();
-        const result = await verifyPayment(token, sessionId);
-        if (result.status === 'paid') {
+        const subscription = await getUserSubscription(token);
+        const payments = await getUserPayments(token, 1); // Get the most recent payment
+
+        if (subscription || (payments && payments.length > 0)) {
           setStatus('success');
-        } else if (result.status === 'unpaid') {
-          setStatus('unpaid');
+          setPaymentDetails(subscription || payments[0]);
         } else {
           setStatus('error');
-          setErrorMessage('An unexpected error occurred. Please contact support.');
+          setErrorMessage('No recent payment or subscription found.');
         }
       } catch (error) {
-        console.error('Error verifying payment:', error);
+        console.error('Error checking payment status:', error);
         setStatus('error');
-        setErrorMessage('Failed to verify payment. Please try again or contact support.');
+        setErrorMessage('Failed to verify payment. Please contact support if the issue persists.');
       }
     };
 
-    checkPayment();
-  }, [searchParams, user]);
+    checkPaymentStatus();
+  }, [user]);
 
   const renderContent = () => {
     switch (status) {
@@ -61,58 +57,77 @@ function SuccessContent() {
         );
       case 'success':
         return (
-          <div className="text-center">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold mb-4">Thank you for your purchase!</h1>
-            <p className="text-xl mb-8">Your payment was successful and your account has been updated.</p>
-            <Link href="/dashboard" className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
-              Go to Dashboard
-            </Link>
-          </div>
-        );
-      case 'unpaid':
-        return (
-          <div className="text-center">
-            <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold mb-4">Payment Incomplete</h1>
-            <p className="text-xl mb-8">Your payment has not been completed. Please try again or contact support if you believe this is an error.</p>
-            <Link href="/plans" className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
-              Return to Plans
-            </Link>
-          </div>
+          <>
+            <CheckCircle className="w-24 h-24 text-green-500 mx-auto mb-6" />
+            <h1 className="text-4xl font-bold mb-4">Payment Successful!</h1>
+            <p className="text-xl text-gray-600 mb-8">Thank you for your purchase.</p>
+            {paymentDetails && (
+              <div className="bg-gray-100 p-4 rounded-lg mb-8">
+                <h2 className="text-2xl font-semibold mb-2">Payment Details</h2>
+                {paymentDetails.status && (
+                  <p>Subscription Status: {paymentDetails.status}</p>
+                )}
+                {paymentDetails.amount && (
+                  <p>Amount: ${(paymentDetails.amount / 100).toFixed(2)} {paymentDetails.currency}</p>
+                )}
+                {paymentDetails.date && (
+                  <p>Date: {new Date(paymentDetails.date).toLocaleDateString()}</p>
+                )}
+              </div>
+            )}
+          </>
         );
       case 'error':
         return (
-          <div className="text-center">
-            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold mb-4">Oops! Something went wrong</h1>
-            <p className="text-xl mb-8">{errorMessage}</p>
-            <div className="space-y-4">
-              <Link href="/plans" className="block bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
-                Try Again
-              </Link>
-              <Link href="/support" className="block bg-gray-200 text-gray-800 px-6 py-3 rounded-lg hover:bg-gray-300 transition-colors">
-                Contact Support
-              </Link>
-            </div>
-          </div>
+          <>
+            <CheckCircle className="w-24 h-24 text-red-500 mx-auto mb-6" />
+            <h1 className="text-4xl font-bold mb-4">Payment Verification Error</h1>
+            <p className="text-xl text-gray-600 mb-8">{errorMessage}</p>
+          </>
         );
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50 to-white">
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-green-50 to-white text-gray-900">
       <motion.div 
-        className="bg-white p-12 rounded-2xl shadow-xl max-w-md w-full"
+        className="bg-white p-12 rounded-2xl shadow-xl text-center max-w-lg"
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        {renderContent()}
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 10 }}
+        >
+          {renderContent()}
+        </motion.div>
+        <div className="flex flex-col space-y-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+          >
+            <Link href="/dashboard" className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors inline-flex items-center justify-center w-full">
+              <ArrowLeft className="mr-2 h-5 w-5" /> Go to Dashboard
+            </Link>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+          >
+            <Link href="/support" className="bg-gray-200 text-gray-800 px-8 py-3 rounded-lg hover:bg-gray-300 transition-colors inline-flex items-center justify-center w-full">
+              <HelpCircle className="mr-2 h-5 w-5" /> Contact Support
+            </Link>
+          </motion.div>
+        </div>
       </motion.div>
     </div>
   );
 }
+
 export default function SuccessPage() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
@@ -120,4 +135,3 @@ export default function SuccessPage() {
     </Suspense>
   );
 }
-

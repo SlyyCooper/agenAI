@@ -19,22 +19,24 @@ from gpt_researcher.document.document import DocumentLoader
 from gpt_researcher.orchestrator.actions import stream_output
 from backend.server.server_utils import (
     sanitize_filename, handle_start_command, handle_human_feedback,
-    generate_report_files, send_file_paths, get_config_dict,
-    update_environment_variables, handle_file_upload, handle_file_deletion,
-    execute_multi_agents, handle_websocket_communication, extract_command_data,
-    verify_firebase_token, get_user_data, update_user_data,
-    create_stripe_customer, create_stripe_checkout_session, handle_stripe_webhook,
-    get_user_reports, get_subscription_details, get_payment_history,
-    cancel_subscription, verify_stripe_payment, cancel_stripe_payment,
-    update_user_subscription, record_one_time_payment, get_user_subscription,
-    get_user_payments, get_stripe_webhook_secret
+    send_file_paths, get_config_dict,
+    handle_file_upload, handle_file_deletion,
+    execute_multi_agents, handle_websocket_communication
 )
-
-# Update these constants at the top of the file
-ONE_TIME_PRODUCT_ID = "prod_R0bEOf1dWZCjyY"
-ONE_TIME_PRICE_ID = "price_1Q8a1z060pc64aKuwy1n1wzz"
-SUBSCRIPTION_PRODUCT_ID = "prod_Qvu89XrhkHjzZU"
-SUBSCRIPTION_PRICE_ID = "price_1Q42KT060pc64aKupjCogJZN"
+from backend.server.firebase_utils import (
+    verify_firebase_token, get_user_data, update_user_data,
+    get_user_reports, increment_user_field
+)
+from backend.server.stripe_utils import (
+    create_stripe_customer, create_checkout_session, handle_stripe_webhook,
+    get_subscription_details, get_payment_history,
+    cancel_subscription, get_user_subscription,
+    get_user_payments, get_stripe_webhook_secret, update_environment_variables
+)
+from backend.server.stripeConfig import (
+    ONE_TIME_PRODUCT_ID, ONE_TIME_PRICE_ID,
+    SUBSCRIPTION_PRODUCT_ID, SUBSCRIPTION_PRICE_ID
+)
 
 # Models
 class ResearchRequest(BaseModel):
@@ -98,7 +100,8 @@ app.add_middleware(
         "https://agenai.app",
         "https://www.agenai.app",
         "http://agenai.app",
-        "http://www.agenai.app"
+        "http://www.agenai.app",
+        "http://localhost:3000",  # Add this for local development
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -201,40 +204,14 @@ async def create_customer(current_user: dict = Depends(get_current_user)):
     return {"customer_id": customer_id}
 
 @app.post("/create-checkout-session")
-async def create_checkout_session(data: dict, request: Request, current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    product_type = data.get('product_type')
+async def stripe_checkout(request: Request, current_user: dict = Depends(get_current_user)):
+    data = await request.json()
+    mode = data.get('mode', 'payment')
+    success_url = request.url_for('success')
+    cancel_url = request.url_for('cancel')
     
-    if not product_type:
-        raise HTTPException(status_code=400, detail="Product type is required")
-    
-    if product_type not in ['one_time', 'subscription']:
-        raise HTTPException(status_code=400, detail="Invalid product type")
-    
-    price_id = ONE_TIME_PRICE_ID if product_type == 'one_time' else SUBSCRIPTION_PRICE_ID
-    
-    origin = request.headers.get("Origin")
-    if not origin:
-        raise HTTPException(status_code=400, detail="Origin header is required")
-    
-    allowed_origins = [
-        "https://gpt-researcher-costom.vercel.app",
-        "https://www.tanalyze.app",
-        "https://tanalyze.app",
-        "https://agenai.app",
-        "https://www.agenai.app",
-        "http://agenai.app",
-        "http://www.agenai.app"
-    ]
-    
-    if origin not in allowed_origins:
-        raise HTTPException(status_code=400, detail="Invalid origin")
-    
-    try:
-        session = await create_stripe_checkout_session(user_id, price_id, origin, product_type)
-        return {"sessionId": session.id}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    session = await create_checkout_session(mode, success_url, cancel_url)
+    return {"id": session.id}
 
 @app.post("/stripe-webhook")
 async def stripe_webhook(request: Request):
@@ -268,30 +245,6 @@ async def cancel_user_subscription(current_user: dict = Depends(get_current_user
     user_id = current_user['uid']
     success = await cancel_subscription(user_id)
     return {"success": success}
-
-@app.get("/verify-payment/{session_id}")
-async def verify_payment(session_id: str, current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    payment_status = await verify_stripe_payment(user_id, session_id)
-    return {"status": payment_status}
-
-@app.post("/cancel-payment/{session_id}")
-async def cancel_payment(session_id: str, current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    cancellation_status = await cancel_stripe_payment(user_id, session_id)
-    return {"status": cancellation_status}
-
-@app.post("/update-subscription")
-async def update_subscription(data: dict, current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    await update_user_subscription(user_id, data)
-    return {"message": "Subscription updated successfully"}
-
-@app.post("/record-payment")
-async def record_payment(data: dict, current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    await record_one_time_payment(user_id, data)
-    return {"message": "Payment recorded successfully"}
 
 @app.get("/user-subscription")
 async def get_subscription(current_user: dict = Depends(get_current_user)):

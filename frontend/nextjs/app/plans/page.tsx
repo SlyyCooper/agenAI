@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/config/firebase/AuthContext';
-import { Check, ChevronRight, CreditCard } from 'lucide-react';
-import { createCheckoutSession, getUserSubscription, Subscription } from '@/actions/apiActions';
+import { Check, CreditCard } from 'lucide-react';
+import { createCheckoutSession, getUserSubscription, Subscription } from '@/actions/stripeAPI';
 
 const ONE_TIME_PRICE_ID = "price_1Q8a1z060pc64aKuwy1n1wzz";
 const SUBSCRIPTION_PRICE_ID = "price_1Q42KT060pc64aKupjCogJZN";
@@ -22,8 +22,8 @@ function CheckoutButton({ priceId }: { priceId: string }) {
 
     try {
       const token = await user.getIdToken();
-      const productType = priceId === ONE_TIME_PRICE_ID ? 'one_time' : 'subscription';
-      const sessionId = await createCheckoutSession(token, productType);
+      const mode = priceId === ONE_TIME_PRICE_ID ? 'payment' : 'subscription';
+      const sessionId = await createCheckoutSession(token, mode);
       window.location.href = `https://checkout.stripe.com/pay/${sessionId}`;
     } catch (error) {
       console.error('Checkout error:', error);
@@ -107,7 +107,9 @@ export default function PlansPage() {
         
         {currentSubscription && (
           <div className="mb-8 p-4 bg-blue-100 rounded-lg text-center">
-            <p className="text-lg">You currently have an active {currentSubscription.plan} subscription.</p>
+            <p className="text-lg">
+              You currently have an active subscription. Status: {currentSubscription.status}
+            </p>
           </div>
         )}
 
