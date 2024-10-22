@@ -532,6 +532,8 @@ async def create_stripe_checkout_session(user_id: str, price_id: str, origin: st
     parsed_origin = urlparse(origin)
     base_url = f"{parsed_origin.scheme}://{parsed_origin.netloc}"
     
+    product_id = ONE_TIME_PRODUCT_ID if product_type == 'one_time' else SUBSCRIPTION_PRODUCT_ID
+    
     session = stripe.checkout.Session.create(
         customer=customer_id,
         payment_method_types=['card'],
@@ -539,9 +541,13 @@ async def create_stripe_checkout_session(user_id: str, price_id: str, origin: st
             'price': price_id,
             'quantity': 1,
         }],
-        mode='subscription' if product_type == 'subscription' else 'payment',
+        mode='payment' if product_type == 'one_time' else 'subscription',
         success_url=f'{base_url}/success?session_id={{CHECKOUT_SESSION_ID}}',
         cancel_url=f'{base_url}/cancel',
+        metadata={
+            'product_id': product_id,
+            'product_type': product_type,
+        }
     )
     
     # Store the Checkout session information in Firestore
@@ -593,6 +599,8 @@ async def handle_checkout_session_completed(session):
             'currency': payment_intent.currency,
             'status': payment_intent.status,
             'created_at': firestore.SERVER_TIMESTAMP,
-            'product_id': ONE_TIME_PRODUCT_ID,
-            'price_id': ONE_TIME_PRICE_ID,
+            'product_id': session['metadata']['product_id'],
+            'price_id': session['metadata']['price_id'],
+            'product_type': session['metadata']['product_type'],
         })
+
