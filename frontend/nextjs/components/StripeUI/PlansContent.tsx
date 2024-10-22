@@ -52,9 +52,12 @@ export default function PlansContent() {
     setPurchaseLoading(true);
     setError(null);
     try {
+      console.log(`Creating checkout session for ${mode} with price ${priceId}`);
       await createCheckoutSession(priceId, mode);
     } catch (err) {
+      console.error('Purchase error:', err);
       setError(err instanceof Error ? err.message : 'Failed to process payment');
+    } finally {
       setPurchaseLoading(false);
     }
   };

@@ -40,10 +40,16 @@ export const createCheckoutSession = async (
         'Authorization': `Bearer ${firebaseToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ price_id, mode }),
+      body: JSON.stringify({ 
+        price_id: price_id,
+        mode: mode 
+      }),
     });
     
-    if (!response.ok) throw new Error('Failed to create checkout session');
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to create checkout session');
+    }
     
     const { sessionId } = await response.json();
     const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);

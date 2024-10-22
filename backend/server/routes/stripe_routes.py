@@ -4,6 +4,7 @@ import stripe
 import os
 from backend.server.stripe_utils import handle_stripe_webhook
 from backend.server.firebase_utils import verify_firebase_token, get_user_data
+from pydantic import BaseModel
 
 router = APIRouter(
     prefix="/api/stripe",
@@ -18,6 +19,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if not decoded_token:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     return decoded_token
+
+# Add request model
+class CheckoutSessionRequest(BaseModel):
+    price_id: str
+    mode: str
 
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
@@ -38,20 +44,24 @@ async def stripe_webhook(request: Request):
 
 @router.post("/create-checkout-session")
 async def create_checkout_session(
-    price_id: str,
-    mode: str,
+    request: CheckoutSessionRequest,  # Change parameter type
     current_user: dict = Depends(get_current_user)
 ):
     try:
         user_id = current_user['uid']
         user_data = await get_user_data(user_id)
         
+        # Add mode validation
+        if request.mode not in ['subscription', 'payment']:
+            raise HTTPException(status_code=400, detail="Invalid mode")
+
         checkout_session = stripe.checkout.Session.create(
-            customer=user_data.get('stripe_customer_id'),  # Add this
+            customer=user_data.get('stripe_customer_id'),
+            mode=request.mode,  # Add mode to session creation
             metadata={'user_id': user_id},
-            subscription_data={'metadata': {'user_id': user_id}} if mode == 'subscription' else None,  # Add this
+            subscription_data={'metadata': {'user_id': user_id}} if request.mode == 'subscription' else None,
             line_items=[{
-                'price': price_id,
+                'price': request.price_id,
                 'quantity': 1,
             }],
             success_url="https://agenai.app/success",
@@ -60,6 +70,7 @@ async def create_checkout_session(
         
         return {"sessionId": checkout_session.id}
     except Exception as e:
+        print(f"Checkout session error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/create-portal-session")
