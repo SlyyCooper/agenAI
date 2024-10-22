@@ -1,151 +1,197 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { createCheckoutSession, getProducts, getSubscriptionStatus } from '@/actions/stripeAPI';
+import type { SubscriptionStatusResponse } from '@/actions/stripeAPI';
 import { useAuth } from '@/config/firebase/AuthContext';
-import { Check, CreditCard } from 'lucide-react';
-import { createCheckoutSession, getUserSubscription, Subscription } from '@/actions/stripeAPI';
 
-const ONE_TIME_PRICE_ID = "price_1Q8a1z060pc64aKuwy1n1wzz";
-const SUBSCRIPTION_PRICE_ID = "price_1Q42KT060pc64aKupjCogJZN";
-
-function CheckoutButton({ priceId }: { priceId: string }) {
-  const { user } = useAuth();
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleCheckout = async () => {
-    if (!user) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const token = await user.getIdToken();
-      const mode = priceId === ONE_TIME_PRICE_ID ? 'payment' : 'subscription';
-      const sessionId = await createCheckoutSession(token, mode);
-      window.location.href = `https://checkout.stripe.com/pay/${sessionId}`;
-    } catch (error) {
-      console.error('Checkout error:', error);
-      setError('An error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <button 
-      onClick={handleCheckout}
-      disabled={isLoading} 
-      className="mt-8 w-full py-3 px-4 rounded-lg text-white font-semibold bg-blue-500 hover:bg-blue-600 transition-colors"
-    >
-      {isLoading ? 'Processing...' : 'Choose Plan'}
-    </button>
-  );
+interface ProductInfo {
+  product_id: string;
+  price_id: string;
+  name: string;
+  price: number;
+  features: string[];
 }
 
-function PlanCard({ title, price, features, isPopular, priceId }: { 
-  title: string; 
-  price: string; 
-  features: string[]; 
-  isPopular?: boolean; 
-  priceId: string 
-}) {
-  return (
-    <motion.div
-      className={`bg-white rounded-2xl shadow-xl overflow-hidden ${isPopular ? 'border-2 border-blue-500' : ''}`}
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <div className="p-8">
-        <h3 className="text-2xl font-bold mb-2">{title}</h3>
-        <p className="text-4xl font-bold mb-6">{price}</p>
-        <ul className="space-y-3 mb-6">
-          {features.map((feature, index) => (
-            <li key={index} className="flex items-center">
-              <Check className="text-green-500 mr-2" />
-              <span>{feature}</span>
-            </li>
-          ))}
-        </ul>
-        <CheckoutButton priceId={priceId} />
-      </div>
-    </motion.div>
-  );
+interface Products {
+  subscription: ProductInfo;
+  one_time: ProductInfo;
 }
 
 export default function PlansPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentSubscription, setCurrentSubscription] = useState<SubscriptionStatusResponse | null>(null);
+  const [products, setProducts] = useState<Products | null>(null);
   const { user } = useAuth();
-  const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
 
   useEffect(() => {
-    async function fetchSubscription() {
-      if (user) {
-        try {
-          const token = await user.getIdToken();
-          const subscription = await getUserSubscription(token);
-          setCurrentSubscription(subscription);
-        } catch (error) {
-          console.error('Error fetching subscription:', error);
-        }
+    const initializePage = async () => {
+      setLoading(true);
+      try {
+        // Only fetch subscription status if user is logged in
+        const [productsData, status] = await Promise.all([
+          getProducts(),
+          user ? getSubscriptionStatus() : Promise.resolve(null)
+        ]);
+        setProducts(productsData);
+        if (user) setCurrentSubscription(status);
+      } catch (err) {
+        console.error('Error initializing page:', err);
+        setError('Failed to load product information');
+      } finally {
+        setLoading(false);
       }
+    };
+    initializePage();
+  }, [user]); // Add user as dependency
+
+  const handlePurchase = async (priceId: string, mode: 'subscription' | 'payment') => {
+    setLoading(true);
+    setError(null);
+    try {
+      await createCheckoutSession(priceId, mode);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process payment');
+      setLoading(false);
     }
-    fetchSubscription();
-  }, [user]);
+  };
+
+  if (loading || !products) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+    </div>;
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 text-gray-900 py-20">
-      <motion.div 
-        className="container mx-auto px-6"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h1 className="text-5xl font-bold mb-4 text-center">Choose Your Plan</h1>
-        <p className="text-xl text-gray-600 text-center mb-12">Select the perfect plan for your research needs</p>
-        
-        {currentSubscription && (
-          <div className="mb-8 p-4 bg-blue-100 rounded-lg text-center">
-            <p className="text-lg">
-              You currently have an active subscription. Status: {currentSubscription.status}
-            </p>
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
+            Choose Your Plan
+          </h1>
+          <p className="mt-4 text-xl text-gray-500">
+            Select the plan that best fits your research needs
+          </p>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
           </div>
         )}
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          <PlanCard 
-            title="Per Report" 
-            price="$1/report" 
-            features={[
-              "5 Detailed Reports using GPT-4",
-              "10 Summary Reports",
-              "Save Reports to Account",
-              "24/7 Support"
-            ]}
-            priceId={ONE_TIME_PRICE_ID}
-          />
-          <PlanCard 
-            title="Subscription" 
-            price="$20/month" 
-            features={[
-              "30 Detailed Reports using GPT-4",
-              "Latest AI Models Access",
-              "Unlimited Summary Reports",
-              "Save Reports to Account",
-              "Priority Support"
-            ]}
-            isPopular
-            priceId={SUBSCRIPTION_PRICE_ID}
-          />
+        {/* Plans Grid */}
+        <div className="mt-12 grid gap-8 lg:grid-cols-2">
+          {/* Subscription Plan */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="px-6 py-8">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {products.subscription.name}
+              </h2>
+              <p className="mt-4 text-gray-500">Perfect for continuous research needs</p>
+              <p className="mt-8">
+                <span className="text-4xl font-extrabold text-gray-900">
+                  ${products.subscription.price}
+                </span>
+                <span className="text-base font-medium text-gray-500">/month</span>
+              </p>
+              <ul className="mt-6 space-y-4">
+                {products.subscription.features.map((feature) => (
+                  <li key={feature} className="flex">
+                    <svg
+                      className="flex-shrink-0 h-6 w-6 text-green-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span className="ml-3 text-base text-gray-500">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => handlePurchase(products.subscription.price_id, 'subscription')}
+                disabled={loading || currentSubscription?.subscription_status === 'active'}
+                className={`mt-8 block w-full bg-blue-600 py-3 px-6 border border-transparent rounded-md text-white font-medium text-center
+                  ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}
+                  ${currentSubscription?.subscription_status === 'active' ? 'bg-gray-400 cursor-not-allowed' : ''}
+                `}
+              >
+                {loading ? 'Processing...' : 
+                 currentSubscription?.subscription_status === 'active' ? 'Current Plan' : 
+                 'Start Subscription'}
+              </button>
+            </div>
+          </div>
+
+          {/* One-Time Purchase Plan */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="px-6 py-8">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {products.one_time.name}
+              </h2>
+              <p className="mt-4 text-gray-500">Perfect for short-term projects</p>
+              <p className="mt-8">
+                <span className="text-4xl font-extrabold text-gray-900">
+                  ${products.one_time.price}
+                </span>
+                <span className="text-base font-medium text-gray-500">/one-time</span>
+              </p>
+              <ul className="mt-6 space-y-4">
+                {products.one_time.features.map((feature) => (
+                  <li key={feature} className="flex">
+                    <svg
+                      className="flex-shrink-0 h-6 w-6 text-green-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span className="ml-3 text-base text-gray-500">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => handlePurchase(products.one_time.price_id, 'payment')}
+                disabled={loading || currentSubscription?.one_time_purchase}
+                className={`mt-8 block w-full bg-green-600 py-3 px-6 border border-transparent rounded-md text-white font-medium text-center
+                  ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'}
+                  ${currentSubscription?.one_time_purchase ? 'bg-gray-400 cursor-not-allowed' : ''}
+                `}
+              >
+                {loading ? 'Processing...' : 
+                 currentSubscription?.one_time_purchase ? 'Already Purchased' : 
+                 'Buy Now'}
+              </button>
+            </div>
+          </div>
         </div>
-        
-        <div className="mt-12 text-center">
-          <p className="text-gray-600 flex items-center justify-center">
-            <CreditCard className="mr-2" /> Secure payment powered by Stripe
-          </p>
+
+        {/* Additional Information */}
+        <div className="mt-12 text-center text-gray-500">
+          <p>All plans include:</p>
+          <ul className="mt-4">
+            <li>30-day money-back guarantee</li>
+            <li>24/7 customer support</li>
+            <li>Secure payment processing</li>
+          </ul>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

@@ -1,10 +1,12 @@
 import json
 import os
+import re
+import time
 from typing import Dict, List
 from dotenv import load_dotenv
 import stripe
-
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, File, UploadFile, Header, Depends
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, File, UploadFile, Header, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -12,30 +14,19 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
-
+from backend.server.stripe_utils import initialize_stripe
+from backend.server.firebase_init import db, initialize_firebase
+from backend.server.routes import user_routes, stripe_routes
+from backend.server.server_utils import generate_report_files
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
 from gpt_researcher.document.document import DocumentLoader
 from gpt_researcher.orchestrator.actions import stream_output
 from backend.server.server_utils import (
     sanitize_filename, handle_start_command, handle_human_feedback,
-    send_file_paths, get_config_dict,
-    handle_file_upload, handle_file_deletion,
-    execute_multi_agents, handle_websocket_communication
-)
-from backend.server.firebase_utils import (
-    verify_firebase_token, get_user_data, update_user_data,
-    get_user_reports, increment_user_field
-)
-from backend.server.stripe_utils import (
-    create_stripe_customer, create_checkout_session, handle_stripe_webhook,
-    get_subscription_details, get_payment_history,
-    cancel_subscription, get_user_subscription,
-    get_user_payments, get_stripe_webhook_secret, update_environment_variables
-)
-from backend.server.stripeConfig import (
-    ONE_TIME_PRODUCT_ID, ONE_TIME_PRICE_ID,
-    SUBSCRIPTION_PRODUCT_ID, SUBSCRIPTION_PRICE_ID
+    generate_report_files, send_file_paths, get_config_dict,
+    update_environment_variables, handle_file_upload, handle_file_deletion,
+    execute_multi_agents, handle_websocket_communication, extract_command_data
 )
 
 # Models
@@ -60,6 +51,7 @@ class ConfigRequest(BaseModel):
     SERPER_API_KEY: str = ''
     SEARX_URL: str = ''
 
+    # Define all the fields you want to update
 class ConfigUpdateRequest(BaseModel):
     llm_model: str = None
     fast_llm_model: str = None
@@ -77,10 +69,16 @@ class ConfigUpdateRequest(BaseModel):
     report_source: str = None
 
 # App initialization
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    os.makedirs("outputs", exist_ok=True)
+    app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
+    os.makedirs(DOC_PATH, exist_ok=True)
+    initialize_firebase()
+    initialize_stripe()
+    yield
 
-# Define security object for JWT token handling
-security = HTTPBearer()
+app = FastAPI(lifespan=lifespan)
 
 # Static files and templates
 app.mount("/site", StaticFiles(directory="./frontend"), name="site")
@@ -89,24 +87,43 @@ templates = Jinja2Templates(directory="./frontend")
 
 # WebSocket manager
 manager = WebSocketManager()
+def sanitize_filename(filename):
+    return re.sub(r"[^\w\s-]", "", filename).strip()
 
 # Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
+    allow_origins=[ # allow_origins=["http://localhost:3000"] for local testing
         "https://gpt-researcher-costom.vercel.app",
         "https://www.tanalyze.app",
         "https://tanalyze.app",
         "https://agenai.app",
         "https://www.agenai.app",
         "http://agenai.app",
-        "http://www.agenai.app",
-        "http://localhost:3000",  # Add this for local development
+        "http://www.agenai.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    duration = time.time() - start_time
+    print(f"Request: {request.method} {request.url.path} - Status: {response.status_code} - Duration: {duration:.2f}s")
+    return response
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": str(exc.detail),
+            "path": request.url.path
+        }
+    )
 
 # Constants
 DOC_PATH = os.getenv("DOC_PATH", "./my-docs")
@@ -114,14 +131,23 @@ DOC_PATH = os.getenv("DOC_PATH", "./my-docs")
 # Load environment variables
 load_dotenv()
 
-# Startup event
-@app.on_event("startup")
-def startup_event():
-    os.makedirs("outputs", exist_ok=True)
-    app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
-    os.makedirs(DOC_PATH, exist_ok=True)
+# Initialize Stripe
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+# Include routers
+app.include_router(user_routes.router)
+app.include_router(stripe_routes.router)
 
 # Routes
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "timestamp": time.time(),
+        "stripe_initialized": bool(stripe.api_key),
+        "firebase_initialized": bool(db)
+    }
+
 @app.get("/")
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "report": None})
@@ -144,30 +170,34 @@ async def get_config(
         google_api_key, google_cx_key, bing_api_key,
         searchapi_api_key, serpapi_api_key, serper_api_key, searx_url
     )
-
+# List all files in DOC_PATH directory
 @app.get("/files/")
 async def list_files():
     files = os.listdir(DOC_PATH)
     print(f"Files in {DOC_PATH}: {files}")
     return {"files": files}
 
-@app.post("/api/multi_agents")
+# Execute multiple research agents in parallel
+@app.post("/api/multi_agents") 
 async def run_multi_agents():
     return await execute_multi_agents(manager)
 
+# Update environment configuration
 @app.post("/setConfig")
 async def set_config(config: ConfigRequest):
     update_environment_variables(config.dict())
     return {"message": "Config updated successfully"}
 
+# Upload file to DOC_PATH directory
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     return await handle_file_upload(file, DOC_PATH)
-
+# Delete file from DOC_PATH directory
 @app.delete("/files/{filename}")
 async def delete_file(filename: str):
     return await handle_file_deletion(filename, DOC_PATH)
 
+# WebSocket endpoint for real-time communication
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -176,84 +206,3 @@ async def websocket_endpoint(websocket: WebSocket):
             await handle_websocket_communication(websocket, manager)
         except WebSocketDisconnect:
             await manager.disconnect(websocket)
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    decoded_token = await verify_firebase_token(token)
-    if not decoded_token:
-        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-    return decoded_token
-
-@app.get("/user/profile")
-async def get_user_profile(current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    user_data = await get_user_data(user_id)
-    return user_data
-
-@app.put("/user/profile")
-async def update_user_profile(data: dict, current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    await update_user_data(user_id, data)
-    return {"message": "Profile updated successfully"}
-
-@app.post("/create-stripe-customer")
-async def create_customer(current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    email = current_user['email']
-    customer_id = await create_stripe_customer(user_id, email)
-    return {"customer_id": customer_id}
-
-@app.post("/create-checkout-session")
-async def stripe_checkout(request: Request, current_user: dict = Depends(get_current_user)):
-    data = await request.json()
-    mode = data.get('mode', 'payment')
-    success_url = request.url_for('success')
-    cancel_url = request.url_for('cancel')
-    
-    session = await create_checkout_session(mode, success_url, cancel_url)
-    return {"id": session.id}
-
-@app.post("/stripe-webhook")
-async def stripe_webhook(request: Request):
-    payload = await request.body()
-    sig_header = request.headers.get("Stripe-Signature")
-    webhook_secret = get_stripe_webhook_secret(request.url.netloc)
-    
-    event = await handle_stripe_webhook(payload, sig_header, webhook_secret)
-    return {"status": "success"}
-
-@app.get("/user/reports")
-async def get_user_report_list(limit: int = 10, current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    reports = await get_user_reports(user_id, limit)
-    return {"reports": reports}
-
-@app.get("/user/subscription")
-async def get_user_subscription_details(current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    subscription = await get_subscription_details(user_id)
-    return {"subscription": subscription}
-
-@app.get("/user/payment-history")
-async def get_user_payment_history(current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    history = await get_payment_history(user_id)
-    return {"payment_history": history}
-
-@app.post("/user/cancel-subscription")
-async def cancel_user_subscription(current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    success = await cancel_subscription(user_id)
-    return {"success": success}
-
-@app.get("/user-subscription")
-async def get_subscription(current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    subscription = await get_user_subscription(user_id)
-    return {"subscription": subscription}
-
-@app.get("/user-payments")
-async def get_payments(limit: int = 10, current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    payments = await get_user_payments(user_id, limit)
-    return {"payments": payments}

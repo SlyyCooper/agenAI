@@ -8,8 +8,9 @@ from fastapi import WebSocket
 from backend.report_type import BasicReport, DetailedReport
 from gpt_researcher.utils.enum import ReportType, Tone
 from multi_agents.main import run_research_task
-from gpt_researcher.orchestrator.actions import stream_output
+from gpt_researcher.orchestrator.actions import stream_output  # Import stream_output
 from backend.server.firebase_utils import verify_firebase_token
+from backend.server.firebase_init import db
 
 
 class WebSocketManager:
@@ -79,11 +80,6 @@ class WebSocketManager:
         tone = Tone[tone]
         report = await run_agent(task, report_type, report_source, source_urls, tone, websocket, headers)
         return report
-
-    async def send_payment_update(self, websocket: WebSocket, message: str):
-        """Send a payment-related update to the client."""
-        if websocket in self.active_connections:
-            await self.message_queues[websocket].put(message)
 
 
 async def run_agent(task, report_type, report_source, source_urls, tone: Tone, websocket, headers=None):

@@ -1,144 +1,398 @@
-# Project Documentation
+# Core Backend Services Documentation
 
-## Backend Setup
+This documentation focuses on the core backend services (Firebase/Firestore and Stripe) and their integration points. It outlines:
+1. All Firestore operations for user management
+2. Stripe payment processing flows
+3. Data structures needed for frontend integration
+4. Required environment variables
 
-### Environment Variables (@.env)
+The frontend needs to implement corresponding API calls and data handling for these services.
 
-- OPENAI_API_KEY: Used for OpenAI integration
-- TAVILY_API_KEY: Used for Tavily API integration
-- LANGCHAIN_API_KEY: Used for LangChain integration
-- FIREBASE_TYPE: Firebase configuration
-- FIREBASE_PROJECT_ID: Firebase project ID
-- FIREBASE_PRIVATE_KEY_ID: Firebase private key ID
-- FIREBASE_PRIVATE_KEY: Firebase private key
-- FIREBASE_CLIENT_EMAIL: Firebase client email
-- FIREBASE_CLIENT_ID: Firebase client ID
-- FIREBASE_AUTH_URI: Firebase authentication URI
-- FIREBASE_TOKEN_URI: Firebase token URI
-- FIREBASE_AUTH_PROVIDER_X509_CERT_URL: Firebase auth provider cert URL
-- FIREBASE_CLIENT_X509_CERT_URL: Firebase client cert URL
-- FIREBASE_UNIVERSE_DOMAIN: Firebase universe domain
-- AUTH_SECRET: Authentication secret
-- STRIPE_WEBHOOK_SECRET_GPT_RESEARCHER: Stripe webhook secret for GPT Researcher
-- STRIPE_WEBHOOK_SECRET_TANALYZE_WWW: Stripe webhook secret for Tanalyze (www)
-- STRIPE_WEBHOOK_SECRET_TANALYZE: Stripe webhook secret for Tanalyze
-- STRIPE_WEBHOOK_SECRET_AGENAI: Stripe webhook secret for Agenai
-- STRIPE_WEBHOOK_SECRET_AGENAI_WWW: Stripe webhook secret for Agenai (www)
-- STRIPE_SECRET_KEY: Stripe secret key
-- STRIPE_WEBHOOK_SECRET: General Stripe webhook secret
+## Firebase/Firestore Operations
 
-### Server Setup (@server.py)
+### User Profile Management
+1. **Create User Profile**
+   - Function: `create_user_profile(user_id, email, name)`
+   - Data Stored:
+     ```json
+     {
+       "email": string,
+       "created_at": timestamp,
+       "last_login": timestamp,
+       "name": string (optional)
+     }
+     ```
 
-1. FastAPI application initialization
-2. CORS middleware configuration
-3. Firebase Admin SDK initialization
-4. Stripe initialization
+2. **Update User Data**
+   - Function: `update_user_data(user_id, data)`
+   - Updates any user fields in Firestore
 
-Key routes:
-- POST /create-checkout-session: Creates a Stripe checkout session
-- POST /stripe-webhook: Handles Stripe webhooks
-- GET /user/subscription: Retrieves user subscription details
-- POST /user/cancel-subscription: Cancels a user's subscription
-- GET /verify-payment/{session_id}: Verifies a payment
-- POST /cancel-payment/{session_id}: Cancels a payment
+3. **Get User Data**
+   - Function: `get_user_data(user_id)`
+   - Returns all user data from Firestore
 
-### Server Utilities (@server_utils.py)
+4. **Verify Firebase Token**
+   - Function: `verify_firebase_token(token)`
+   - Validates user authentication
+   - Creates profile if new user
+   - Updates last login timestamp
 
-Key functions:
-- create_stripe_checkout_session: Creates a Stripe checkout session
-- handle_stripe_webhook: Processes Stripe webhook events
-- update_subscription_data: Updates user subscription data in Firestore
-- get_subscription_details: Retrieves subscription details from Stripe
-- cancel_subscription: Cancels a user's subscription
-- verify_stripe_payment: Verifies a Stripe payment
-- cancel_stripe_payment: Cancels a Stripe payment
+## Stripe Integration
 
-Firestore data structure:
-- Collection: users
-  - Document: {user_id}
-    - Fields: email, created_at, last_login, stripe_customer_id, subscription details
-    - Subcollection: checkout_sessions
-      - Document: {session_id}
-        - Fields: session_id, customer_id, price_id, status, created_at, mode, origin
-    - Subcollection: payments
-      - Document: {payment_id}
-        - Fields: payment_intent_id, amount, currency, status, created_at
-    - Subcollection: reports
-      - Document: {report_id}
-        - Fields: content, type, task, created_at
+### Payment Processing
+1. **Order Fulfillment**
+   - Function: `fulfill_order(session)`
+   - Handles both subscription and one-time payments
+   - Updates Firestore with:
+     ```json
+     // For Subscription
+     {
+       "subscription_status": "active",
+       "subscription_id": string,
+       "subscription_end_date": timestamp,
+       "product_id": string,
+       "price_id": string,
+       "has_access": true
+     }
+     
+     // For One-time Purchase
+     {
+       "one_time_purchase": true,
+       "purchase_date": timestamp,
+       "product_id": string,
+       "price_id": string,
+       "has_access": true
+     }
+     ```
 
-## Frontend Setup
+2. **Subscription Management**
+   - Update Status: `update_subscription_status(invoice)`
+   - Cancel Subscription: `handle_subscription_cancellation(subscription)`
+   - Updates Firestore with:
+     ```json
+     {
+       "subscription_status": string,
+       "last_payment_date": timestamp,
+       "subscription_end_date": timestamp,
+       "has_access": boolean
+     }
+     ```
 
-### Environment Variables (@.env.local)
+### Webhook Events
+- `checkout.session.completed`: Triggers order fulfillment
+- `invoice.paid`: Updates subscription status
+- `customer.subscription.deleted`: Handles cancellation
 
-- NEXT_PUBLIC_FIREBASE_API_KEY: Firebase API key
-- NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: Firebase auth domain
-- NEXT_PUBLIC_FIREBASE_PROJECT_ID: Firebase project ID
-- NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: Firebase storage bucket
-- NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: Firebase messaging sender ID
-- NEXT_PUBLIC_FIREBASE_APP_ID: Firebase app ID
-- NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: Firebase measurement ID
-- NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: Stripe publishable key
+## Required Frontend Integration Points
 
-### Stripe Integration (@get-stripejs.ts)
+### User Authentication
+```typescript
+interface UserProfile {
+  email: string;
+  name?: string;
+  created_at: timestamp;
+  last_login: timestamp;
+  has_access: boolean;
+  subscription_status?: string;
+  subscription_end_date?: timestamp;
+  one_time_purchase?: boolean;
+}
+```
 
-- getStripe function: Initializes and returns a Stripe instance
+### Payment Integration
+```typescript
+interface PaymentSession {
+  mode: 'subscription' | 'payment';
+  price_id: string;
+  user_id: string;
+}
 
-### Firebase and Authentication (@AuthContext.tsx)
+interface SubscriptionStatus {
+  has_access: boolean;
+  subscription_status?: string;
+  subscription_end_date?: timestamp;
+  one_time_purchase: boolean;
+}
+```
 
-- AuthProvider component: Manages user authentication state
-- useAuth hook: Provides access to authentication context
+### Required Environment Variables
+```env
+FIREBASE_CONFIG={}
+STRIPE_PUBLIC_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_SUBSCRIPTION_PRODUCT_ID=
+STRIPE_SUBSCRIPTION_PRICE_ID=
+STRIPE_ONETIME_PRODUCT_ID=
+STRIPE_ONETIME_PRICE_ID=
+```
 
-### API Actions (@apiActions.ts)
+## API Routes Reference
 
-Key functions:
-- createCheckoutSession: Creates a Stripe checkout session
-- getUserSubscription: Retrieves user subscription details
-- getUserPaymentHistory: Fetches user payment history
-- cancelUserSubscription: Cancels a user's subscription
-- verifyPayment: Verifies a payment
-- cancelPayment: Cancels a payment
+### User Authentication & Profile Routes
 
-### Plans Page (@page.tsx - plans)
+1. **GET** `/api/user/profile`
+   ```typescript
+   // Frontend Implementation
+   const getUserProfile = async () => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/user/profile',
+       {
+         method: 'GET',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+       }
+     );
+     return await response.json();
+   };
+   ```
 
-Components:
-- CheckoutForm: Handles the checkout process
-- PlanCard: Displays individual plan details
-- PlansPage: Main component for the plans page
+2. **PUT** `/api/user/profile`
+   ```typescript
+   // Frontend Implementation
+   const createUserProfile = async (data: { email: string; name?: string }) => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/user/profile',
+       {
+         method: 'PUT',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify(data),
+       }
+     );
+     return await response.json();
+   };
+   ```
 
-Product IDs:
-- One-time payment: prod_R0bEOf1dWZCjyY
-- Subscription: prod_Qvu89XrhkHjzZU
+3. **PUT** `/api/user/update`
+   ```typescript
+   // Frontend Implementation
+   const updateUserProfile = async (data: Record<string, any>) => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/user/update',
+       {
+         method: 'PUT',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify(data),
+       }
+     );
+     return await response.json();
+   };
+   ```
 
-### Success Page (@page.tsx - success)
+4. **GET** `/api/user/subscription`
+   ```typescript
+   // Frontend Implementation
+   const getUserSubscription = async () => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/user/subscription',
+       {
+         method: 'GET',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+       }
+     );
+     return await response.json();
+   };
+   ```
 
-- Handles successful payments
-- Verifies payment status
-- Displays appropriate messages based on payment status
+5. **GET** `/api/user/payment-history`
+   ```typescript
+   // Frontend Implementation
+   const getPaymentHistory = async () => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/user/payment-history',
+       {
+         method: 'GET',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+       }
+     );
+     return await response.json();
+   };
+   ```
 
-### Cancel Page (@page.tsx - cancel)
+6. **GET** `/api/user/access-status`
+   ```typescript
+   // Frontend Implementation
+   const getAccessStatus = async () => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/user/access-status',
+       {
+         method: 'GET',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+       }
+     );
+     return await response.json();
+   };
+   ```
 
-- Handles cancelled payments
-- Allows users to return to plans or contact support
+### Stripe Payment Routes
 
-## Flow
+1. **POST** `/api/stripe/webhook`
+   ```typescript
+   // Note: Webhook is handled on the backend, no frontend implementation needed
+   ```
 
-1. User selects a plan on the Plans Page
-2. CheckoutForm component initiates checkout process
-3. Backend creates a Stripe checkout session
-4. User is redirected to Stripe Checkout
-5. After payment, user is redirected to Success or Cancel page
-6. Backend processes Stripe webhook events
-7. User subscription/payment data is updated in Firestore
+2. **POST** `/api/stripe/create-checkout-session`
+   ```typescript
+   // Frontend Implementation
+   const createCheckoutSession = async (
+     price_id: string,
+     mode: 'subscription' | 'payment'
+   ) => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/stripe/create-checkout-session',
+       {
+         method: 'POST',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({ price_id, mode }),
+       }
+     );
+     const { sessionId } = await response.json();
+     
+     // Redirect to Stripe Checkout
+     const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+     await stripe?.redirectToCheckout({ sessionId });
+   };
+   ```
 
-## Implementation Notes
+3. **POST** `/api/stripe/create-portal-session`
+   ```typescript
+   // Frontend Implementation
+   const createPortalSession = async () => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/stripe/create-portal-session',
+       {
+         method: 'POST',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+       }
+     );
+     const { url } = await response.json();
+     window.location.href = url;
+   };
+   ```
 
-- The system uses Stripe Checkout for both one-time payments and subscriptions
-- Firebase is used for authentication and Firestore for data storage
-- Stripe customer IDs are stored in Firestore and linked to user accounts
-- Webhook events are used to update user data after successful payments
-- The frontend uses React hooks and context for state management
-- Environment variables are used to securely store API keys and configuration
+4. **POST** `/api/stripe/cancel-subscription`
+   ```typescript
+   // Frontend Implementation
+   const cancelSubscription = async () => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/stripe/cancel-subscription',
+       {
+         method: 'POST',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+       }
+     );
+     return await response.json();
+   };
+   ```
 
+5. **GET** `/api/stripe/subscription-status`
+   ```typescript
+   // Frontend Implementation
+   const getSubscriptionStatus = async () => {
+     const response = await fetch(
+       'https://dolphin-app-49eto.ondigitalocean.app/backend/api/stripe/subscription-status',
+       {
+         method: 'GET',
+         headers: {
+           'Authorization': `Bearer ${firebaseToken}`,
+           'Content-Type': 'application/json',
+         },
+       }
+     );
+     return await response.json();
+   };
+   ```
 
+### Utility Function for Firebase Token
+```typescript
+// Helper to get Firebase token
+const getFirebaseToken = async (): Promise<string> => {
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('No user logged in');
+  }
+  return await currentUser.getIdToken();
+};
 
+// Usage example with error handling
+const apiCall = async () => {
+  try {
+    const firebaseToken = await getFirebaseToken();
+    // Use any of the above API functions
+  } catch (error) {
+    console.error('API Error:', error);
+    // Handle error appropriately
+  }
+};
+```
+
+## Data Models
+
+### Firestore User Document
+```typescript
+interface UserDocument {
+  email: string;
+  name?: string;
+  created_at: timestamp;
+  last_login: timestamp;
+  has_access: boolean;
+  subscription_status?: 'active' | 'cancelled' | null;
+  subscription_id?: string;
+  subscription_end_date?: timestamp;
+  one_time_purchase?: boolean;
+  purchase_date?: timestamp;
+  product_id?: string;
+  price_id?: string;
+  stripe_customer_id?: string;
+  last_payment_date?: timestamp;
+}
+```
+
+### API Request/Response Types
+```typescript
+interface CreateCheckoutSessionRequest {
+  price_id: string;
+  mode: 'subscription' | 'payment';
+}
+
+interface SubscriptionStatusResponse {
+  has_access: boolean;
+  subscription_status?: string;
+  subscription_end_date?: timestamp;
+  subscription_id?: string;
+  one_time_purchase: boolean;
+}
+
+interface UserProfileUpdateRequest {
+  email?: string;
+  name?: string;
+  [key: string]: any;
+}
+```

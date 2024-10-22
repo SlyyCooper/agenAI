@@ -1,95 +1,149 @@
-export interface Subscription {
-  id: string;
-  status: string;
-  plan?: string; // Make this optional as it might not always be present
-  current_period_end: number;
-  cancel_at_period_end: boolean;
+import { loadStripe } from '@stripe/stripe-js';
+import { getAuth } from 'firebase/auth';
+
+const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
+
+// Types
+interface CreateCheckoutSessionRequest {
+  price_id: string;
+  mode: 'subscription' | 'payment';
 }
 
-export async function getUserSubscription(token: string): Promise<Subscription | null> {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user-subscription', {
-    headers: { 
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
+export interface SubscriptionStatusResponse {
+  has_access: boolean;
+  subscription_status?: string;
+  subscription_end_date?: string;
+  subscription_id?: string;
+  one_time_purchase: boolean;
+}
+
+// Helper function to get Firebase token
+const getFirebaseToken = async (): Promise<string> => {
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('No user logged in');
+  }
+  return await currentUser.getIdToken();
+};
+
+// API Functions
+export const createCheckoutSession = async (
+  price_id: string,
+  mode: 'subscription' | 'payment'
+): Promise<void> => {
+  try {
+    const firebaseToken = await getFirebaseToken();
+    const response = await fetch(`${BASE_URL}/api/stripe/create-checkout-session`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${firebaseToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ price_id, mode }),
+    });
+    
+    if (!response.ok) throw new Error('Failed to create checkout session');
+    
+    const { sessionId } = await response.json();
+    const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+    
+    if (!stripe) throw new Error('Stripe failed to load');
+    
+    const { error } = await stripe.redirectToCheckout({ sessionId });
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error creating checkout session:', error);
+    throw error;
+  }
+};
+
+export const createPortalSession = async (): Promise<void> => {
+  try {
+    const firebaseToken = await getFirebaseToken();
+    const response = await fetch(`${BASE_URL}/api/stripe/create-portal-session`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${firebaseToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) throw new Error('Failed to create portal session');
+    
+    const { url } = await response.json();
+    window.location.href = url;
+  } catch (error) {
+    console.error('Error creating portal session:', error);
+    throw error;
+  }
+};
+
+export const cancelSubscription = async (): Promise<any> => {
+  try {
+    const firebaseToken = await getFirebaseToken();
+    const response = await fetch(`${BASE_URL}/api/stripe/cancel-subscription`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${firebaseToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) throw new Error('Failed to cancel subscription');
+    return await response.json();
+  } catch (error) {
+    console.error('Error cancelling subscription:', error);
+    throw error;
+  }
+};
+
+export const getSubscriptionStatus = async (): Promise<SubscriptionStatusResponse> => {
+  try {
+    console.log('Fetching subscription status...');
+    const firebaseToken = await getFirebaseToken();
+    const response = await fetch(`${BASE_URL}/api/stripe/subscription-status`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${firebaseToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      console.error('Subscription status API error:', await response.text());
+      throw new Error('Failed to fetch subscription status');
     }
-  });
-  if (!response.ok) {
-    if (response.status === 404) {
-      return null; // User has no subscription
+    
+    const data = await response.json();
+    console.log('Subscription status fetched:', data);
+    return data;
+  } catch (error) {
+    console.error('Subscription status fetch error:', error);
+    throw error;
+  }
+};
+
+export const getProducts = async () => {
+  try {
+    console.log('Fetching products...');
+    const response = await fetch(`${BASE_URL}/api/stripe/products`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      console.error('Products API error:', await response.text());
+      throw new Error('Failed to fetch products');
     }
-    throw new Error('Failed to fetch subscription data');
+    
+    const data = await response.json();
+    console.log('Products fetched:', data);
+    return data;
+  } catch (error) {
+    console.error('Products fetch error:', error);
+    throw error;
   }
-  return response.json();
-}
-
-export async function getUserPaymentHistory(token: string) {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/payment-history', {
-    headers: { 
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }
-  });
-  if (!response.ok) {
-    throw new Error('Failed to fetch payment history');
-  }
-  return response.json();
-}
-
-export async function cancelUserSubscription(token: string) {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/cancel-subscription', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  if (!response.ok) {
-    throw new Error('Failed to cancel subscription');
-  }
-  return response.json();
-}
-
-export async function createCheckoutSession(token: string, mode: 'payment' | 'subscription') {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-checkout-session', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Origin': window.location.origin,
-    },
-    body: JSON.stringify({ mode }),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to create checkout session');
-  }
-  const data = await response.json();
-  return data.id;
-}
-
-export async function getUserPayments(token: string, limit: number = 10) {
-  const response = await fetch(`https://dolphin-app-49eto.ondigitalocean.app/backend/user-payments?limit=${limit}`, {
-    headers: { 
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }
-  });
-  if (!response.ok) {
-    throw new Error('Failed to fetch user payments');
-  }
-  return response.json();
-}
-
-export async function handleStripeWebhook(body: string, signature: string) {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/stripe-webhook', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Stripe-Signature': signature,
-    },
-    body: body,
-  });
-  if (!response.ok) {
-    throw new Error('Failed to handle Stripe webhook');
-  }
-  return response.json();
-}
+};
