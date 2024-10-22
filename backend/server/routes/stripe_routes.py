@@ -46,19 +46,16 @@ async def create_checkout_session(
         user_id = current_user['uid']
         user_data = await get_user_data(user_id)
         
-        success_url = "https://agenai.app/success"
-        cancel_url = "https://agenai.app/cancel"
-        
         checkout_session = stripe.checkout.Session.create(
-            customer_email=user_data.get('email'),
+            customer=user_data.get('stripe_customer_id'),  # Add this
             metadata={'user_id': user_id},
-            mode=mode,
+            subscription_data={'metadata': {'user_id': user_id}} if mode == 'subscription' else None,  # Add this
             line_items=[{
                 'price': price_id,
                 'quantity': 1,
             }],
-            success_url=success_url,
-            cancel_url=cancel_url,
+            success_url="https://agenai.app/success",
+            cancel_url="https://agenai.app/cancel",
         )
         
         return {"sessionId": checkout_session.id}

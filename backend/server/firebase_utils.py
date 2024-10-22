@@ -1,6 +1,7 @@
 from backend.server.firebase_init import db
 from firebase_admin import auth, firestore
 import logging
+import stripe
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -10,15 +11,26 @@ async def create_user_profile(user_id: str, email: str, name: str = None):
     if not user_id or not email:
         raise ValueError("user_id and email are required")
     
-    user_ref = db.collection('users').document(user_id)
-    user_data = {
-        'email': email,
-        'created_at': firestore.SERVER_TIMESTAMP,
-        'last_login': firestore.SERVER_TIMESTAMP
-    }
-    if name:
-        user_data['name'] = name
-    user_ref.set(user_data)
+    try:
+        # Create Stripe customer
+        customer = stripe.Customer.create(
+            email=email,
+            metadata={'user_id': user_id}
+        )
+        
+        user_data = {
+            'email': email,
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'last_login': firestore.SERVER_TIMESTAMP,
+            'stripe_customer_id': customer.id  # Add this
+        }
+        if name:
+            user_data['name'] = name
+            
+        db.collection('users').document(user_id).set(user_data)
+    except Exception as e:
+        print(f"Error creating user profile: {str(e)}")
+        raise
 
 async def update_user_data(user_id: str, data: dict):
     """Update user data in Firestore."""

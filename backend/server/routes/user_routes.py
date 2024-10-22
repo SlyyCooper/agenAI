@@ -25,10 +25,17 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 @router.get("/profile")
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
     user_id = current_user['uid']
-    print(f"Fetching profile for user: {user_id}")
     user_data = await get_user_data(user_id)
-    if not user_data:
-        raise HTTPException(status_code=404, detail="User profile not found")
+    
+    # Add subscription check
+    if user_data.get('subscription_id'):
+        try:
+            subscription = stripe.Subscription.retrieve(user_data['subscription_id'])
+            user_data['subscription_status'] = subscription.status
+            user_data['subscription_current_period_end'] = subscription.current_period_end
+        except Exception as e:
+            print(f"Error fetching subscription: {str(e)}")
+    
     return user_data
 
 @router.put("/profile")

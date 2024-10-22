@@ -10,6 +10,15 @@ const nextConfig = {
       },
     ],
   },
+  output: 'standalone',
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'https://dolphin-app-49eto.ondigitalocean.app/backend/:path*',
+      },
+    ];
+  },
 };
 
 export default nextConfig;

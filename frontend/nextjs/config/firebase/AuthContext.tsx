@@ -28,20 +28,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      setLoading(false);
-      if (user) {
-        const token = await user.getIdToken();
-        try {
-          const response = await axios.get('https://dolphin-app-49eto.ondigitalocean.app/backend/user/profile', {
+      try {
+        setUser(user);
+        if (user) {
+          const token = await user.getIdToken();
+          const response = await axios.get('/api/user/profile', {
             headers: { Authorization: `Bearer ${token}` }
           });
           setUserProfile(response.data);
-        } catch (error) {
-          console.error('Error fetching user profile:', error);
+        } else {
+          setUserProfile(null);
         }
-      } else {
-        setUserProfile(null);
+      } catch (error) {
+        console.error('Auth state change error:', error);
+        // Handle error appropriately
+      } finally {
+        setLoading(false);
       }
     });
 
