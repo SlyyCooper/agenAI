@@ -6,6 +6,9 @@ import { useAuth } from '@/config/firebase/AuthContext';
 import { Check, ChevronRight, CreditCard } from 'lucide-react';
 import { createCheckoutSession, getUserSubscription, Subscription } from '@/actions/apiActions';
 
+const ONE_TIME_PRICE_ID = "price_1Q8a1z060pc64aKuwy1n1wzz";
+const SUBSCRIPTION_PRICE_ID = "price_1Q42KT060pc64aKupjCogJZN";
+
 function CheckoutButton({ priceId }: { priceId: string }) {
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +22,8 @@ function CheckoutButton({ priceId }: { priceId: string }) {
 
     try {
       const token = await user.getIdToken();
-      const sessionId = await createCheckoutSession(token, priceId);
+      const productType = priceId === ONE_TIME_PRICE_ID ? 'one_time' : 'subscription';
+      const sessionId = await createCheckoutSession(token, productType);
       window.location.href = `https://checkout.stripe.com/pay/${sessionId}`;
     } catch (error) {
       console.error('Checkout error:', error);
@@ -117,7 +121,7 @@ export default function PlansPage() {
               "Save Reports to Account",
               "24/7 Support"
             ]}
-            priceId="prod_R0bEOf1dWZCjyY"
+            priceId={ONE_TIME_PRICE_ID}
           />
           <PlanCard 
             title="Subscription" 
@@ -130,7 +134,7 @@ export default function PlansPage() {
               "Priority Support"
             ]}
             isPopular
-            priceId="prod_Qvu89XrhkHjzZU"
+            priceId={SUBSCRIPTION_PRICE_ID}
           />
         </div>
         

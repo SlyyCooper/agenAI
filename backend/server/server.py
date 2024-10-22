@@ -30,6 +30,12 @@ from backend.server.server_utils import (
     get_user_payments, get_stripe_webhook_secret
 )
 
+# Update these constants at the top of the file
+ONE_TIME_PRODUCT_ID = "prod_R0bEOf1dWZCjyY"
+ONE_TIME_PRICE_ID = "price_1Q8a1z060pc64aKuwy1n1wzz"
+SUBSCRIPTION_PRODUCT_ID = "prod_Qvu89XrhkHjzZU"
+SUBSCRIPTION_PRICE_ID = "price_1Q42KT060pc64aKupjCogJZN"
+
 # Models
 class ResearchRequest(BaseModel):
     task: str
@@ -197,10 +203,15 @@ async def create_customer(current_user: dict = Depends(get_current_user)):
 @app.post("/create-checkout-session")
 async def create_checkout_session(data: dict, request: Request, current_user: dict = Depends(get_current_user)):
     user_id = current_user['uid']
-    price_id = data.get('price_id')
+    product_type = data.get('product_type')
     
-    if not price_id:
-        raise HTTPException(status_code=400, detail="Price ID is required")
+    if not product_type:
+        raise HTTPException(status_code=400, detail="Product type is required")
+    
+    if product_type not in ['one_time', 'subscription']:
+        raise HTTPException(status_code=400, detail="Invalid product type")
+    
+    price_id = ONE_TIME_PRICE_ID if product_type == 'one_time' else SUBSCRIPTION_PRICE_ID
     
     origin = request.headers.get("Origin")
     if not origin:
@@ -220,7 +231,7 @@ async def create_checkout_session(data: dict, request: Request, current_user: di
         raise HTTPException(status_code=400, detail="Invalid origin")
     
     try:
-        session = await create_stripe_checkout_session(user_id, price_id, origin)
+        session = await create_stripe_checkout_session(user_id, price_id, origin, product_type)
         return {"sessionId": session.id}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

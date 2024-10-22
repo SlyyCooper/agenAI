@@ -17,6 +17,12 @@ import stripe
 from stripe.error import StripeError
 from fastapi import HTTPException
 
+# Add these constants at the top of the file
+ONE_TIME_PRODUCT_ID = "prod_R0bEOf1dWZCjyY"
+ONE_TIME_PRICE_ID = "price_1Q8a1z060pc64aKuwy1n1wzz"
+SUBSCRIPTION_PRODUCT_ID = "prod_Qvu89XrhkHjzZU"
+SUBSCRIPTION_PRICE_ID = "price_1Q42KT060pc64aKupjCogJZN"
+
 # Function to sanitize filenames
 def sanitize_filename(filename: str) -> str:
     return re.sub(r"[^\w\s-]", "", filename).strip()
@@ -511,7 +517,7 @@ async def get_user_payments(user_id: str, limit: int = 10):
 async def create_subscription(customer_id: str, price_id: str, origin: str):
     return await create_stripe_checkout_session(customer_id, price_id, origin)
 
-async def create_stripe_checkout_session(user_id: str, price_id: str, origin: str):
+async def create_stripe_checkout_session(user_id: str, price_id: str, origin: str, product_type: str):
     user_data = await get_user_data(user_id)
     customer_id = user_data.get('stripe_customer_id')
     
@@ -533,7 +539,7 @@ async def create_stripe_checkout_session(user_id: str, price_id: str, origin: st
             'price': price_id,
             'quantity': 1,
         }],
-        mode='subscription' if price_id == 'prod_Qvu89XrhkHjzZU' else 'payment',
+        mode='subscription' if product_type == 'subscription' else 'payment',
         success_url=f'{base_url}/success?session_id={{CHECKOUT_SESSION_ID}}',
         cancel_url=f'{base_url}/cancel',
     )
@@ -545,15 +551,16 @@ async def create_stripe_checkout_session(user_id: str, price_id: str, origin: st
         'session_id': session.id,
         'customer_id': customer_id,
         'price_id': price_id,
+        'product_type': product_type,
         'status': 'created',
         'created_at': firestore.SERVER_TIMESTAMP,
-        'mode': 'subscription' if price_id == 'prod_Qvu89XrhkHjzZU' else 'payment',
+        'mode': 'subscription' if product_type == 'subscription' else 'payment',
         'origin': origin,
     })
     
     return session
 
-# Add this new function to handle Stripe webhook events
+# Update this function to handle both subscription and one-time payments
 async def handle_checkout_session_completed(session):
     customer_id = session['customer']
     customer = stripe.Customer.retrieve(customer_id)
@@ -586,4 +593,6 @@ async def handle_checkout_session_completed(session):
             'currency': payment_intent.currency,
             'status': payment_intent.status,
             'created_at': firestore.SERVER_TIMESTAMP,
+            'product_id': ONE_TIME_PRODUCT_ID,
+            'price_id': ONE_TIME_PRICE_ID,
         })

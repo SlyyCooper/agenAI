@@ -158,7 +158,7 @@ export async function cancelUserSubscription(token: string) {
   return response.json();
 }
 
-export async function createCheckoutSession(token: string, priceId: string) {
+export async function createCheckoutSession(token: string, productType: 'one_time' | 'subscription') {
   const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-checkout-session', {
     method: 'POST',
     headers: {
@@ -166,7 +166,7 @@ export async function createCheckoutSession(token: string, priceId: string) {
       'Content-Type': 'application/json',
       'Origin': window.location.origin,
     },
-    body: JSON.stringify({ price_id: priceId }),
+    body: JSON.stringify({ product_type: productType }),
   });
   if (!response.ok) {
     throw new Error('Failed to create checkout session');

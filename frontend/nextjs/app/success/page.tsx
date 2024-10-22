@@ -113,7 +113,6 @@ function SuccessContent() {
     </div>
   );
 }
-
 export default function SuccessPage() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
@@ -121,3 +120,4 @@ export default function SuccessPage() {
     </Suspense>
   );
 }
+

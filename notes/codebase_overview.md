@@ -276,10 +276,12 @@
 - The user is correctly stored in my firestore database in my backend Server @server.py and @server_utils.py , using my safe environment variables that are stored in Digital Ocean, but in this .env @.env  for local testing, and is thus **OK** 
 - The routes for the Stripe and Firebase frontend logic that allows the frontend and backend to communicate is in@apiActions.ts  
 - Use of Stripe SDK and Stripe checkout in my backend @server.py and @server_utils.py  for my **two** stripe product IDs:
-- One time payment product id: prod_R0bEOf1dWZCjyY 
+- Use of Stripe SDK and Stripe checkout in my backend @server.py and @server_utils.py  for my **two** stripe product IDs:
+- One time payment product id: prod_R0bEOf1dWZCjyY
+- One time payment price id: price_1Q8a1z060pc64aKuwy1n1wzz
 - Subscription product id: prod_Qvu89XrhkHjzZU
+- Subscription price id: price_1Q42KT060pc64aKupjCogJZN
 - Stripe initiation in frontend @get-stripejs.ts  and Stripe related functions in the frontend @apiActions.ts to communicate with the backend Stripe SDK and firestore routes in@server.py and @server_utils.py , that is used by the payment plan page @page.tsx  which sends the user to the applicable Stripe Checkout depnding on the product id they select (One time payment product id: prod_R0bEOf1dWZCjyY and Subscription product id: prod_Qvu89XrhkHjzZU)
 - The Stripe Firestore datapoints shown in the backend @server.py and @server_utils.py , should be correctly stored when both new and existing users checkout in @page.tsx , and tracked in @page.tsx 
 - The frontend Stripe success payment page is @page.tsx 
 - The frontend Stripe cancel payment page is @page.tsx 
-</environment_circumstances>
