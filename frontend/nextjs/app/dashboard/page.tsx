@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/config/firebase/AuthContext';
 import {
   getUserProfile,
   getUserSubscription,
@@ -27,6 +28,7 @@ interface PaymentRecord {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user, loading: authLoading, userProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -36,19 +38,28 @@ export default function DashboardPage() {
   const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([]);
   const [accessStatus, setAccessStatus] = useState<{ has_access: boolean }>({ has_access: false });
 
-  // Load all dashboard data
+  // Check authentication first
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login'); // Redirect to login if not authenticated
+    }
+  }, [user, authLoading, router]);
+
+  // Load dashboard data only when authenticated
   useEffect(() => {
     const loadDashboardData = async () => {
+      if (!user) return; // Don't load data if not authenticated
+      
       try {
         setLoading(true);
-        const [profileData, subscriptionData, paymentData, accessData] = await Promise.all([
-          getUserProfile(),
+        const [subscriptionData, paymentData, accessData] = await Promise.all([
           getSubscriptionStatus(),
           getPaymentHistory(),
           getAccessStatus()
         ]);
 
-        setProfile(profileData);
+        // Use userProfile from AuthContext instead of separate API call
+        setProfile(userProfile);
         setSubscription(subscriptionData);
         setPaymentHistory(paymentData);
         setAccessStatus(accessData);
@@ -59,8 +70,24 @@ export default function DashboardPage() {
       }
     };
 
-    loadDashboardData();
-  }, []);
+    if (user && userProfile) {
+      loadDashboardData();
+    }
+  }, [user, userProfile]); // Add dependencies
+
+  // Show loading state while auth is being checked
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  // Prevent flash of content while redirecting
+  if (!user) {
+    return null;
+  }
 
   // Handle subscription management
   const handleManageSubscription = async () => {
@@ -220,4 +247,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
