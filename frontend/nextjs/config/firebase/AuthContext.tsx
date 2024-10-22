@@ -7,10 +7,23 @@ import axios from 'axios';
 
 const auth = getAuth(app);
 
+export interface UserProfile {
+  email: string;
+  name?: string;
+  created_at: string;
+  last_login: string;
+  has_access: boolean;
+  stripe_customer_id?: string;
+  subscription_status?: string;
+  subscription_end_date?: string;
+  subscription_current_period_end?: number;
+  one_time_purchase?: boolean;
+}
+
 export interface AuthContextProps {
   user: User | null;
   loading: boolean;
-  userProfile: any | null;
+  userProfile: UserProfile | null;
 }
 
 const AuthContext = createContext<AuthContextProps>({
@@ -24,7 +37,7 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<any | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {

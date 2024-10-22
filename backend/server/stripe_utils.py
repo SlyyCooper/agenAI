@@ -42,45 +42,38 @@ async def handle_stripe_webhook(event):
         )
 
 async def fulfill_order(session):
-    user_id = session['metadata']['user_id']
-    user_ref = db.collection('users').document(user_id)
-    
-    transaction = db.transaction()
-    
-    @transaction.transactional
-    def update_in_transaction(transaction):
-        # Get current user data within transaction
-        user_doc = transaction.get(user_ref)
-        if not user_doc.exists:
-            raise ValueError(f"User {user_id} not found")
-            
-        if session['mode'] == 'subscription':
-            subscription_id = session['subscription']
-            subscription = stripe.Subscription.retrieve(subscription_id)
-            current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
-            
-            transaction.update(user_ref, {
-                'subscription_status': 'active',
-                'subscription_id': subscription_id,
-                'subscription_end_date': current_period_end,
-                'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
-                'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID"),
-                'has_access': True,
-                'last_updated': firestore.SERVER_TIMESTAMP
-            })
-        else:
-            transaction.update(user_ref, {
-                'one_time_purchase': True,
-                'purchase_date': firestore.SERVER_TIMESTAMP,
-                'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
-                'price_id': os.getenv("STRIPE_ONETIME_PRICE_ID"),
-                'has_access': True,
-                'last_updated': firestore.SERVER_TIMESTAMP
-            })
-    
     try:
-        update_in_transaction(transaction)
+        user_id = session['metadata']['user_id']
+        user_ref = db.collection('users').document(user_id)
+        
+        # Fix the transaction handling
+        @db.transaction()
+        def update_in_transaction(transaction):
+            user_doc = user_ref.get(transaction=transaction)
+            if not user_doc.exists:
+                raise ValueError(f"User {user_id} not found")
+                
+            if session['mode'] == 'subscription':
+                subscription_id = session['subscription']
+                subscription = stripe.Subscription.retrieve(subscription_id)
+                
+                transaction.update(user_ref, {
+                    'subscription_status': 'active',
+                    'subscription_id': subscription_id,
+                    'subscription_end_date': firestore.SERVER_TIMESTAMP,
+                    'has_access': True,
+                    'last_updated': firestore.SERVER_TIMESTAMP
+                })
+            else:
+                transaction.update(user_ref, {
+                    'one_time_purchase': True,
+                    'has_access': True,
+                    'last_updated': firestore.SERVER_TIMESTAMP
+                })
+        
+        update_in_transaction()
         logger.info(f"Order fulfilled for user {user_id}")
+        
     except Exception as e:
         logger.error(f"Error fulfilling order: {str(e)}")
         raise
