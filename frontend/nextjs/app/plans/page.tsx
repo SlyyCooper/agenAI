@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createCheckoutSession, getProducts, getSubscriptionStatus } from '@/actions/stripeAPI';
 import type { SubscriptionStatusResponse } from '@/actions/stripeAPI';
 import { useAuth } from '@/config/firebase/AuthContext';
+import { useRouter } from 'next/router';
 
 interface ProductInfo {
   product_id: string;
@@ -19,23 +20,33 @@ interface Products {
 }
 
 export default function PlansPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [purchaseLoading, setPurchaseLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentSubscription, setCurrentSubscription] = useState<SubscriptionStatusResponse | null>(null);
   const [products, setProducts] = useState<Products | null>(null);
-  const { user } = useAuth();
 
+  // Check auth first
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
+  // Load data only after auth is confirmed
   useEffect(() => {
     const initializePage = async () => {
+      if (!user) return;
       setLoading(true);
       try {
         const [productsData, status] = await Promise.all([
           getProducts(),
-          user ? getSubscriptionStatus() : Promise.resolve(null)
+          getSubscriptionStatus()
         ]);
         setProducts(productsData);
-        if (user) setCurrentSubscription(status);
+        setCurrentSubscription(status);
       } catch (err) {
         console.error('Error initializing page:', err);
         setError('Failed to load product information');
@@ -43,8 +54,23 @@ export default function PlansPage() {
         setLoading(false);
       }
     };
-    initializePage();
-  }, [user]);
+
+    if (user && !authLoading) {
+      initializePage();
+    }
+  }, [user, authLoading]);
+
+  // Show auth loading state
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+    </div>;
+  }
+
+  // Prevent flash of content
+  if (!user) {
+    return null;
+  }
 
   const handlePurchase = async (priceId: string, mode: 'subscription' | 'payment') => {
     setPurchaseLoading(true);

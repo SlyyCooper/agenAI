@@ -28,8 +28,8 @@ interface PaymentRecord {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading: authLoading, userProfile } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth(); // Simplify auth usage
+  const [loading, setLoading] = useState(false); // Start false, set true only when fetching data
   const [error, setError] = useState<string | null>(null);
   
   // State for different data types
@@ -38,48 +38,76 @@ export default function DashboardPage() {
   const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([]);
   const [accessStatus, setAccessStatus] = useState<{ has_access: boolean }>({ has_access: false });
 
-  // Check authentication first
+  // Check auth first, before any data loading
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push('/login'); // Redirect to login if not authenticated
+      router.push('/login');
     }
   }, [user, authLoading, router]);
 
-  // Load dashboard data only when authenticated
+  // Load dashboard data only after auth is confirmed
   useEffect(() => {
     const loadDashboardData = async () => {
-      if (!user) return; // Don't load data if not authenticated
+      if (!user) return;
       
+      setLoading(true);
       try {
-        setLoading(true);
-        const [subscriptionData, paymentData, accessData] = await Promise.all([
+        const [profileData, subscriptionData, paymentData, accessData] = await Promise.all([
+          getUserProfile(),
           getSubscriptionStatus(),
           getPaymentHistory(),
           getAccessStatus()
         ]);
 
-        // Use userProfile from AuthContext instead of separate API call
-        setProfile(userProfile);
+        setProfile(profileData);
         setSubscription(subscriptionData);
         setPaymentHistory(paymentData);
         setAccessStatus(accessData);
       } catch (err) {
+        console.error('Error loading dashboard:', err);
         setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
       } finally {
         setLoading(false);
       }
     };
 
-    if (user && userProfile) {
+    if (user && !authLoading) {
       loadDashboardData();
     }
-  }, [user, userProfile]); // Add dependencies
+  }, [user, authLoading]);
 
-  // Show loading state while auth is being checked
+  // Handle subscription management with loading states
+  const handleManageSubscription = async () => {
+    setLoading(true);
+    try {
+      await createPortalSession();
+    } catch (err) {
+      console.error('Portal session error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to open subscription portal');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setLoading(true);
+    try {
+      await cancelSubscription();
+      const newStatus = await getSubscriptionStatus();
+      setSubscription(newStatus);
+    } catch (err) {
+      console.error('Subscription cancellation error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to cancel subscription');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Show auth loading state
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -89,31 +117,23 @@ export default function DashboardPage() {
     return null;
   }
 
-  // Handle subscription management
-  const handleManageSubscription = async () => {
-    try {
-      await createPortalSession();
-      // Redirect is handled by the API function
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to open subscription portal');
-    }
-  };
-
-  const handleCancelSubscription = async () => {
-    try {
-      await cancelSubscription();
-      // Refresh subscription status
-      const newStatus = await getSubscriptionStatus();
-      setSubscription(newStatus);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to cancel subscription');
-    }
-  };
-
+  // Show data loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  // Show error state if there's an error
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold">Error!</strong>
+          <span className="block sm:inline"> {error}</span>
+        </div>
       </div>
     );
   }
