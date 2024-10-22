@@ -1,9 +1,8 @@
 import json
 import os
-import re
 from typing import Dict, List
 from dotenv import load_dotenv
-import stripe  # Add this import
+import stripe
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, File, UploadFile, Header, Depends
 from fastapi.responses import JSONResponse
@@ -14,7 +13,6 @@ from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
 
-from backend.server.server_utils import cancel_subscription, create_stripe_checkout_session, generate_report_files, get_payment_history, get_stripe_webhook_secret, get_subscription_details, get_user_payments, record_one_time_payment, update_user_subscription, verify_stripe_payment, cancel_stripe_payment
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
 from gpt_researcher.document.document import DocumentLoader
@@ -25,19 +23,18 @@ from backend.server.server_utils import (
     update_environment_variables, handle_file_upload, handle_file_deletion,
     execute_multi_agents, handle_websocket_communication, extract_command_data,
     verify_firebase_token, get_user_data, update_user_data,
-    create_stripe_customer, create_payment_intent, 
-    create_subscription, handle_stripe_webhook
+    create_stripe_customer, create_stripe_checkout_session, handle_stripe_webhook,
+    get_user_reports, get_subscription_details, get_payment_history,
+    cancel_subscription, verify_stripe_payment, cancel_stripe_payment,
+    update_user_subscription, record_one_time_payment, get_user_subscription,
+    get_user_payments, get_stripe_webhook_secret
 )
-from backend.server.server_utils import get_user_reports
 
 # Models
-
-
 class ResearchRequest(BaseModel):
     task: str
     report_type: str
     agent: str
-
 
 class ConfigRequest(BaseModel):
     ANTHROPIC_API_KEY: str
@@ -55,8 +52,6 @@ class ConfigRequest(BaseModel):
     SERPER_API_KEY: str = ''
     SEARX_URL: str = ''
 
-
-    # Define all the fields you want to update
 class ConfigUpdateRequest(BaseModel):
     llm_model: str = None
     fast_llm_model: str = None
@@ -77,7 +72,6 @@ class ConfigUpdateRequest(BaseModel):
 app = FastAPI()
 
 # Define security object for JWT token handling
-# Used with Firebase Auth in FastAPI backend
 security = HTTPBearer()
 
 # Static files and templates
@@ -87,13 +81,11 @@ templates = Jinja2Templates(directory="./frontend")
 
 # WebSocket manager
 manager = WebSocketManager()
-def sanitize_filename(filename):
-    return re.sub(r"[^\w\s-]", "", filename).strip()
 
 # Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[ # allow_origins=["http://localhost:3000"] for local testing
+    allow_origins=[
         "https://gpt-researcher-costom.vercel.app",
         "https://www.tanalyze.app",
         "https://tanalyze.app",
@@ -103,10 +95,9 @@ app.add_middleware(
         "http://www.agenai.app"
     ],
     allow_credentials=True,
-    allow_methods=["*"],  # You can restrict this to specific methods if needed
-    allow_headers=["*"],  # You can restrict this to specific headers if needed
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
 
 # Constants
 DOC_PATH = os.getenv("DOC_PATH", "./my-docs")
@@ -114,11 +105,7 @@ DOC_PATH = os.getenv("DOC_PATH", "./my-docs")
 # Load environment variables
 load_dotenv()
 
-# Initialize Stripe
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-
 # Startup event
-
 @app.on_event("startup")
 def startup_event():
     os.makedirs("outputs", exist_ok=True)
@@ -126,12 +113,9 @@ def startup_event():
     os.makedirs(DOC_PATH, exist_ok=True)
 
 # Routes
-
-
 @app.get("/")
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "report": None})
-
 
 @app.get("/getConfig")
 async def get_config(
@@ -152,34 +136,28 @@ async def get_config(
         searchapi_api_key, serpapi_api_key, serper_api_key, searx_url
     )
 
-
 @app.get("/files/")
 async def list_files():
     files = os.listdir(DOC_PATH)
     print(f"Files in {DOC_PATH}: {files}")
     return {"files": files}
 
-
 @app.post("/api/multi_agents")
 async def run_multi_agents():
     return await execute_multi_agents(manager)
-
 
 @app.post("/setConfig")
 async def set_config(config: ConfigRequest):
     update_environment_variables(config.dict())
     return {"message": "Config updated successfully"}
 
-
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     return await handle_file_upload(file, DOC_PATH)
 
-
 @app.delete("/files/{filename}")
 async def delete_file(filename: str):
     return await handle_file_deletion(filename, DOC_PATH)
-
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -204,10 +182,10 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
     return user_data
 
 @app.put("/user/profile")
-async def create_user_profile(data: dict, current_user: dict = Depends(get_current_user)):
+async def update_user_profile(data: dict, current_user: dict = Depends(get_current_user)):
     user_id = current_user['uid']
-    await create_user_profile(user_id, data.get('email'), data.get('name'))
-    return {"message": "Profile created successfully"}
+    await update_user_data(user_id, data)
+    return {"message": "Profile updated successfully"}
 
 @app.post("/create-stripe-customer")
 async def create_customer(current_user: dict = Depends(get_current_user)):
@@ -216,35 +194,36 @@ async def create_customer(current_user: dict = Depends(get_current_user)):
     customer_id = await create_stripe_customer(user_id, email)
     return {"customer_id": customer_id}
 
-@app.post("/create-payment-intent")
-async def create_intent(data: dict, credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    decoded_token = await verify_firebase_token(token)
-    if not decoded_token:
-        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+@app.post("/create-checkout-session")
+async def create_checkout_session(data: dict, request: Request, current_user: dict = Depends(get_current_user)):
+    user_id = current_user['uid']
+    price_id = data.get('price_id')
     
-    user_data = await get_user_data(decoded_token['uid'])
-    customer_id = user_data.get('stripe_customer_id')
-    if not customer_id:
-        customer_id = await create_stripe_customer(decoded_token['uid'])
+    if not price_id:
+        raise HTTPException(status_code=400, detail="Price ID is required")
     
-    intent = await create_payment_intent(data['amount'], data['currency'], customer_id)
-    return {"client_secret": intent.client_secret}
-
-@app.post("/create-subscription")
-async def create_sub(data: dict, credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    decoded_token = await verify_firebase_token(token)
-    if not decoded_token:
-        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    origin = request.headers.get("Origin")
+    if not origin:
+        raise HTTPException(status_code=400, detail="Origin header is required")
     
-    user_data = await get_user_data(decoded_token['uid'])
-    customer_id = user_data.get('stripe_customer_id')
-    if not customer_id:
-        customer_id = await create_stripe_customer(decoded_token['uid'])
+    allowed_origins = [
+        "https://gpt-researcher-costom.vercel.app",
+        "https://www.tanalyze.app",
+        "https://tanalyze.app",
+        "https://agenai.app",
+        "https://www.agenai.app",
+        "http://agenai.app",
+        "http://www.agenai.app"
+    ]
     
-    subscription = await create_subscription(customer_id, data['price_id'])
-    return {"subscription_id": subscription.id}
+    if origin not in allowed_origins:
+        raise HTTPException(status_code=400, detail="Invalid origin")
+    
+    try:
+        session = await create_stripe_checkout_session(user_id, price_id, origin)
+        return {"sessionId": session.id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/stripe-webhook")
 async def stripe_webhook(request: Request):
@@ -253,8 +232,6 @@ async def stripe_webhook(request: Request):
     webhook_secret = get_stripe_webhook_secret(request.url.netloc)
     
     event = await handle_stripe_webhook(payload, sig_header, webhook_secret)
-
-    # The webhook handling is now done in the handle_stripe_webhook function
     return {"status": "success"}
 
 @app.get("/user/reports")
@@ -264,7 +241,7 @@ async def get_user_report_list(limit: int = 10, current_user: dict = Depends(get
     return {"reports": reports}
 
 @app.get("/user/subscription")
-async def get_user_subscription(current_user: dict = Depends(get_current_user)):
+async def get_user_subscription_details(current_user: dict = Depends(get_current_user)):
     user_id = current_user['uid']
     subscription = await get_subscription_details(user_id)
     return {"subscription": subscription}
@@ -316,41 +293,3 @@ async def get_payments(limit: int = 10, current_user: dict = Depends(get_current
     user_id = current_user['uid']
     payments = await get_user_payments(user_id, limit)
     return {"payments": payments}
-
-@app.post("/create-checkout-session")
-async def create_checkout_session(data: dict, request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    decoded_token = await verify_firebase_token(token)
-    if not decoded_token:
-        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-    
-    user_id = decoded_token['uid']
-    price_id = data.get('price_id')
-    
-    if not price_id:
-        raise HTTPException(status_code=400, detail="Price ID is required")
-    
-    # Get the origin from the request headers
-    origin = request.headers.get("Origin")
-    if not origin:
-        raise HTTPException(status_code=400, detail="Origin header is required")
-    
-    # Check if the origin is in the list of allowed origins
-    allowed_origins = [
-        "https://gpt-researcher-costom.vercel.app",
-        "https://www.tanalyze.app",
-        "https://tanalyze.app",
-        "https://agenai.app",
-        "https://www.agenai.app",
-        "http://agenai.app",
-        "http://www.agenai.app"
-    ]
-    
-    if origin not in allowed_origins:
-        raise HTTPException(status_code=400, detail="Invalid origin")
-    
-    try:
-        session = await create_stripe_checkout_session(user_id, price_id, origin)
-        return {"sessionId": session.id}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))

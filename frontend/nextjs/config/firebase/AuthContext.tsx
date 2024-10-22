@@ -4,7 +4,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, getAuth, User } from 'firebase/auth';
 import { app } from './firebase';
 import axios from 'axios';
-import { createStripeCustomer } from '@/actions/apiActions';
 
 const auth = getAuth(app);
 
@@ -38,9 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             headers: { Authorization: `Bearer ${token}` }
           });
           setUserProfile(response.data);
-          if (!response.data.stripe_customer_id) {
-            await createStripeCustomer(token);
-          }
         } catch (error) {
           console.error('Error fetching user profile:', error);
         }

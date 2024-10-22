@@ -204,17 +204,14 @@ def extract_command_data(json_data: Dict) -> tuple:
     )
 
 # Get Stripe webhook secret based on the domain
-def get_stripe_webhook_secret(request_url: str) -> str:
-    parsed_url = urlparse(request_url)
-    domain = parsed_url.netloc
-
+def get_stripe_webhook_secret(domain: str) -> str:
     webhook_secrets = {
-        "www.agenai.app": os.getenv("STRIPE_WEBHOOK_SECRET_WWW_AGENAI"),
-        "agenai.app": os.getenv("STRIPE_WEBHOOK_SECRET_AGENAI"),
+        "gpt-researcher-costom.vercel.app": os.getenv("STRIPE_WEBHOOK_SECRET_GPT_RESEARCHER"),
+        "www.tanalyze.app": os.getenv("STRIPE_WEBHOOK_SECRET_TANALYZE_WWW"),
         "tanalyze.app": os.getenv("STRIPE_WEBHOOK_SECRET_TANALYZE"),
-        "www.tanalyze.app": os.getenv("STRIPE_WEBHOOK_SECRET_WWW_TANALYZE"),
+        "agenai.app": os.getenv("STRIPE_WEBHOOK_SECRET_AGENAI"),
+        "www.agenai.app": os.getenv("STRIPE_WEBHOOK_SECRET_AGENAI_WWW"),
     }
-
     return webhook_secrets.get(domain, "")
 
 # Load environment variables
@@ -293,39 +290,10 @@ async def update_subscription_data(user_id: str, subscription: stripe.Subscripti
     
     await update_user_data(user_id, subscription_data)
 
-# Create a Stripe PaymentIntent
-async def create_payment_intent(amount: int, currency: str, customer_id: str):
-    try:
-        intent = stripe.PaymentIntent.create(
-            amount=amount,
-            currency=currency,
-            customer=customer_id
-        )
-        return intent
-    except StripeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-# Create a Stripe Subscription
-async def create_subscription(customer_id: str, price_id: str):
-    try:
-        subscription = stripe.Subscription.create(
-            customer=customer_id,
-            items=[{'price': price_id}],
-        )
-        # Get the user_id from the customer's metadata
-        customer = stripe.Customer.retrieve(customer_id)
-        user_id = customer.metadata.get('user_id')
-        
-        if user_id:
-            await update_subscription_data(user_id, subscription)
-        
-        return subscription
-    except StripeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-async def handle_successful_payment(payment_intent: stripe.PaymentIntent):
-    customer_id = payment_intent.customer
-    amount = payment_intent.amount
+# Refactor this function to focus on Checkout-specific logic
+async def handle_successful_payment(session: stripe.checkout.Session):
+    customer_id = session.customer
+    amount = session.amount_total
     
     customer = stripe.Customer.retrieve(customer_id)
     user_id = customer.metadata.get('user_id')
@@ -339,24 +307,23 @@ async def handle_successful_payment(payment_intent: stripe.PaymentIntent):
             "last_payment_amount": amount
         })
 
-# Handle Stripe webhook events
+# Refactor the webhook handler to focus on Checkout events
 async def handle_stripe_webhook(payload, sig_header, webhook_secret):
     try:
         event = stripe.Webhook.construct_event(
             payload, sig_header, webhook_secret
         )
         
-        if event['type'] == 'payment_intent.succeeded':
-            payment_intent = event['data']['object']
-            await handle_successful_payment(payment_intent)
+        if event['type'] == 'checkout.session.completed':
+            session = event['data']['object']
+            await handle_successful_payment(session)
+            await handle_checkout_session_completed(session)
         elif event['type'] == 'customer.subscription.updated':
             subscription = event['data']['object']
             customer = stripe.Customer.retrieve(subscription.customer)
             user_id = customer.metadata.get('user_id')
             if user_id:
                 await update_subscription_data(user_id, subscription)
-        elif event['type'] == 'checkout.session.completed':
-            await handle_checkout_session_completed(event)
         
         return event
     except ValueError as e:
@@ -473,13 +440,14 @@ async def cancel_subscription(user_id: str):
         print(f"Error cancelling subscription: {e}")
         return False
 
+# Update this function to use Checkout Session instead of PaymentIntent
 async def verify_stripe_payment(user_id: str, session_id: str):
     try:
         session = stripe.checkout.Session.retrieve(session_id)
         if session.payment_status == 'paid':
             # Update user's subscription status in Firestore
             await update_user_data(user_id, {
-                "subscription_status": "active",
+                "subscription_status": "active" if session.mode == 'subscription' else "one_time",
                 "last_payment_date": firestore.SERVER_TIMESTAMP,
                 "last_payment_amount": session.amount_total
             })
@@ -490,6 +458,7 @@ async def verify_stripe_payment(user_id: str, session_id: str):
         print(f"Error verifying Stripe payment: {e}")
         return "error"
 
+# Update this function to use Checkout Session
 async def cancel_stripe_payment(user_id: str, session_id: str):
     try:
         session = stripe.checkout.Session.retrieve(session_id)
@@ -538,6 +507,10 @@ async def get_user_payments(user_id: str, limit: int = 10):
     payments_ref = user_ref.collection('payments').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(limit)
     return [payment.to_dict() for payment in payments_ref.stream()]
 
+# Update this function to use Checkout for subscription creation
+async def create_subscription(customer_id: str, price_id: str, origin: str):
+    return await create_stripe_checkout_session(customer_id, price_id, origin)
+
 async def create_stripe_checkout_session(user_id: str, price_id: str, origin: str):
     user_data = await get_user_data(user_id)
     customer_id = user_data.get('stripe_customer_id')
@@ -581,11 +554,8 @@ async def create_stripe_checkout_session(user_id: str, price_id: str, origin: st
     return session
 
 # Add this new function to handle Stripe webhook events
-async def handle_checkout_session_completed(event):
-    session = event['data']['object']
-    session_id = session['id']
+async def handle_checkout_session_completed(session):
     customer_id = session['customer']
-    
     customer = stripe.Customer.retrieve(customer_id)
     user_id = customer.metadata.get('user_id')
     
@@ -595,7 +565,7 @@ async def handle_checkout_session_completed(event):
     
     db = firestore.client()
     user_ref = db.collection('users').document(user_id)
-    checkout_ref = user_ref.collection('checkout_sessions').document(session_id)
+    checkout_ref = user_ref.collection('checkout_sessions').document(session['id'])
     
     checkout_ref.update({
         'status': 'completed',
@@ -617,4 +587,3 @@ async def handle_checkout_session_completed(event):
             'status': payment_intent.status,
             'created_at': firestore.SERVER_TIMESTAMP,
         })
-

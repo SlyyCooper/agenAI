@@ -3,27 +3,15 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/config/firebase/AuthContext';
-import { loadStripe } from '@stripe/stripe-js';
-import {
-  Elements,
-  CardElement,
-  useStripe,
-  useElements,
-} from '@stripe/react-stripe-js';
 import { Check, ChevronRight, CreditCard } from 'lucide-react';
-import { createPaymentIntent, createSubscription, getUserSubscription, Subscription } from '@/actions/apiActions';
-import { createCheckoutSession } from '@/actions/apiActions';
-import getStripe from '@/config/stripe/get-stripejs';
+import { createCheckoutSession, getUserSubscription, Subscription } from '@/actions/apiActions';
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
-function CheckoutForm({ priceId }: { priceId: string }) {
+function CheckoutButton({ priceId }: { priceId: string }) {
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleCheckout = async () => {
     if (!user) return;
 
     setIsLoading(true);
@@ -31,17 +19,8 @@ function CheckoutForm({ priceId }: { priceId: string }) {
 
     try {
       const token = await user.getIdToken();
-      const { sessionId } = await createCheckoutSession(token, priceId);
-      
-      const stripe = await getStripe();
-      if (stripe) {
-        const { error } = await stripe.redirectToCheckout({ sessionId });
-        if (error) {
-          setError(error.message || 'An error occurred during checkout');
-        }
-      } else {
-        setError('Failed to load Stripe');
-      }
+      const sessionId = await createCheckoutSession(token, priceId);
+      window.location.href = `https://checkout.stripe.com/pay/${sessionId}`;
     } catch (error) {
       console.error('Checkout error:', error);
       setError('An error occurred. Please try again.');
@@ -51,18 +30,13 @@ function CheckoutForm({ priceId }: { priceId: string }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mt-8 max-w-md mx-auto">
-      <div className="bg-white shadow-lg rounded-lg p-6">
-        {error && <div className="text-red-500 mt-2 text-sm">{error}</div>}
-        <button 
-          type="submit"
-          disabled={isLoading} 
-          className="mt-4 w-full py-3 px-4 rounded-lg text-white font-semibold bg-blue-500 hover:bg-blue-600 transition-colors"
-        >
-          {isLoading ? 'Processing...' : 'Proceed to Checkout'}
-        </button>
-      </div>
-    </form>
+    <button 
+      onClick={handleCheckout}
+      disabled={isLoading} 
+      className="mt-8 w-full py-3 px-4 rounded-lg text-white font-semibold bg-blue-500 hover:bg-blue-600 transition-colors"
+    >
+      {isLoading ? 'Processing...' : 'Choose Plan'}
+    </button>
   );
 }
 
@@ -73,8 +47,6 @@ function PlanCard({ title, price, features, isPopular, priceId }: {
   isPopular?: boolean; 
   priceId: string 
 }) {
-  const [showCheckout, setShowCheckout] = useState(false);
-
   return (
     <motion.div
       className={`bg-white rounded-2xl shadow-xl overflow-hidden ${isPopular ? 'border-2 border-blue-500' : ''}`}
@@ -82,33 +54,19 @@ function PlanCard({ title, price, features, isPopular, priceId }: {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      {isPopular && (
-        <div className="bg-blue-500 text-white text-center py-2 font-semibold">
-          Most Popular
-        </div>
-      )}
       <div className="p-8">
         <h3 className="text-2xl font-bold mb-2">{title}</h3>
-        <p className="text-gray-600 mb-4">Perfect for your research needs</p>
         <p className="text-4xl font-bold mb-6">{price}</p>
-        <ul className="mb-8 space-y-4">
+        <ul className="space-y-3 mb-6">
           {features.map((feature, index) => (
             <li key={index} className="flex items-center">
-              <Check className="mr-2 h-5 w-5 text-green-500" />
+              <Check className="text-green-500 mr-2" />
               <span>{feature}</span>
             </li>
           ))}
         </ul>
-        <button 
-          onClick={() => setShowCheckout(true)} 
-          className={`w-full py-3 px-4 rounded-lg text-white font-semibold flex items-center justify-center transition-colors ${
-            isPopular ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-800 hover:bg-gray-900'
-          }`}
-        >
-          Select Plan <ChevronRight className="ml-2 h-5 w-5" />
-        </button>
+        <CheckoutButton priceId={priceId} />
       </div>
-      {showCheckout && <CheckoutForm priceId={priceId} />}
     </motion.div>
   );
 }

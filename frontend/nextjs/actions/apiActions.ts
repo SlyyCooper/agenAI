@@ -158,71 +158,21 @@ export async function cancelUserSubscription(token: string) {
   return response.json();
 }
 
-export async function createStripeCustomer(token: string) {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-stripe-customer', {
+export async function createCheckoutSession(token: string, priceId: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-checkout-session', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
-    },
-  });
-  if (!response.ok) {
-    throw new Error('Failed to create Stripe customer');
-  }
-  const data = await response.json();
-  return data.customer_id;
-}
-
-export async function createPaymentIntent(token: string, amount: number, currency: string) {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-payment-intent', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ amount, currency }),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to create payment intent');
-  }
-  const data = await response.json();
-  return { clientSecret: data.client_secret, sessionId: data.session_id };
-}
-
-export async function createSubscription(token: string, priceId: string) {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-subscription', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
+      'Origin': window.location.origin,
     },
     body: JSON.stringify({ price_id: priceId }),
   });
   if (!response.ok) {
-    throw new Error('Failed to create subscription');
+    throw new Error('Failed to create checkout session');
   }
   const data = await response.json();
-  return { clientSecret: data.client_secret, sessionId: data.session_id };
-}
-
-export async function getUserProfile(token: string) {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/profile', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!response.ok) {
-    throw new Error('Failed to fetch user profile');
-  }
-  return response.json();
-}
-
-export async function getUserReports(token: string) {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/reports', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!response.ok) {
-    throw new Error('Failed to fetch user reports');
-  }
-  return response.json();
+  return data.sessionId;
 }
 
 export async function verifyPayment(token: string, sessionId: string): Promise<{ status: 'paid' | 'unpaid' | 'error' }> {
@@ -255,31 +205,22 @@ export async function cancelPayment(token: string, sessionId: string): Promise<{
   return { status: data.status };
 }
 
-export async function getCheckoutSession(token: string, sessionId: string) {
-  const response = await fetch(`https://dolphin-app-49eto.ondigitalocean.app/backend/checkout-sessions/${sessionId}`, {
-    headers: { 
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }
+export async function getUserProfile(token: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/profile', {
+    headers: { Authorization: `Bearer ${token}` }
   });
   if (!response.ok) {
-    throw new Error('Failed to retrieve checkout session');
+    throw new Error('Failed to fetch user profile');
   }
   return response.json();
 }
 
-export async function createCheckoutSession(token: string, priceId: string) {
-  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/create-checkout-session', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Origin': window.location.origin,
-    },
-    body: JSON.stringify({ price_id: priceId }),
+export async function getUserReports(token: string) {
+  const response = await fetch('https://dolphin-app-49eto.ondigitalocean.app/backend/user/reports', {
+    headers: { Authorization: `Bearer ${token}` }
   });
   if (!response.ok) {
-    throw new Error('Failed to create checkout session');
+    throw new Error('Failed to fetch user reports');
   }
   return response.json();
 }
