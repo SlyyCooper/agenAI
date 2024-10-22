@@ -20,6 +20,7 @@ interface Products {
 
 export default function PlansPage() {
   const [loading, setLoading] = useState(true);
+  const [purchaseLoading, setPurchaseLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentSubscription, setCurrentSubscription] = useState<SubscriptionStatusResponse | null>(null);
   const [products, setProducts] = useState<Products | null>(null);
@@ -29,7 +30,6 @@ export default function PlansPage() {
     const initializePage = async () => {
       setLoading(true);
       try {
-        // Only fetch subscription status if user is logged in
         const [productsData, status] = await Promise.all([
           getProducts(),
           user ? getSubscriptionStatus() : Promise.resolve(null)
@@ -44,16 +44,17 @@ export default function PlansPage() {
       }
     };
     initializePage();
-  }, [user]); // Add user as dependency
+  }, [user]);
 
   const handlePurchase = async (priceId: string, mode: 'subscription' | 'payment') => {
-    setLoading(true);
+    setPurchaseLoading(true);
     setError(null);
     try {
       await createCheckoutSession(priceId, mode);
+      // Don't reset loading state here since we're redirecting
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process payment');
-      setLoading(false);
+      setPurchaseLoading(false);
     }
   };
 
@@ -66,7 +67,6 @@ export default function PlansPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="text-center">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
             Choose Your Plan
@@ -76,16 +76,13 @@ export default function PlansPage() {
           </p>
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
             {error}
           </div>
         )}
 
-        {/* Plans Grid */}
         <div className="mt-12 grid gap-8 lg:grid-cols-2">
-          {/* Subscription Plan */}
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="px-6 py-8">
               <h2 className="text-2xl font-bold text-gray-900">
@@ -120,20 +117,19 @@ export default function PlansPage() {
               </ul>
               <button
                 onClick={() => handlePurchase(products.subscription.price_id, 'subscription')}
-                disabled={loading || currentSubscription?.subscription_status === 'active'}
+                disabled={purchaseLoading || currentSubscription?.subscription_status === 'active'}
                 className={`mt-8 block w-full bg-blue-600 py-3 px-6 border border-transparent rounded-md text-white font-medium text-center
-                  ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}
+                  ${purchaseLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}
                   ${currentSubscription?.subscription_status === 'active' ? 'bg-gray-400 cursor-not-allowed' : ''}
                 `}
               >
-                {loading ? 'Processing...' : 
+                {purchaseLoading ? 'Processing...' : 
                  currentSubscription?.subscription_status === 'active' ? 'Current Plan' : 
                  'Start Subscription'}
               </button>
             </div>
           </div>
 
-          {/* One-Time Purchase Plan */}
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="px-6 py-8">
               <h2 className="text-2xl font-bold text-gray-900">
@@ -168,13 +164,13 @@ export default function PlansPage() {
               </ul>
               <button
                 onClick={() => handlePurchase(products.one_time.price_id, 'payment')}
-                disabled={loading || currentSubscription?.one_time_purchase}
+                disabled={purchaseLoading || currentSubscription?.one_time_purchase}
                 className={`mt-8 block w-full bg-green-600 py-3 px-6 border border-transparent rounded-md text-white font-medium text-center
-                  ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'}
+                  ${purchaseLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'}
                   ${currentSubscription?.one_time_purchase ? 'bg-gray-400 cursor-not-allowed' : ''}
                 `}
               >
-                {loading ? 'Processing...' : 
+                {purchaseLoading ? 'Processing...' : 
                  currentSubscription?.one_time_purchase ? 'Already Purchased' : 
                  'Buy Now'}
               </button>
@@ -182,7 +178,6 @@ export default function PlansPage() {
           </div>
         </div>
 
-        {/* Additional Information */}
         <div className="mt-12 text-center text-gray-500">
           <p>All plans include:</p>
           <ul className="mt-4">
