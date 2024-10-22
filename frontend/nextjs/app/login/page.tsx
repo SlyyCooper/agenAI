@@ -11,6 +11,12 @@ import GoogleSignInButton from '@/components/GoogleSignInButton'
 import XSignInButton from '@/components/XSigninButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
+import { createUserProfile, getUserProfile } from '@/actions/userprofileAPI'
+
+interface AuthError {
+  code?: string;
+  message: string;
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -21,59 +27,86 @@ export default function LoginPage() {
   const router = useRouter()
   const { user, loading } = useAuth()
 
+  const handleAuthError = (error: AuthError) => {
+    switch (error.code) {
+      case 'auth/user-not-found':
+        setError('No account found with this email. Please sign up.')
+        break
+      case 'auth/wrong-password':
+        setError('Incorrect password. Please try again.')
+        break
+      case 'auth/invalid-email':
+        setError('Invalid email address.')
+        break
+      case 'auth/too-many-requests':
+        setError('Too many failed attempts. Please try again later.')
+        break
+      default:
+        setError(error.message || 'An error occurred during sign in')
+    }
+  }
+
+  const ensureUserProfile = async () => {
+    try {
+      await getUserProfile()
+    } catch (error) {
+      // If profile doesn't exist, create it
+      if (auth.currentUser) {
+        await createUserProfile({
+          email: auth.currentUser.email!,
+          name: auth.currentUser.displayName || undefined
+        })
+      }
+    }
+  }
+
   const handleEmailPasswordSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError('')
-    if (auth) {
-      try {
-        await signInWithEmailAndPassword(auth, email, password)
-        router.push('/research')
-      } catch (error: any) {
-        console.error('Error signing in:', error)
-        setError(error.message || 'An error occurred during sign in')
-      }
-    } else {
+
+    if (!auth) {
       setError('Authentication not initialized')
+      setIsLoading(false)
+      return
     }
-    setIsLoading(false)
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+      await ensureUserProfile()
+      router.push('/research')
+    } catch (error: any) {
+      console.error('Error signing in:', error)
+      handleAuthError(error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleGoogleSignIn = async () => {
+  const handleSocialSignIn = async (provider: GoogleAuthProvider | TwitterAuthProvider) => {
     setIsLoading(true)
     setError('')
-    const provider = new GoogleAuthProvider()
-    if (auth) {
-      try {
-        await signInWithPopup(auth, provider)
-        router.push('/research')
-      } catch (error: any) {
-        console.error('Error signing in with Google:', error)
-        setError(error.message || 'An error occurred during Google sign in')
-      }
-    } else {
+
+    if (!auth) {
       setError('Authentication not initialized')
+      setIsLoading(false)
+      return
     }
-    setIsLoading(false)
+
+    try {
+      const result = await signInWithPopup(auth, provider)
+      await ensureUserProfile()
+      router.push('/research')
+    } catch (error: any) {
+      console.error('Error signing in:', error)
+      handleAuthError(error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleXSignIn = async () => {
-    setIsLoading(true)
-    setError('')
-    const provider = new TwitterAuthProvider()
-    if (auth) {
-      try {
-        await signInWithPopup(auth, provider)
-        router.push('/research')
-      } catch (error: any) {
-        console.error('Error signing in with X:', error)
-        setError(error.message || 'An error occurred during X sign in')
-      }
-    } else {
-      setError('Authentication not initialized')
-    }
-    setIsLoading(false)
-  }
+  const handleGoogleSignIn = () => handleSocialSignIn(new GoogleAuthProvider())
+  const handleXSignIn = () => handleSocialSignIn(new TwitterAuthProvider())
 
   if (user) {
     router.push('/research')

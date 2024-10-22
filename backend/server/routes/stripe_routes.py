@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends, logger
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import stripe
 import os
@@ -44,20 +44,26 @@ async def stripe_webhook(request: Request):
 
 @router.post("/create-checkout-session")
 async def create_checkout_session(
-    request: CheckoutSessionRequest,  # Change parameter type
+    request: CheckoutSessionRequest,
     current_user: dict = Depends(get_current_user)
 ):
     try:
         user_id = current_user['uid']
         user_data = await get_user_data(user_id)
         
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User profile not found")
+            
+        if not user_data.get('stripe_customer_id'):
+            raise HTTPException(status_code=400, detail="Stripe customer not found")
+
         # Add mode validation
         if request.mode not in ['subscription', 'payment']:
             raise HTTPException(status_code=400, detail="Invalid mode")
 
         checkout_session = stripe.checkout.Session.create(
-            customer=user_data.get('stripe_customer_id'),
-            mode=request.mode,  # Add mode to session creation
+            customer=user_data['stripe_customer_id'],
+            mode=request.mode,
             metadata={'user_id': user_id},
             subscription_data={'metadata': {'user_id': user_id}} if request.mode == 'subscription' else None,
             line_items=[{
@@ -70,7 +76,7 @@ async def create_checkout_session(
         
         return {"sessionId": checkout_session.id}
     except Exception as e:
-        print(f"Checkout session error: {str(e)}")
+        logger.error(f"Checkout session error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/create-portal-session")

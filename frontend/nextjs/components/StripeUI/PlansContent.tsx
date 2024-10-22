@@ -1,47 +1,54 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createCheckoutSession, getProducts, getSubscriptionStatus } from '@/actions/stripeAPI';
-import type { SubscriptionStatusResponse } from '@/actions/stripeAPI';
+import { 
+  createCheckoutSession, 
+  getProducts, 
+  getSubscriptionStatus,
+  type Product,
+  type ProductsResponse,
+  type SubscriptionStatusResponse 
+} from '@/actions/stripeAPI';
+import { 
+  getAccessStatus,
+  type AccessStatus 
+} from '@/actions/userprofileAPI';
 import { useAuth } from '@/config/firebase/AuthContext';
 
-interface ProductInfo {
-  product_id: string;
-  price_id: string;
-  name: string;
-  price: number;
-  features: string[];
-}
-
-interface Products {
-  subscription: ProductInfo;
-  one_time: ProductInfo;
+interface LoadingState {
+  page: boolean;
+  purchase: boolean;
 }
 
 export default function PlansContent() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [purchaseLoading, setPurchaseLoading] = useState(false);
+  const [loading, setLoading] = useState<LoadingState>({ page: true, purchase: false });
   const [error, setError] = useState<string | null>(null);
   const [currentSubscription, setCurrentSubscription] = useState<SubscriptionStatusResponse | null>(null);
-  const [products, setProducts] = useState<Products | null>(null);
+  const [accessStatus, setAccessStatus] = useState<AccessStatus | null>(null);
+  const [products, setProducts] = useState<ProductsResponse | null>(null);
 
   useEffect(() => {
     const initializePage = async () => {
       if (!user) return;
-      setLoading(true);
+      setLoading(prev => ({ ...prev, page: true }));
+      setError(null);
+      
       try {
-        const [productsData, status] = await Promise.all([
+        const [productsData, subscriptionStatus, access] = await Promise.all([
           getProducts(),
-          getSubscriptionStatus()
+          getSubscriptionStatus(),
+          getAccessStatus()
         ]);
+        
         setProducts(productsData);
-        setCurrentSubscription(status);
+        setCurrentSubscription(subscriptionStatus);
+        setAccessStatus(access);
       } catch (err) {
         console.error('Error initializing page:', err);
-        setError('Failed to load product information');
+        setError(err instanceof Error ? err.message : 'Failed to load product information');
       } finally {
-        setLoading(false);
+        setLoading(prev => ({ ...prev, page: false }));
       }
     };
 
@@ -49,23 +56,51 @@ export default function PlansContent() {
   }, [user]);
 
   const handlePurchase = async (priceId: string, mode: 'subscription' | 'payment') => {
-    setPurchaseLoading(true);
+    setLoading(prev => ({ ...prev, purchase: true }));
     setError(null);
+    
     try {
-      console.log(`Creating checkout session for ${mode} with price ${priceId}`);
       await createCheckoutSession(priceId, mode);
     } catch (err) {
       console.error('Purchase error:', err);
       setError(err instanceof Error ? err.message : 'Failed to process payment');
     } finally {
-      setPurchaseLoading(false);
+      setLoading(prev => ({ ...prev, purchase: false }));
     }
   };
 
-  if (loading || !products) {
-    return <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-    </div>;
+  const renderPlanButton = (plan: Product, mode: 'subscription' | 'payment') => {
+    const isSubscription = mode === 'subscription';
+    const isDisabled = loading.purchase || 
+      (isSubscription ? currentSubscription?.subscription_status === 'active' : 
+       accessStatus?.access_type === 'one_time');
+
+    const buttonText = loading.purchase ? 'Processing...' : 
+      isSubscription ? 
+        (currentSubscription?.subscription_status === 'active' ? 'Current Plan' : 'Start Subscription') :
+        (accessStatus?.access_type === 'one_time' ? 'Already Purchased' : 'Buy Now');
+
+    const buttonClass = `mt-8 block w-full py-3 px-6 border border-transparent rounded-md text-white font-medium text-center
+      ${loading.purchase ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}
+      ${isDisabled ? 'bg-gray-400 cursor-not-allowed' : isSubscription ? 'bg-blue-600' : 'bg-green-600'}`;
+
+    return (
+      <button
+        onClick={() => handlePurchase(plan.price_id, mode)}
+        disabled={isDisabled}
+        className={buttonClass}
+      >
+        {buttonText}
+      </button>
+    );
+  };
+
+  if (loading.page || !products) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
   }
 
   return (
@@ -101,8 +136,8 @@ export default function PlansContent() {
                 <span className="text-base font-medium text-gray-500">/month</span>
               </p>
               <ul className="mt-6 space-y-4">
-                {products.subscription.features.map((feature) => (
-                  <li key={feature} className="flex">
+                {products.subscription.features.map((feature, index) => (
+                  <li key={`${feature}-${index}`} className="flex">
                     <svg
                       className="flex-shrink-0 h-6 w-6 text-green-500"
                       fill="none"
@@ -120,18 +155,7 @@ export default function PlansContent() {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => handlePurchase(products.subscription.price_id, 'subscription')}
-                disabled={purchaseLoading || currentSubscription?.subscription_status === 'active'}
-                className={`mt-8 block w-full bg-blue-600 py-3 px-6 border border-transparent rounded-md text-white font-medium text-center
-                  ${purchaseLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}
-                  ${currentSubscription?.subscription_status === 'active' ? 'bg-gray-400 cursor-not-allowed' : ''}
-                `}
-              >
-                {purchaseLoading ? 'Processing...' : 
-                 currentSubscription?.subscription_status === 'active' ? 'Current Plan' : 
-                 'Start Subscription'}
-              </button>
+              {renderPlanButton(products.subscription, 'subscription')}
             </div>
           </div>
 
@@ -149,8 +173,8 @@ export default function PlansContent() {
                 <span className="text-base font-medium text-gray-500">/one-time</span>
               </p>
               <ul className="mt-6 space-y-4">
-                {products.one_time.features.map((feature) => (
-                  <li key={feature} className="flex">
+                {products.one_time.features.map((feature, index) => (
+                  <li key={`${feature}-${index}`} className="flex">
                     <svg
                       className="flex-shrink-0 h-6 w-6 text-green-500"
                       fill="none"
@@ -168,18 +192,7 @@ export default function PlansContent() {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => handlePurchase(products.one_time.price_id, 'payment')}
-                disabled={purchaseLoading || currentSubscription?.one_time_purchase}
-                className={`mt-8 block w-full bg-green-600 py-3 px-6 border border-transparent rounded-md text-white font-medium text-center
-                  ${purchaseLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'}
-                  ${currentSubscription?.one_time_purchase ? 'bg-gray-400 cursor-not-allowed' : ''}
-                `}
-              >
-                {purchaseLoading ? 'Processing...' : 
-                 currentSubscription?.one_time_purchase ? 'Already Purchased' : 
-                 'Buy Now'}
-              </button>
+              {renderPlanButton(products.one_time, 'payment')}
             </div>
           </div>
         </div>

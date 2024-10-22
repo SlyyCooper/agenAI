@@ -3,6 +3,10 @@ from datetime import datetime
 import stripe
 from fastapi.responses import JSONResponse
 from backend.server.firebase_init import db
+from backend.server.firestore_init import firestore
+import logging
+
+logger = logging.getLogger(__name__)
 
 def initialize_stripe():
     stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -20,6 +24,12 @@ async def handle_stripe_webhook(event):
         elif event['type'] == 'customer.subscription.deleted':
             subscription = event['data']['object']
             await handle_subscription_cancellation(subscription)
+        elif event['type'] == 'payment_intent.succeeded':
+            payment_intent = event['data']['object']
+            await handle_payment_success(payment_intent)
+        elif event['type'] in ['charge.succeeded', 'charge.updated']:
+            # Log but don't process these events
+            print(f"Received {event['type']} event")
         else:
             print(f'Unhandled event type {event["type"]}')
 
@@ -35,10 +45,16 @@ async def fulfill_order(session):
     user_id = session['metadata']['user_id']
     user_ref = db.collection('users').document(user_id)
     
-    @db.transaction
+    transaction = db.transaction()
+    
+    @transaction.transactional
     def update_in_transaction(transaction):
+        # Get current user data within transaction
+        user_doc = transaction.get(user_ref)
+        if not user_doc.exists:
+            raise ValueError(f"User {user_id} not found")
+            
         if session['mode'] == 'subscription':
-            # Handle subscription
             subscription_id = session['subscription']
             subscription = stripe.Subscription.retrieve(subscription_id)
             current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
@@ -49,35 +65,51 @@ async def fulfill_order(session):
                 'subscription_end_date': current_period_end,
                 'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
                 'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID"),
-                'has_access': True
+                'has_access': True,
+                'last_updated': firestore.SERVER_TIMESTAMP
             })
         else:
-            # Handle one-time payment
             transaction.update(user_ref, {
                 'one_time_purchase': True,
-                'purchase_date': db.SERVER_TIMESTAMP,
+                'purchase_date': firestore.SERVER_TIMESTAMP,
                 'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
                 'price_id': os.getenv("STRIPE_ONETIME_PRICE_ID"),
-                'has_access': True
+                'has_access': True,
+                'last_updated': firestore.SERVER_TIMESTAMP
             })
     
-    print(f"Order fulfilled for user {user_id}")
+    try:
+        update_in_transaction(transaction)
+        logger.info(f"Order fulfilled for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error fulfilling order: {str(e)}")
+        raise
 
 async def update_subscription_status(invoice):
     user_id = invoice['metadata']['user_id']
     user_ref = db.collection('users').document(user_id)
     
-    subscription = stripe.Subscription.retrieve(invoice['subscription'])
-    current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+    transaction = db.transaction()
     
-    user_ref.update({
-        'subscription_status': 'active',
-        'last_payment_date': db.SERVER_TIMESTAMP,
-        'subscription_end_date': current_period_end,
-        'has_access': True
-    })
+    @transaction.transactional
+    def update_in_transaction(transaction):
+        subscription = stripe.Subscription.retrieve(invoice['subscription'])
+        current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+        
+        transaction.update(user_ref, {
+            'subscription_status': 'active',
+            'last_payment_date': firestore.SERVER_TIMESTAMP,
+            'subscription_end_date': current_period_end,
+            'has_access': True,
+            'last_updated': firestore.SERVER_TIMESTAMP
+        })
     
-    print(f"Subscription status updated for user {user_id}")
+    try:
+        update_in_transaction(transaction)
+        logger.info(f"Subscription updated for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error updating subscription: {str(e)}")
+        raise
 
 async def handle_subscription_cancellation(subscription):
     user_id = subscription['metadata']['user_id']
@@ -90,3 +122,16 @@ async def handle_subscription_cancellation(subscription):
     })
     
     print(f"Subscription cancelled for user {user_id}")
+
+async def handle_payment_success(payment_intent):
+    """Handle successful payment intent"""
+    if 'metadata' in payment_intent and 'user_id' in payment_intent['metadata']:
+        user_id = payment_intent['metadata']['user_id']
+        user_ref = db.collection('users').document(user_id)
+        
+        # Update payment history
+        user_ref.update({
+            'last_payment_date': firestore.SERVER_TIMESTAMP,
+            'last_payment_amount': payment_intent['amount'] / 100,
+            'payment_status': 'succeeded'
+        })

@@ -28,6 +28,14 @@ from backend.server.server_utils import (
     update_environment_variables, handle_file_upload, handle_file_deletion,
     execute_multi_agents, handle_websocket_communication, extract_command_data
 )
+import logging
+
+# Add at the top of the file
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Models
 class ResearchRequest(BaseModel):
@@ -141,12 +149,14 @@ app.include_router(stripe_routes.router)
 # Routes
 @app.get("/health")
 async def health_check():
-    return {
+    status = {
         "status": "healthy",
         "timestamp": time.time(),
         "stripe_initialized": bool(stripe.api_key),
         "firebase_initialized": bool(db)
     }
+    logger.info(f"Health check: {status}")
+    return status
 
 @app.get("/")
 async def read_root(request: Request):

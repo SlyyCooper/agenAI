@@ -9,8 +9,10 @@ export interface UserProfile {
   created_at: string;
   last_login: string;
   has_access: boolean;
+  stripe_customer_id?: string;
   subscription_status?: string;
   subscription_end_date?: string;
+  subscription_current_period_end?: number;
   one_time_purchase?: boolean;
 }
 
@@ -18,6 +20,33 @@ interface UserProfileUpdateRequest {
   email?: string;
   name?: string;
   [key: string]: any;
+}
+
+export interface SubscriptionData {
+  has_access: boolean;
+  subscription_status?: string;
+  subscription_end_date?: string;
+  one_time_purchase: boolean;
+  payment_history: any[];
+  current_period_end?: number;
+  cancel_at_period_end?: boolean;
+  status?: string;
+}
+
+export interface PaymentHistory {
+  payments: Array<{
+    id: string;
+    amount: number;
+    status: string;
+    created: number;
+    currency: string;
+  }>;
+}
+
+export interface AccessStatus {
+  has_access: boolean;
+  access_type: 'subscription' | 'one_time' | null;
+  access_expiry?: string;
 }
 
 // Helper function to get Firebase token
@@ -41,7 +70,10 @@ export const getUserProfile = async (): Promise<UserProfile> => {
         'Content-Type': 'application/json',
       },
     });
-    if (!response.ok) throw new Error('Failed to fetch profile');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch profile');
+    }
     return await response.json();
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -60,7 +92,10 @@ export const createUserProfile = async (data: { email: string; name?: string }):
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to create profile');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create profile');
+    }
   } catch (error) {
     console.error('Error creating user profile:', error);
     throw error;
@@ -78,14 +113,17 @@ export const updateUserProfile = async (data: UserProfileUpdateRequest): Promise
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to update profile');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update profile');
+    }
   } catch (error) {
     console.error('Error updating user profile:', error);
     throw error;
   }
 };
 
-export const getUserSubscription = async () => {
+export const getUserSubscription = async (): Promise<SubscriptionData> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/user/subscription`, {
@@ -95,7 +133,10 @@ export const getUserSubscription = async () => {
         'Content-Type': 'application/json',
       },
     });
-    if (!response.ok) throw new Error('Failed to fetch subscription');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch subscription');
+    }
     return await response.json();
   } catch (error) {
     console.error('Error fetching user subscription:', error);
@@ -103,7 +144,7 @@ export const getUserSubscription = async () => {
   }
 };
 
-export const getPaymentHistory = async () => {
+export const getPaymentHistory = async (): Promise<PaymentHistory> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/user/payment-history`, {
@@ -113,7 +154,10 @@ export const getPaymentHistory = async () => {
         'Content-Type': 'application/json',
       },
     });
-    if (!response.ok) throw new Error('Failed to fetch payment history');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch payment history');
+    }
     return await response.json();
   } catch (error) {
     console.error('Error fetching payment history:', error);
@@ -121,7 +165,7 @@ export const getPaymentHistory = async () => {
   }
 };
 
-export const getAccessStatus = async () => {
+export const getAccessStatus = async (): Promise<AccessStatus> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/user/access-status`, {
@@ -131,7 +175,10 @@ export const getAccessStatus = async () => {
         'Content-Type': 'application/json',
       },
     });
-    if (!response.ok) throw new Error('Failed to fetch access status');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch access status');
+    }
     return await response.json();
   } catch (error) {
     console.error('Error fetching access status:', error);

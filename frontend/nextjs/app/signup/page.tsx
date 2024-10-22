@@ -11,7 +11,7 @@ import GoogleSignInButton from '@/components/GoogleSignInButton'
 import XSignInButton from '@/components/XSigninButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
-import axios from 'axios'
+import { createUserProfile } from '@/actions/userprofileAPI'
 
 export default function SignupPage() {
   const [name, setName] = useState('')
@@ -27,60 +27,94 @@ export default function SignupPage() {
     e.preventDefault()
     setIsLoading(true)
     setError('')
-    if (auth) {
-      try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-        // Send the name to the backend to update the user profile
-        const token = await userCredential.user.getIdToken()
-        await axios.put('https://dolphin-app-49eto.ondigitalocean.app/backend/user/profile', 
-          { name },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        router.push('/research')
-      } catch (error: any) {
-        console.error('Error signing up:', error)
+
+    if (!auth) {
+      setError('Authentication not initialized')
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      // Create Firebase user
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      
+      // Create user profile using the API
+      await createUserProfile({
+        email: email,
+        name: name
+      })
+
+      router.push('/research')
+    } catch (error: any) {
+      console.error('Error signing up:', error)
+      if (error.code === 'auth/email-already-in-use') {
+        setError('This email is already registered. Please try logging in instead.')
+      } else if (error.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters long.')
+      } else {
         setError(error.message || 'An error occurred during sign up')
       }
-    } else {
-      setError('Authentication not initialized')
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const handleGoogleSignUp = async () => {
     setIsLoading(true)
     setError('')
     const provider = new GoogleAuthProvider()
-    if (auth) {
-      try {
-        await signInWithPopup(auth, provider)
-        router.push('/research')
-      } catch (error: any) {
-        console.error('Error signing up with Google:', error)
-        setError(error.message || 'An error occurred during Google sign up')
-      }
-    } else {
+
+    if (!auth) {
       setError('Authentication not initialized')
+      setIsLoading(false)
+      return
     }
-    setIsLoading(false)
+
+    try {
+      const result = await signInWithPopup(auth, provider)
+      
+      // Create user profile for Google sign-up
+      await createUserProfile({
+        email: result.user.email!,
+        name: result.user.displayName || undefined
+      })
+
+      router.push('/research')
+    } catch (error: any) {
+      console.error('Error signing up with Google:', error)
+      setError(error.message || 'An error occurred during Google sign up')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleXSignUp = async () => {
     setIsLoading(true)
     setError('')
     const provider = new TwitterAuthProvider()
-    if (auth) {
-      try {
-        await signInWithPopup(auth, provider)
-        router.push('/research')
-      } catch (error: any) {
-        console.error('Error signing up with X:', error)
-        setError(error.message || 'An error occurred during X sign up')
-      }
-    } else {
+
+    if (!auth) {
       setError('Authentication not initialized')
+      setIsLoading(false)
+      return
     }
-    setIsLoading(false)
+
+    try {
+      const result = await signInWithPopup(auth, provider)
+      
+      // Create user profile for Twitter sign-up
+      await createUserProfile({
+        email: result.user.email!,
+        name: result.user.displayName || undefined
+      })
+
+      router.push('/research')
+    } catch (error: any) {
+      console.error('Error signing up with X:', error)
+      setError(error.message || 'An error occurred during X sign up')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   if (user) {

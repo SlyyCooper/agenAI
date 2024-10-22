@@ -2,141 +2,108 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/config/firebase/AuthContext';
 import {
   getUserProfile,
   getUserSubscription,
   getPaymentHistory,
-  getAccessStatus
+  getAccessStatus,
+  type UserProfile,
+  type SubscriptionData,
+  type PaymentHistory,
+  type AccessStatus
 } from '@/actions/userprofileAPI';
+
 import {
-  getSubscriptionStatus,
   createPortalSession,
   cancelSubscription
 } from '@/actions/stripeAPI';
 
-import type { UserProfile } from '@/actions/userprofileAPI';
-import type { SubscriptionStatusResponse } from '@/actions/stripeAPI';
-
-interface PaymentRecord {
-  id: string;
-  amount: number;
-  date: string;
-  status: string;
-  type: 'subscription' | 'one-time';
+// Types
+interface DashboardData {
+  profile: UserProfile | null;
+  subscription: SubscriptionData | null;
+  payments: PaymentHistory['payments'];
+  accessStatus: AccessStatus | null;
 }
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth(); // Simplify auth usage
-  const [loading, setLoading] = useState(false); // Start false, set true only when fetching data
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // State for different data types
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionStatusResponse | null>(null);
-  const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([]);
-  const [accessStatus, setAccessStatus] = useState<{ has_access: boolean }>({ has_access: false });
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    profile: null,
+    subscription: null,
+    payments: [],
+    accessStatus: null
+  });
 
-  // Check auth first, before any data loading
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
-
-  // Load dashboard data only after auth is confirmed
+  // Load all dashboard data
   useEffect(() => {
     const loadDashboardData = async () => {
-      if (!user) return;
-      
-      setLoading(true);
       try {
+        setLoading(true);
+        setError(null);
+
         const [profileData, subscriptionData, paymentData, accessData] = await Promise.all([
           getUserProfile(),
-          getSubscriptionStatus(),
+          getUserSubscription(),
           getPaymentHistory(),
           getAccessStatus()
         ]);
 
-        setProfile(profileData);
-        setSubscription(subscriptionData);
-        setPaymentHistory(paymentData);
-        setAccessStatus(accessData);
-      } catch (err) {
-        console.error('Error loading dashboard:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+        setDashboardData({
+          profile: profileData,
+          subscription: subscriptionData,
+          payments: paymentData.payments,
+          accessStatus: accessData
+        });
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        setError('Failed to load dashboard data. Please try again.');
       } finally {
         setLoading(false);
       }
     };
 
-    if (user && !authLoading) {
-      loadDashboardData();
-    }
-  }, [user, authLoading]);
+    loadDashboardData();
+  }, []);
 
-  // Handle subscription management with loading states
+  // Handle subscription management
   const handleManageSubscription = async () => {
-    setLoading(true);
     try {
-      await createPortalSession();
-    } catch (err) {
-      console.error('Portal session error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to open subscription portal');
-    } finally {
-      setLoading(false);
+      setError(null);
+      const url = await createPortalSession();
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error managing subscription:', error);
+      setError('Failed to open subscription management. Please try again.');
     }
   };
 
+  // Handle subscription cancellation
   const handleCancelSubscription = async () => {
-    setLoading(true);
+    if (!confirm('Are you sure you want to cancel your subscription?')) return;
+    
     try {
+      setError(null);
       await cancelSubscription();
-      const newStatus = await getSubscriptionStatus();
-      setSubscription(newStatus);
-    } catch (err) {
-      console.error('Subscription cancellation error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to cancel subscription');
-    } finally {
-      setLoading(false);
+      // Refresh dashboard data after cancellation
+      window.location.reload();
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      setError('Failed to cancel subscription. Please try again.');
     }
   };
 
-  // Show auth loading state
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  // Prevent flash of content while redirecting
-  if (!user) {
-    return null;
-  }
-
-  // Show data loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
       </div>
     );
   }
 
-  // Show error state if there's an error
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> {error}</span>
-        </div>
-      </div>
-    );
-  }
+  const { profile, subscription, payments, accessStatus } = dashboardData;
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
@@ -168,13 +135,13 @@ export default function DashboardPage() {
         {/* Subscription Status */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-2xl font-bold mb-4">Subscription Status</h2>
-          {subscription && (
+          {subscription && accessStatus && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-600">Status</p>
                   <p className="font-medium capitalize">
-                    {subscription.subscription_status || 'No active subscription'}
+                    {subscription.status || 'No active subscription'}
                   </p>
                 </div>
                 <div>
@@ -184,12 +151,12 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              
-              {subscription.subscription_end_date && (
+
+              {subscription.current_period_end && (
                 <div>
-                  <p className="text-gray-600">Expires</p>
+                  <p className="text-gray-600">Current Period Ends</p>
                   <p className="font-medium">
-                    {new Date(subscription.subscription_end_date).toLocaleDateString()}
+                    {new Date(subscription.current_period_end * 1000).toLocaleDateString()}
                   </p>
                 </div>
               )}
@@ -201,7 +168,7 @@ export default function DashboardPage() {
                 >
                   Manage Subscription
                 </button>
-                {subscription.subscription_status === 'active' && (
+                {subscription.status === 'active' && !subscription.cancel_at_period_end && (
                   <button
                     onClick={handleCancelSubscription}
                     className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
@@ -217,7 +184,7 @@ export default function DashboardPage() {
         {/* Payment History */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-2xl font-bold mb-4">Payment History</h2>
-          {paymentHistory.length > 0 ? (
+          {payments.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead>
@@ -229,24 +196,18 @@ export default function DashboardPage() {
                       Amount
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {paymentHistory.map((payment) => (
+                  {payments.map((payment) => (
                     <tr key={payment.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {new Date(payment.date).toLocaleDateString()}
+                        {new Date(payment.created * 1000).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        ${payment.amount.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap capitalize">
-                        {payment.type}
+                        ${(payment.amount / 100).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full

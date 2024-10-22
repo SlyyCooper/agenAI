@@ -24,19 +24,30 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 @router.get("/profile")
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    user_data = await get_user_data(user_id)
-    
-    # Add subscription check
-    if user_data.get('subscription_id'):
-        try:
-            subscription = stripe.Subscription.retrieve(user_data['subscription_id'])
-            user_data['subscription_status'] = subscription.status
-            user_data['subscription_current_period_end'] = subscription.current_period_end
-        except Exception as e:
-            print(f"Error fetching subscription: {str(e)}")
-    
-    return user_data
+    try:
+        user_id = current_user['uid']
+        user_data = await get_user_data(user_id)
+        
+        if not user_data:
+            # Create profile if it doesn't exist
+            user_data = await create_user_profile(
+                user_id=user_id,
+                email=current_user.get('email', ''),
+                name=current_user.get('name', '')
+            )
+        
+        # Add subscription check
+        if user_data.get('subscription_id'):
+            try:
+                subscription = stripe.Subscription.retrieve(user_data['subscription_id'])
+                user_data['subscription_status'] = subscription.status
+                user_data['subscription_current_period_end'] = subscription.current_period_end
+            except Exception as e:
+                print(f"Error fetching subscription: {str(e)}")
+        
+        return user_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/profile")
 async def create_user_profile_route(data: dict, current_user: dict = Depends(get_current_user)):
@@ -60,12 +71,29 @@ async def update_user_profile(
 async def get_user_subscription(current_user: dict = Depends(get_current_user)):
     try:
         user_data = await get_user_data(current_user['uid'])
-        return {
-            "has_access": user_data.get('has_access', False),
-            "subscription_status": user_data.get('subscription_status'),
-            "subscription_end_date": user_data.get('subscription_end_date'),
-            "one_time_purchase": user_data.get('one_time_purchase', False)
+        
+        # Add detailed subscription info
+        subscription_data = {
+            'has_access': user_data.get('has_access', False),
+            'subscription_status': user_data.get('subscription_status'),
+            'subscription_end_date': user_data.get('subscription_end_date'),
+            'one_time_purchase': user_data.get('one_time_purchase', False),
+            'payment_history': user_data.get('payment_history', [])
         }
+        
+        # If there's an active subscription, get latest info from Stripe
+        if user_data.get('subscription_id'):
+            try:
+                subscription = stripe.Subscription.retrieve(user_data['subscription_id'])
+                subscription_data.update({
+                    'current_period_end': subscription.current_period_end,
+                    'cancel_at_period_end': subscription.cancel_at_period_end,
+                    'status': subscription.status
+                })
+            except Exception as e:
+                print(f"Error fetching subscription from Stripe: {str(e)}")
+        
+        return subscription_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

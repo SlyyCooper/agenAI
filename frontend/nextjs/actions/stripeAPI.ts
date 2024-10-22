@@ -17,6 +17,19 @@ export interface SubscriptionStatusResponse {
   one_time_purchase: boolean;
 }
 
+export interface Product {
+  product_id: string;
+  price_id: string;
+  name: string;
+  price: number;
+  features: string[];
+}
+
+export interface ProductsResponse {
+  subscription: Product;
+  one_time: Product;
+}
+
 // Helper function to get Firebase token
 const getFirebaseToken = async (): Promise<string> => {
   const auth = getAuth();
@@ -40,15 +53,12 @@ export const createCheckoutSession = async (
         'Authorization': `Bearer ${firebaseToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
-        price_id: price_id,
-        mode: mode 
-      }),
+      body: JSON.stringify({ price_id, mode }),
     });
     
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Failed to create checkout session');
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create checkout session');
     }
     
     const { sessionId } = await response.json();
@@ -64,7 +74,7 @@ export const createCheckoutSession = async (
   }
 };
 
-export const createPortalSession = async (): Promise<void> => {
+export const createPortalSession = async (): Promise<string> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/stripe/create-portal-session`, {
@@ -75,17 +85,20 @@ export const createPortalSession = async (): Promise<void> => {
       },
     });
     
-    if (!response.ok) throw new Error('Failed to create portal session');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create portal session');
+    }
     
     const { url } = await response.json();
-    window.location.href = url;
+    return url;
   } catch (error) {
     console.error('Error creating portal session:', error);
     throw error;
   }
 };
 
-export const cancelSubscription = async (): Promise<any> => {
+export const cancelSubscription = async (): Promise<{ status: string; subscription: any }> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/stripe/cancel-subscription`, {
@@ -96,7 +109,11 @@ export const cancelSubscription = async (): Promise<any> => {
       },
     });
     
-    if (!response.ok) throw new Error('Failed to cancel subscription');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to cancel subscription');
+    }
+    
     return await response.json();
   } catch (error) {
     console.error('Error cancelling subscription:', error);
@@ -106,7 +123,6 @@ export const cancelSubscription = async (): Promise<any> => {
 
 export const getSubscriptionStatus = async (): Promise<SubscriptionStatusResponse> => {
   try {
-    console.log('Fetching subscription status...');
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/stripe/subscription-status`, {
       method: 'GET',
@@ -117,22 +133,19 @@ export const getSubscriptionStatus = async (): Promise<SubscriptionStatusRespons
     });
     
     if (!response.ok) {
-      console.error('Subscription status API error:', await response.text());
-      throw new Error('Failed to fetch subscription status');
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch subscription status');
     }
     
-    const data = await response.json();
-    console.log('Subscription status fetched:', data);
-    return data;
+    return await response.json();
   } catch (error) {
-    console.error('Subscription status fetch error:', error);
+    console.error('Error fetching subscription status:', error);
     throw error;
   }
 };
 
-export const getProducts = async () => {
+export const getProducts = async (): Promise<ProductsResponse> => {
   try {
-    console.log('Fetching products...');
     const response = await fetch(`${BASE_URL}/api/stripe/products`, {
       method: 'GET',
       headers: {
@@ -141,15 +154,13 @@ export const getProducts = async () => {
     });
     
     if (!response.ok) {
-      console.error('Products API error:', await response.text());
-      throw new Error('Failed to fetch products');
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch products');
     }
     
-    const data = await response.json();
-    console.log('Products fetched:', data);
-    return data;
+    return await response.json();
   } catch (error) {
-    console.error('Products fetch error:', error);
+    console.error('Error fetching products:', error);
     throw error;
   }
 };
