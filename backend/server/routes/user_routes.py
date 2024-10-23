@@ -7,8 +7,6 @@ from backend.server.firebase_utils import (
     create_user_profile,
     update_user_data
 )
-from pydantic import BaseModel, Field
-from typing import Optional, List
 
 router = APIRouter(
     prefix="/api/user",
@@ -24,19 +22,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     return decoded_token
 
-class UserProfileResponse(BaseModel):
-    email: str
-    name: Optional[str]
-    created_at: str
-    last_login: str
-    has_access: bool
-    stripe_customer_id: Optional[str]
-    subscription_status: Optional[str]
-    subscription_end_date: Optional[str]
-    subscription_current_period_end: Optional[int]
-    one_time_purchase: Optional[bool]
-
-@router.get("/profile", response_model=UserProfileResponse)
+@router.get("/profile")
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
     try:
         user_id = current_user['uid']
