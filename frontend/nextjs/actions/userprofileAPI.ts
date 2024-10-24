@@ -72,16 +72,16 @@ export const getUserProfile = async (): Promise<UserProfile> => {
     });
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || 'Failed to fetch profile');
+      throw new Error(error.detail || 'Failed to get user profile');
     }
     return await response.json();
   } catch (error) {
-    console.error('Error fetching user profile:', error);
+    console.error('Error getting user profile:', error);
     throw error;
   }
 };
 
-export const createUserProfile = async (data: { email: string; name?: string }): Promise<void> => {
+export const createUserProfile = async (data: { email: string; name?: string }): Promise<UserProfile> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/user/profile`, {
@@ -94,15 +94,16 @@ export const createUserProfile = async (data: { email: string; name?: string }):
     });
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || 'Failed to create profile');
+      throw new Error(error.detail || 'Failed to create user profile');
     }
+    return await response.json();
   } catch (error) {
     console.error('Error creating user profile:', error);
     throw error;
   }
 };
 
-export const updateUserProfile = async (data: UserProfileUpdateRequest): Promise<void> => {
+export const updateUserProfile = async (data: UserProfileUpdateRequest): Promise<UserProfile> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/user/update`, {
@@ -115,8 +116,9 @@ export const updateUserProfile = async (data: UserProfileUpdateRequest): Promise
     });
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || 'Failed to update profile');
+      throw new Error(error.detail || 'Failed to update user profile');
     }
+    return await response.json();
   } catch (error) {
     console.error('Error updating user profile:', error);
     throw error;

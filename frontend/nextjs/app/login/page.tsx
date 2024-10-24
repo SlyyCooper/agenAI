@@ -11,7 +11,7 @@ import GoogleSignInButton from '@/components/GoogleSignInButton'
 import XSignInButton from '@/components/XSigninButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
-import { createUserProfile, getUserProfile } from '@/actions/userprofileAPI'
+import { createUserProfile, getUserProfile, updateUserProfile } from '@/actions/userprofileAPI'
 
 interface AuthError {
   code?: string;
@@ -48,34 +48,38 @@ export default function LoginPage() {
 
   const verifyUserProfile = async () => {
     try {
+      if (!auth.currentUser?.uid || !auth.currentUser?.email) {
+        throw new Error('User authentication data missing');
+      }
+
       // Try to get existing profile
-      const profile = await getUserProfile()
+      const profile = await getUserProfile();
       
-      // If profile exists but missing required fields, update it
-      if (profile && auth.currentUser) {
-        const updates: any = {}
-        
-        if (!profile.email && auth.currentUser.email) {
-          updates.email = auth.currentUser.email
-        }
-        if (!profile.name && auth.currentUser.displayName) {
-          updates.name = auth.currentUser.displayName
-        }
-        
-        // If any updates needed, create/update profile
-        if (Object.keys(updates).length > 0) {
-          await createUserProfile(updates)
-        }
-      } else if (auth.currentUser) {
+      if (!profile) {
         // Create new profile if doesn't exist
         await createUserProfile({
-          email: auth.currentUser.email!,
+          email: auth.currentUser.email,
           name: auth.currentUser.displayName || undefined
-        })
+        });
+      } else {
+        // If profile exists but needs updates
+        const updates: any = {};
+        
+        if (!profile.email && auth.currentUser.email) {
+          updates.email = auth.currentUser.email;
+        }
+        if (!profile.name && auth.currentUser.displayName) {
+          updates.name = auth.currentUser.displayName;
+        }
+        
+        // Only update if there are changes
+        if (Object.keys(updates).length > 0) {
+          await updateUserProfile(updates);
+        }
       }
     } catch (error) {
-      console.error('Error verifying user profile:', error)
-      // Don't throw error - let user continue even if profile verification fails
+      console.error('Error verifying user profile:', error);
+      setError('Failed to verify user profile');
     }
   }
 
