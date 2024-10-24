@@ -3,6 +3,7 @@ from backend.server.firestore_init import SERVER_TIMESTAMP, ArrayUnion
 from firebase_admin import auth
 import logging
 import stripe
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -97,12 +98,19 @@ async def update_payment_history(user_id: str, payment_data: dict):
     """Update user's payment history."""
     try:
         user_ref = db.collection('users').document(user_id)
+        
+        # Create payment record with proper timestamp
+        payment_record = {
+            **payment_data,
+            'created_at': datetime.now().isoformat()  # Use ISO format string instead of SERVER_TIMESTAMP
+        }
+        
+        # Update using ArrayUnion with the properly formatted record
         user_ref.update({
-            'payment_history': ArrayUnion([{
-                **payment_data,
-                'date': SERVER_TIMESTAMP
-            }])
+            'payment_history': ArrayUnion([payment_record])
         })
+        
+        logger.info(f"Successfully updated payment history for user {user_id}")
     except Exception as e:
         logger.error(f"Error updating payment history: {str(e)}")
         raise
