@@ -38,10 +38,10 @@ export default function SignupPage() {
       // Create Firebase user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       
-      // Create user profile using the API
+      // Create user profile with required fields
       await createUserProfile({
         email: email,
-        name: name
+        name: name || undefined // Only include name if it's not empty
       })
 
       router.push('/research')

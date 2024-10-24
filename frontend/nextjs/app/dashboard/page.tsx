@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/config/firebase/AuthContext';
 import {
   getUserProfile,
   getUserSubscription,
@@ -28,6 +29,7 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user, loading: authLoading, userProfile: contextProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData>({
@@ -37,26 +39,41 @@ export default function DashboardPage() {
     accessStatus: null
   });
 
-  // Load all dashboard data
+  // Authentication check
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [authLoading, user, router]);
+
+  // Load dashboard data using context profile
   useEffect(() => {
     const loadDashboardData = async () => {
+      if (!user || !contextProfile) return;
+
       try {
         setLoading(true);
         setError(null);
 
-        const [profileData, subscriptionData, paymentData, accessData] = await Promise.all([
-          getUserProfile(),
+        // Use context profile as initial data
+        setDashboardData(prev => ({
+          ...prev,
+          profile: contextProfile
+        }));
+
+        // Load additional data in parallel
+        const [subscriptionData, paymentData, accessData] = await Promise.all([
           getUserSubscription(),
           getPaymentHistory(),
           getAccessStatus()
         ]);
 
-        setDashboardData({
-          profile: profileData,
+        setDashboardData(prev => ({
+          ...prev,
           subscription: subscriptionData,
           payments: paymentData.payments,
           accessStatus: accessData
-        });
+        }));
       } catch (error) {
         console.error('Error loading dashboard data:', error);
         setError('Failed to load dashboard data. Please try again.');
@@ -65,8 +82,24 @@ export default function DashboardPage() {
       }
     };
 
-    loadDashboardData();
-  }, []);
+    if (user && contextProfile) {
+      loadDashboardData();
+    }
+  }, [user, contextProfile]);
+
+  // Loading states
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  // Not authenticated
+  if (!user) {
+    return null; // Router will handle redirect
+  }
 
   // Handle subscription management
   const handleManageSubscription = async () => {
@@ -94,14 +127,6 @@ export default function DashboardPage() {
       setError('Failed to cancel subscription. Please try again.');
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-      </div>
-    );
-  }
 
   const { profile, subscription, payments, accessStatus } = dashboardData;
 

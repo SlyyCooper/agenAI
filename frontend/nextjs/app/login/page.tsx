@@ -46,17 +46,36 @@ export default function LoginPage() {
     }
   }
 
-  const ensureUserProfile = async () => {
+  const verifyUserProfile = async () => {
     try {
-      await getUserProfile()
-    } catch (error) {
-      // If profile doesn't exist, create it
-      if (auth.currentUser) {
+      // Try to get existing profile
+      const profile = await getUserProfile()
+      
+      // If profile exists but missing required fields, update it
+      if (profile && auth.currentUser) {
+        const updates: any = {}
+        
+        if (!profile.email && auth.currentUser.email) {
+          updates.email = auth.currentUser.email
+        }
+        if (!profile.name && auth.currentUser.displayName) {
+          updates.name = auth.currentUser.displayName
+        }
+        
+        // If any updates needed, create/update profile
+        if (Object.keys(updates).length > 0) {
+          await createUserProfile(updates)
+        }
+      } else if (auth.currentUser) {
+        // Create new profile if doesn't exist
         await createUserProfile({
           email: auth.currentUser.email!,
           name: auth.currentUser.displayName || undefined
         })
       }
+    } catch (error) {
+      console.error('Error verifying user profile:', error)
+      // Don't throw error - let user continue even if profile verification fails
     }
   }
 
@@ -72,8 +91,12 @@ export default function LoginPage() {
     }
 
     try {
+      // Sign in with Firebase
       await signInWithEmailAndPassword(auth, email, password)
-      await ensureUserProfile()
+      
+      // Verify/update user profile
+      await verifyUserProfile()
+      
       router.push('/research')
     } catch (error: any) {
       console.error('Error signing in:', error)
@@ -94,8 +117,12 @@ export default function LoginPage() {
     }
 
     try {
+      // Sign in with social provider
       const result = await signInWithPopup(auth, provider)
-      await ensureUserProfile()
+      
+      // Verify/update user profile
+      await verifyUserProfile()
+      
       router.push('/research')
     } catch (error: any) {
       console.error('Error signing in:', error)

@@ -20,6 +20,24 @@ interface LoadingState {
   purchase: boolean;
 }
 
+// Add validation function
+const validateProductsResponse = (data: unknown): data is ProductsResponse => {
+  return data !== null && 
+         typeof data === 'object' && 
+         'subscription' in data && 
+         'one_time' in data;
+};
+
+// Add more specific error messages
+const getErrorMessage = (err: unknown) => {
+  if (err instanceof Error) {
+    if (err.message.includes('checkout')) return 'Unable to start checkout process';
+    if (err.message.includes('subscription')) return 'Unable to verify subscription status';
+    return err.message;
+  }
+  return 'An unexpected error occurred';
+};
+
 export default function PlansContent() {
   const { user } = useAuth();
   const [loading, setLoading] = useState<LoadingState>({ page: true, purchase: false });
@@ -46,7 +64,7 @@ export default function PlansContent() {
         setAccessStatus(access);
       } catch (err) {
         console.error('Error initializing page:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load product information');
+        setError(getErrorMessage(err));
       } finally {
         setLoading(prev => ({ ...prev, page: false }));
       }
@@ -63,7 +81,7 @@ export default function PlansContent() {
       await createCheckoutSession(priceId, mode);
     } catch (err) {
       console.error('Purchase error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to process payment');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(prev => ({ ...prev, purchase: false }));
     }
