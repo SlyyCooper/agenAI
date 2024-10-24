@@ -5,7 +5,8 @@ from backend.server.firebase_utils import (
     verify_firebase_token, 
     get_user_data, 
     create_user_profile,
-    update_user_data
+    update_user_data,
+    update_payment_history
 )
 
 router = APIRouter(
@@ -90,6 +91,17 @@ async def get_user_subscription(current_user: dict = Depends(get_current_user)):
                     'cancel_at_period_end': subscription.cancel_at_period_end,
                     'status': subscription.status
                 })
+                
+                # Update payment history with latest subscription payment
+                if subscription.latest_invoice:
+                    invoice = stripe.Invoice.retrieve(subscription.latest_invoice)
+                    if invoice.paid:
+                        await update_payment_history(current_user['uid'], {
+                            'type': 'subscription',
+                            'amount': invoice.amount_paid,
+                            'status': 'paid',
+                            'invoice_id': invoice.id
+                        })
             except Exception as e:
                 print(f"Error fetching subscription from Stripe: {str(e)}")
         
@@ -108,6 +120,16 @@ async def get_payment_history(current_user: dict = Depends(get_current_user)):
             customer=user_data['stripe_customer_id'],
             limit=10
         )
+        
+        # Update payment history with any new payments
+        for payment in payments.data:
+            if payment.status == 'succeeded':
+                await update_payment_history(current_user['uid'], {
+                    'type': 'payment',
+                    'amount': payment.amount,
+                    'status': payment.status,
+                    'payment_id': payment.id
+                })
         
         return {"payments": payments.data}
     except Exception as e:

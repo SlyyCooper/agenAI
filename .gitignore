@@ -50,3 +50,5 @@ package-lock.json
 .cursorrules
 /TAN
 frontend/nextjs/config/firebase/serviceAccountKey.json
+backend/server/checklist.md
+backend/server/Data stored in firestore.md
