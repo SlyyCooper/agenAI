@@ -7,6 +7,9 @@ import axios from 'axios';
 
 const auth = getAuth(app);
 
+// Add base URL constant
+const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
+
 export interface AuthContextProps {
   user: User | null;
   loading: boolean;
@@ -32,7 +35,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(user);
         if (user) {
           const token = await user.getIdToken();
-          const response = await axios.get('/api/user/profile', {
+          // Add BASE_URL to the axios request
+          const response = await axios.get(`${BASE_URL}/api/user/profile`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           setUserProfile(response.data);
@@ -41,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error('Auth state change error:', error);
-        // Handle error appropriately
+        setUserProfile(null);  // Ensure profile is cleared on error
       } finally {
         setLoading(false);
       }

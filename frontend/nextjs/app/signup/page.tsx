@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight, Brain, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
@@ -22,6 +22,16 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { user } = useAuth()
+
+  // Add useEffect to handle email from URL params
+  useEffect(() => {
+    // Get email from URL if present
+    const params = new URLSearchParams(window.location.search)
+    const emailParam = params.get('email')
+    if (emailParam) {
+      setEmail(decodeURIComponent(emailParam))
+    }
+  }, [])
 
   const handleEmailPasswordSignUp = async (e: React.FormEvent) => {
     e.preventDefault()

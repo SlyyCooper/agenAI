@@ -30,7 +30,8 @@ export default function LoginPage() {
   const handleAuthError = (error: AuthError) => {
     switch (error.code) {
       case 'auth/user-not-found':
-        setError('No account found with this email. Please sign up.')
+        // Redirect to signup page with email pre-filled
+        router.push(`/signup?email=${encodeURIComponent(email)}`)
         break
       case 'auth/wrong-password':
         setError('Incorrect password. Please try again.')
