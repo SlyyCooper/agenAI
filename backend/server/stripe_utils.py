@@ -8,14 +8,27 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Add a set to track processed webhook events
+processed_events = set()
+
 def initialize_stripe():
     stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 async def handle_stripe_webhook(event):
     """Handle Stripe webhook events."""
+    # Check for duplicate events
+    event_id = event['id']
+    if event_id in processed_events:
+        logger.info(f"Skipping duplicate event: {event_id}")
+        return JSONResponse(content={"status": "skipped", "reason": "duplicate"})
+    
+    processed_events.add(event_id)
     print(f"Processing Stripe webhook event: {event['type']}")
     try:
-        if event['type'] == 'checkout.session.completed':
+        if event['type'] == 'customer.created':
+            customer = event['data']['object']
+            await handle_customer_created(customer)
+        elif event['type'] == 'checkout.session.completed':
             session = event['data']['object']
             await fulfill_order(session)
         elif event['type'] == 'invoice.paid':
@@ -35,11 +48,34 @@ async def handle_stripe_webhook(event):
 
         return JSONResponse(content={"status": "success"})
     except Exception as e:
-        print(f"Error processing webhook: {str(e)}")
+        logger.error(f"Error processing webhook: {str(e)}")
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
         )
+
+async def handle_customer_created(customer):
+    """Handle customer.created event."""
+    try:
+        user_id = customer['metadata'].get('user_id')
+        if not user_id:
+            logger.warning("No user_id in customer metadata")
+            return
+            
+        user_ref = db.collection('users').document(user_id)
+        
+        # Update user document with Stripe customer info
+        user_ref.update({
+            'stripe_customer_id': customer['id'],
+            'stripe_created_at': firestore.SERVER_TIMESTAMP,
+            'customer_email': customer['email'],
+            'last_updated': firestore.SERVER_TIMESTAMP
+        })
+        
+        logger.info(f"Successfully processed customer.created for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error handling customer.created: {str(e)}")
+        raise
 
 async def fulfill_order(session):
     user_id = session['metadata']['user_id']
