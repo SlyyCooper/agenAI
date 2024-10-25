@@ -33,7 +33,8 @@ async def create_user_profile(user_id: str, email: str, name: str = None):
             'last_login': current_time,
             'stripe_customer_id': customer.id,
             'has_access': False,
-            'one_time_purchase': False
+            'one_time_purchase': False,
+            'tokens': 0  # Add initial tokens count
         }
         if name:
             user_data['name'] = name
