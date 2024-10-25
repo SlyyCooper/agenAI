@@ -14,6 +14,7 @@ export interface UserProfile {
   subscription_end_date?: string;
   subscription_current_period_end?: number;
   one_time_purchase?: boolean;
+  tokens: number;
 }
 
 interface UserProfileUpdateRequest {

@@ -19,6 +19,9 @@ import {
   cancelSubscription
 } from '@/actions/stripeAPI';
 
+// Add import at the top
+import TokenDisplay from '@/components/userinfo/TokenDisplay';
+
 // Types
 interface DashboardData {
   profile: UserProfile | null;
@@ -144,14 +147,21 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-2xl font-bold mb-4">Profile Information</h2>
           {profile && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-gray-600">Email</p>
-                <p className="font-medium">{profile.email}</p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-600">Email</p>
+                  <p className="font-medium">{profile.email}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Name</p>
+                  <p className="font-medium">{profile.name || 'Not set'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-600">Name</p>
-                <p className="font-medium">{profile.name || 'Not set'}</p>
+              {/* Add Token Display */}
+              <div className="border-t pt-4">
+                <p className="text-gray-600 mb-2">Available Tokens</p>
+                <TokenDisplay size="large" className="ml-2" />
               </div>
             </div>
           )}
