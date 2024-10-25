@@ -38,17 +38,13 @@ async def create_user_profile(user_id: str, email: str, name: str = None):
             user_data['name'] = name
             
         # Use transaction to ensure atomic operation
-        transaction = db.transaction()
-        
-        @transaction.transactional
+        @db.transaction()
         def create_user_in_transaction(transaction):
             user_ref = db.collection('users').document(user_id)
             transaction.set(user_ref, user_data)
+            return user_data
             
-        create_user_in_transaction(transaction)
-        
-        logger.info(f"Created user profile for {user_id} with Stripe customer {customer.id}")
-        return user_data
+        return create_user_in_transaction()
         
     except stripe.error.StripeError as e:
         logger.error(f"Stripe error creating customer: {str(e)}")
