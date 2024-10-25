@@ -74,20 +74,9 @@ async def get_user_data(user_id: str):
 async def verify_firebase_token(token: str):
     try:
         decoded_token = auth.verify_id_token(token)
-        user_id = decoded_token['uid']
-        email = decoded_token.get('email', '')
-        
-        # Check if user exists in Firestore, if not, create profile
-        user_data = await get_user_data(user_id)
-        if not user_data:
-            await create_user_profile(user_id, email)
-        else:
-            # Update last login
-            await update_user_data(user_id, {'last_login': SERVER_TIMESTAMP})
-        
         return decoded_token
     except Exception as e:
-        print(f"Error verifying token: {e}")
+        logger.error(f"Token verification failed: {str(e)}")
         return None
 
 async def update_payment_history(user_id: str, payment_data: dict):
