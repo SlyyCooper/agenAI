@@ -4,7 +4,6 @@ from firebase_admin import auth
 import logging
 import stripe
 from datetime import datetime
-import firestore
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -106,32 +105,34 @@ async def update_payment_history(user_id: str, payment_data: dict):
         logger.error(f"Error updating payment history: {str(e)}")
         raise
 
-async def check_and_update_tokens(user_id: str, token_cost: int = 1) -> bool:
-    """Check if user has enough tokens and deduct if they do"""
+async def check_and_update_tokens(user_id: str) -> bool:
+    """
+    Check if user has available tokens and decrement if they do.
+    Returns True if user has tokens available, False otherwise.
+    """
     try:
         user_ref = db.collection('users').document(user_id)
+        user_data = await get_user_data(user_id)
         
-        @db.transactional
-        def update_in_transaction(transaction):
-            user_doc = user_ref.get(transaction=transaction)
-            if not user_doc.exists:
-                return False
+        if not user_data:
+            logger.warning(f"No user data found for user: {user_id}")
+            return False
             
-            current_tokens = user_doc.to_dict().get('tokens', 0)
-            if current_tokens < token_cost:
-                return False
-                
-            transaction.update(user_ref, {
-                'tokens': firestore.Increment(-token_cost),
-                'token_history': firestore.ArrayUnion([{
-                    'amount': -token_cost,
-                    'type': 'usage',
-                    'timestamp': firestore.SERVER_TIMESTAMP
-                }])
-            })
+        # Check if user has unlimited access
+        if user_data.get('has_access', False):
             return True
             
-        return update_in_transaction(db.transaction())
+        # Check if user has tokens
+        current_tokens = user_data.get('tokens', 0)
+        if current_tokens <= 0:
+            logger.warning(f"User {user_id} has no tokens remaining")
+            return False
+            
+        # Decrement token and update
+        await update_user_data(user_id, {'tokens': current_tokens - 1})
+        logger.info(f"Decremented token for user {user_id}. Remaining: {current_tokens - 1}")
+        return True
+        
     except Exception as e:
-        logger.error(f"Error checking tokens: {str(e)}")
+        logger.error(f"Error checking/updating tokens: {str(e)}")
         return False
