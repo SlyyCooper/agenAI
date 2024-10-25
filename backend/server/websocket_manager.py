@@ -9,8 +9,8 @@ from backend.report_type import BasicReport, DetailedReport
 from gpt_researcher.utils.enum import ReportType, Tone
 from multi_agents.main import run_research_task
 from gpt_researcher.orchestrator.actions import stream_output  # Import stream_output
-from backend.server.firebase_utils import verify_firebase_token
-from backend.server.firebase_init import db
+from backend.server.firebase.firebase_utils import verify_firebase_token
+from backend.server.firebase.firebase_init import db
 
 
 class WebSocketManager:
@@ -46,19 +46,20 @@ class WebSocketManager:
         await websocket.accept()
         try:
             auth_message = await websocket.receive_json()
-            print(f"Received auth message: {auth_message}")
             if auth_message['type'] == 'auth':
                 token = auth_message['token']
                 decoded_token = await verify_firebase_token(token)
                 if not decoded_token:
-                    await websocket.close(code=1008)  # Policy violation
+                    await websocket.close(code=1008)
                     return
+                # Store user_id with the websocket connection
+                websocket.user_id = decoded_token['uid']
             else:
-                await websocket.close(code=1008)  # Policy violation
+                await websocket.close(code=1008)
                 return
         except Exception as e:
             print(f"Authentication error: {e}")
-            await websocket.close(code=1008)  # Policy violation
+            await websocket.close(code=1008)
             return
 
         self.active_connections.append(websocket)

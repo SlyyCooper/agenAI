@@ -14,9 +14,9 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
-from backend.server.stripe_utils import initialize_stripe
-from backend.server.firebase_init import db, initialize_firebase
-from backend.server.routes import user_routes, stripe_routes
+from backend.server.stripe.stripe_utils import initialize_stripe
+from backend.server.firebase.firebase_init import db, initialize_firebase
+from backend.server.routes import user_routes, stripe_routes, storage_routes  # Add storage_routes
 from backend.server.server_utils import generate_report_files
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
@@ -95,8 +95,6 @@ templates = Jinja2Templates(directory="./frontend")
 
 # WebSocket manager
 manager = WebSocketManager()
-def sanitize_filename(filename):
-    return re.sub(r"[^\w\s-]", "", filename).strip()
 
 # Middleware
 app.add_middleware(
@@ -145,6 +143,7 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 # Include routers
 app.include_router(user_routes.router)
 app.include_router(stripe_routes.router)
+app.include_router(storage_routes.router)
 
 # Routes
 @app.get("/health")

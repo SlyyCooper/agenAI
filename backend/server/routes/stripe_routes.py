@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request, HTTPException, Depends, logger
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import stripe
 import os
-from backend.server.stripe_utils import handle_stripe_webhook
-from backend.server.firebase_utils import verify_firebase_token, get_user_data
+from backend.server.stripe.stripe_utils import handle_stripe_webhook
+from backend.server.firebase.firebase_utils import verify_firebase_token, get_user_data
 from pydantic import BaseModel
 
 router = APIRouter(

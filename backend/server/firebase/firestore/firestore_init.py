@@ -1,5 +1,5 @@
 from firebase_admin import firestore
-from backend.server.firebase_init import db
+from backend.server.firebase.firebase_init import db
 
 # Export commonly used Firestore constants
 SERVER_TIMESTAMP = firestore.SERVER_TIMESTAMP

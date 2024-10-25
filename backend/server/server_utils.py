@@ -10,14 +10,40 @@ from gpt_researcher.document.document import DocumentLoader
 from backend.utils import write_md_to_pdf, write_md_to_word, write_text_to_md
 from gpt_researcher.orchestrator.actions.utils import stream_output
 from multi_agents.main import run_research_task
-from backend.server.firebase_init import db
+from backend.server.firebase.firebase_init import db
 from firebase_admin import auth, firestore
 from dotenv import load_dotenv
 from urllib.parse import urlparse
+from backend.server.firebase.storage.storage_utils import (
+    upload_file_to_storage,
+    delete_file_from_storage,
+    list_files_in_storage
+)
 
 
 def sanitize_filename(filename: str) -> str:
-    return re.sub(r"[^\w\s-]", "", filename).strip()
+    """
+    Sanitize a filename to be safe for all operating systems.
+    
+    Args:
+        filename (str): The filename to sanitize
+        
+    Returns:
+        str: A sanitized filename safe for all operating systems
+    """
+    # Replace invalid characters with underscores
+    # This covers Windows reserved characters and general filesystem safety
+    invalid_chars = r'[<>:"/\\|?*\x00-\x1f]'
+    sanitized = re.sub(invalid_chars, '_', filename)
+    
+    # Remove leading/trailing spaces and dots
+    sanitized = sanitized.strip('. ')
+    
+    # Ensure the filename isn't empty after sanitization
+    if not sanitized:
+        sanitized = 'unnamed_file'
+        
+    return sanitized
 
 
 async def handle_start_command(websocket, data: str, manager):
@@ -29,13 +55,21 @@ async def handle_start_command(websocket, data: str, manager):
         print("Error: Missing task or report_type")
         return
 
-    sanitized_filename = sanitize_filename(f"task_{int(time.time())}_{task}")
+    sanitized_filename = sanitize_filename(task)
+    user_id = getattr(websocket, 'user_id', None)
+    
+    if not user_id:
+        print("Error: No user ID found")
+        return
+
+    # Prefix filename with user_id
+    user_filename = f"{user_id}/{sanitized_filename}"
 
     report = await manager.start_streaming(
         task, report_type, report_source, source_urls, tone, websocket, headers
     )
     report = str(report)
-    file_paths = await generate_report_files(report, sanitized_filename)
+    file_paths = await generate_report_files(report, user_filename)
     await send_file_paths(websocket, file_paths)
 
 
@@ -85,26 +119,54 @@ def update_environment_variables(config: Dict[str, str]):
     
 
 async def handle_file_upload(file, DOC_PATH: str) -> Dict[str, str]:
-    file_path = os.path.join(DOC_PATH, file.filename)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    print(f"File uploaded to {file_path}")
+    try:
+        # Local file handling
+        file_path = os.path.join(DOC_PATH, file.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        print(f"File uploaded to local path: {file_path}")
 
-    document_loader = DocumentLoader(DOC_PATH)
-    await document_loader.load()
+        # Upload to Firebase Storage
+        file.file.seek(0)  # Reset file pointer
+        firebase_url = await upload_file_to_storage(
+            file.file,
+            file.filename,
+            file.content_type
+        )
+        print(f"File uploaded to Firebase Storage: {firebase_url}")
 
-    return {"filename": file.filename, "path": file_path}
+        document_loader = DocumentLoader(DOC_PATH)
+        await document_loader.load()
+
+        return {
+            "filename": file.filename,
+            "local_path": file_path,
+            "firebase_url": firebase_url
+        }
+    except Exception as e:
+        print(f"Error uploading file: {str(e)}")
+        raise
 
 
 async def handle_file_deletion(filename: str, DOC_PATH: str) -> JSONResponse:
-    file_path = os.path.join(DOC_PATH, filename)
-    if os.path.exists(file_path):
-        os.remove(file_path)
-        print(f"File deleted: {file_path}")
-        return JSONResponse(content={"message": "File deleted successfully"})
-    else:
-        print(f"File not found: {file_path}")
-        return JSONResponse(status_code=404, content={"message": "File not found"})
+    try:
+        # Delete from local storage
+        file_path = os.path.join(DOC_PATH, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"File deleted from local storage: {file_path}")
+
+        # Delete from Firebase Storage
+        await delete_file_from_storage(filename)
+        print(f"File deleted from Firebase Storage: {filename}")
+
+        return JSONResponse(content={"message": "File deleted successfully from both storages"})
+    except Exception as e:
+        print(f"Error deleting file: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"message": f"Error deleting file: {str(e)}"}
+        )
 
 
 async def execute_multi_agents(manager) -> Dict[str, str]:

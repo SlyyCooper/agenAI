@@ -1,5 +1,5 @@
-from backend.server.firebase_init import db
-from backend.server.firestore_init import SERVER_TIMESTAMP, ArrayUnion
+from backend.server.firebase.firebase_init import db
+from backend.server.firebase.firestore.firestore_init import SERVER_TIMESTAMP, ArrayUnion
 from firebase_admin import auth
 import logging
 import stripe

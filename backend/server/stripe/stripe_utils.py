@@ -2,8 +2,8 @@ import os
 from datetime import datetime
 import stripe
 from fastapi.responses import JSONResponse
-from backend.server.firebase_init import db
-from backend.server.firestore_init import firestore
+from backend.server.firebase.firebase_init import db
+from backend.server.firebase.firestore.firestore_init import firestore
 import logging
 
 logger = logging.getLogger(__name__)
