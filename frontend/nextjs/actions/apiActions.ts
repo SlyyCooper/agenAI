@@ -1,57 +1,86 @@
 import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
+import { getAuth } from 'firebase/auth';
+
+const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
+
+// Helper function to get Firebase token (same as in other APIs)
+const getFirebaseToken = async (): Promise<string> => {
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('No user logged in');
+  }
+  return await currentUser.getIdToken();
+};
 
 export async function handleSourcesAndAnswer(question: string) {
-  let sourcesResponse = await fetch("/api/getSources", {
-    method: "POST",
-    body: JSON.stringify({ question }),
-  });
-  let sources = await sourcesResponse.json();
+  try {
+    const firebaseToken = await getFirebaseToken();
+    
+    let sourcesResponse = await fetch(`${BASE_URL}/api/getSources`, {
+      method: "POST",
+      headers: {
+        'Authorization': `Bearer ${firebaseToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ question }),
+    });
 
-  const response = await fetch("/api/getAnswer", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ question, sources }),
-  });
-
-  if (!response.ok) {
-    throw new Error(response.statusText);
-  }
-
-  if (response.status === 202) {
-    const fullAnswer = await response.text();
-    return fullAnswer;
-  }
-
-  // This data is a ReadableStream
-  const data = response.body;
-  if (!data) {
-    return;
-  }
-
-  const onParse = (event: ParsedEvent | ReconnectInterval) => {
-    if (event.type === "event") {
-      const data = event.data;
-      try {
-        const text = JSON.parse(data).text ?? "";
-        return text;
-      } catch (e) {
-        console.error(e);
-      }
+    if (!sourcesResponse.ok) {
+      const error = await sourcesResponse.json();
+      throw new Error(error.detail || 'Failed to get sources');
     }
-  };
+    
+    let sources = await sourcesResponse.json();
 
-  // https://web.dev/streams/#the-getreader-and-read-methods
-  const reader = data.getReader();
-  const decoder = new TextDecoder();
-  const parser = createParser(onParse);
-  let done = false;
-  while (!done) {
-    const { value, done: doneReading } = await reader.read();
-    done = doneReading;
-    const chunkValue = decoder.decode(value);
-    parser.feed(chunkValue);
+    const response = await fetch(`${BASE_URL}/api/getAnswer`, {
+      method: "POST",
+      headers: {
+        'Authorization': `Bearer ${firebaseToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ question, sources }),
+    });
+
+    if (!response.ok) {
+      throw new Error(response.statusText);
+    }
+
+    if (response.status === 202) {
+      const fullAnswer = await response.text();
+      return fullAnswer;
+    }
+
+    const data = response.body;
+    if (!data) {
+      return;
+    }
+
+    const onParse = (event: ParsedEvent | ReconnectInterval) => {
+      if (event.type === "event") {
+        const data = event.data;
+        try {
+          const text = JSON.parse(data).text ?? "";
+          return text;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+
+    const reader = data.getReader();
+    const decoder = new TextDecoder();
+    const parser = createParser(onParse);
+    let done = false;
+    while (!done) {
+      const { value, done: doneReading } = await reader.read();
+      done = doneReading;
+      const chunkValue = decoder.decode(value);
+      parser.feed(chunkValue);
+    }
+  } catch (error) {
+    console.error('Error in handleSourcesAndAnswer:', error);
+    throw error;
   }
 }
 
