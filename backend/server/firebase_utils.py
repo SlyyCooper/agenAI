@@ -25,11 +25,12 @@ async def create_user_profile(user_id: str, email: str, name: str = None):
             metadata={'user_id': user_id}
         )
         
-        # Prepare user data
+        # Prepare user data with current timestamp instead of SERVER_TIMESTAMP
+        current_time = datetime.now().isoformat()
         user_data = {
             'email': email,
-            'created_at': SERVER_TIMESTAMP,
-            'last_login': SERVER_TIMESTAMP,
+            'created_at': current_time,
+            'last_login': current_time,
             'stripe_customer_id': customer.id,
             'has_access': False,
             'one_time_purchase': False
@@ -39,7 +40,13 @@ async def create_user_profile(user_id: str, email: str, name: str = None):
             
         # Create user document
         user_ref = db.collection('users').document(user_id)
-        user_ref.set(user_data)
+        # Use SERVER_TIMESTAMP in the actual Firestore document
+        firestore_data = {
+            **user_data,
+            'created_at': SERVER_TIMESTAMP,
+            'last_login': SERVER_TIMESTAMP
+        }
+        user_ref.set(firestore_data)
         
         return user_data
         

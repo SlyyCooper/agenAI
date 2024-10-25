@@ -52,3 +52,4 @@ package-lock.json
 frontend/nextjs/config/firebase/serviceAccountKey.json
 backend/server/checklist.md
 backend/server/Data stored in firestore.md
+notes/notes.md
