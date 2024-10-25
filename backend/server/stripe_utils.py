@@ -27,6 +27,9 @@ async def handle_stripe_webhook(event):
         elif event['type'] == 'payment_intent.succeeded':
             payment_intent = event['data']['object']
             await handle_payment_success(payment_intent)
+        elif event['type'] == 'customer.created':
+            customer = event['data']['object']
+            await handle_customer_created(customer)
         elif event['type'] in ['charge.succeeded', 'charge.updated']:
             # Log but don't process these events
             print(f"Received {event['type']} event")
@@ -40,6 +43,29 @@ async def handle_stripe_webhook(event):
             status_code=500,
             content={"error": str(e)}
         )
+
+async def handle_customer_created(customer):
+    """Handle customer.created webhook event"""
+    try:
+        # Get user_id from customer metadata
+        user_id = customer.get('metadata', {}).get('user_id')
+        if not user_id:
+            logger.warning("No user_id found in customer metadata")
+            return
+
+        user_ref = db.collection('users').document(user_id)
+        
+        # Update user document with Stripe customer ID
+        user_ref.update({
+            'stripe_customer_id': customer['id'],
+            'stripe_created_at': firestore.SERVER_TIMESTAMP,
+            'last_updated': firestore.SERVER_TIMESTAMP
+        })
+        
+        logger.info(f"Successfully linked Stripe customer {customer['id']} to user {user_id}")
+    except Exception as e:
+        logger.error(f"Error handling customer.created event: {str(e)}")
+        raise
 
 async def fulfill_order(session):
     user_id = session['metadata']['user_id']
