@@ -37,14 +37,9 @@ async def create_user_profile(user_id: str, email: str, name: str = None):
         if name:
             user_data['name'] = name
             
-        # Updated transaction syntax
+        # Create user document
         user_ref = db.collection('users').document(user_id)
-        
-        def transaction_update(transaction):
-            transaction.set(user_ref, user_data)
-            
-        # Execute transaction
-        db.transaction(transaction_update)
+        user_ref.set(user_data)
         
         return user_data
         

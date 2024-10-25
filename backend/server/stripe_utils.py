@@ -63,16 +63,30 @@ async def handle_customer_created(customer):
             return
             
         user_ref = db.collection('users').document(user_id)
+        user_doc = user_ref.get()
         
-        # Update user document with Stripe customer info
-        user_ref.update({
-            'stripe_customer_id': customer['id'],
-            'stripe_created_at': firestore.SERVER_TIMESTAMP,
-            'customer_email': customer['email'],
-            'last_updated': firestore.SERVER_TIMESTAMP
-        })
-        
-        logger.info(f"Successfully processed customer.created for user {user_id}")
+        # Only update if document exists
+        if user_doc.exists:
+            user_ref.update({
+                'stripe_customer_id': customer['id'],
+                'stripe_created_at': firestore.SERVER_TIMESTAMP,
+                'customer_email': customer['email'],
+                'last_updated': firestore.SERVER_TIMESTAMP
+            })
+            logger.info(f"Successfully processed customer.created for user {user_id}")
+        else:
+            # Create new user document if it doesn't exist
+            user_ref.set({
+                'stripe_customer_id': customer['id'],
+                'stripe_created_at': firestore.SERVER_TIMESTAMP,
+                'customer_email': customer['email'],
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'last_updated': firestore.SERVER_TIMESTAMP,
+                'has_access': False,
+                'one_time_purchase': False
+            })
+            logger.info(f"Created new user document for {user_id}")
+            
     except Exception as e:
         logger.error(f"Error handling customer.created: {str(e)}")
         raise
