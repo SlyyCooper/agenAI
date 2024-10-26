@@ -30,8 +30,9 @@ async def handle_stripe_webhook(event):
         'invoice.paid': update_subscription_status,
         'customer.subscription.deleted': handle_subscription_cancellation,
         'payment_intent.succeeded': handle_payment_success,
-        'charge.succeeded': lambda x: logger.info("Received charge.succeeded event"),
-        'charge.updated': lambda x: logger.info("Received charge.updated event")
+        'payment_intent.created': handle_payment_intent_created,
+        'charge.succeeded': lambda x: handle_charge_succeeded(x),
+        'charge.updated': lambda x: handle_charge_updated(x)
     }
     
     try:
@@ -198,3 +199,16 @@ async def handle_payment_success(payment_intent):
             'last_payment_amount': payment_intent['amount'] / 100,
             'payment_status': 'succeeded'
         })
+
+async def handle_charge_succeeded(charge):
+    logger.info("Received charge.succeeded event")
+    return JSONResponse(content={"status": "success"})
+
+async def handle_charge_updated(charge):
+    logger.info("Received charge.updated event")
+    return JSONResponse(content={"status": "success"})
+
+async def handle_payment_intent_created(payment_intent):
+    """Handle payment_intent.created event"""
+    logger.info("Received payment_intent.created event")
+    return JSONResponse(content={"status": "success"})
