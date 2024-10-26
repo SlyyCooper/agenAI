@@ -5,7 +5,6 @@ import time
 import shutil
 from typing import Dict, List
 from fastapi.responses import JSONResponse
-from backend.server.firebase.firebase_utils import check_and_update_tokens
 from gpt_researcher.document.document import DocumentLoader
 # Add this import
 from backend.utils import write_md_to_pdf, write_md_to_word, write_text_to_md
@@ -20,7 +19,6 @@ from backend.server.firebase.storage.storage_utils import (
     delete_file_from_storage,
     list_files_in_storage
 )
-import logging
 
 
 def sanitize_filename(filename: str) -> str:
@@ -54,31 +52,24 @@ async def handle_start_command(websocket, data: str, manager):
         json_data)
 
     if not task or not report_type:
-        await websocket.send_json({"type": "error", "message": "Missing task or report_type"})
-        return
-
-    user_id = getattr(websocket, 'user_id', None)
-    if not user_id:
-        await websocket.send_json({"type": "error", "message": "No user ID found"})
-        return
-
-    # Check tokens before proceeding
-    has_tokens = await check_and_update_tokens(user_id)
-    if not has_tokens:
-        await websocket.send_json({
-            "type": "error", 
-            "message": "Insufficient tokens. Please purchase more to continue."
-        })
+        print("Error: Missing task or report_type")
         return
 
     sanitized_filename = sanitize_filename(task)
+    user_id = getattr(websocket, 'user_id', None)
+    
+    if not user_id:
+        print("Error: No user ID found")
+        return
+
+    # Prefix filename with user_id
     user_filename = f"{user_id}/{sanitized_filename}"
 
     report = await manager.start_streaming(
         task, report_type, report_source, source_urls, tone, websocket, headers
     )
     report = str(report)
-    file_paths = await generate_report_files(report, user_id, user_filename)
+    file_paths = await generate_report_files(report, user_filename)
     await send_file_paths(websocket, file_paths)
 
 
@@ -88,21 +79,11 @@ async def handle_human_feedback(data: str):
     # TODO: Add logic to forward the feedback to the appropriate agent or update the research state
 
 
-async def generate_report_files(report: str, user_id: str, filename: str = "") -> dict:
-    """Generate report files in different formats and return their Firebase Storage URLs."""
-    try:
-        md_url = await write_text_to_md(report, user_id, filename)
-        pdf_url = await write_md_to_pdf(report, user_id, filename)
-        docx_url = await write_md_to_word(report, user_id, filename)
-        
-        return {
-            "markdown": md_url,
-            "pdf": pdf_url,
-            "docx": docx_url
-        }
-    except Exception as e:
-        logging.error(f"Error generating report files: {e}")
-        return {}
+async def generate_report_files(report: str, filename: str) -> Dict[str, str]:
+    pdf_path = await write_md_to_pdf(report, filename)
+    docx_path = await write_md_to_word(report, filename)
+    md_path = await write_text_to_md(report, filename)
+    return {"pdf": pdf_path, "docx": docx_path, "md": md_path}
 
 
 async def send_file_paths(websocket, file_paths: Dict[str, str]):
@@ -224,4 +205,3 @@ def extract_command_data(json_data: Dict) -> tuple:
 
 # Load environment variables
 load_dotenv()
-
