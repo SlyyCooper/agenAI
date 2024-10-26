@@ -111,16 +111,12 @@ async def check_and_update_tokens(user_id: str) -> bool:
     Returns True if user has tokens available, False otherwise.
     """
     try:
-        # Get reference to user document in Firestore
         user_ref = db.collection('users').document(user_id)
+        user_data = await get_user_data(user_id)
         
-        # Get user data
-        doc = user_ref.get()
-        if not doc.exists:
+        if not user_data:
             logger.warning(f"No user data found for user: {user_id}")
             return False
-            
-        user_data = doc.to_dict()
             
         # Check if user has unlimited access
         if user_data.get('has_access', False):
@@ -132,16 +128,8 @@ async def check_and_update_tokens(user_id: str) -> bool:
             logger.warning(f"User {user_id} has no tokens remaining")
             return False
             
-        # Decrement token and update using the reference
-        user_ref.update({
-            'tokens': current_tokens - 1,
-            'token_history': ArrayUnion([{
-                'amount': -1,
-                'type': 'usage',
-                'timestamp': SERVER_TIMESTAMP
-            }])
-        })
-        
+        # Decrement token and update
+        await update_user_data(user_id, {'tokens': current_tokens - 1})
         logger.info(f"Decremented token for user {user_id}. Remaining: {current_tokens - 1}")
         return True
         
