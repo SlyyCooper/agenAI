@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import stripe
-from backend.server.firebase.firebase_utils import (
-    verify_firebase_token, 
-    get_user_data, 
+from backend.server.firebase.firebase_utils import verify_firebase_token
+from backend.server.firebase.firestore.firestore_utils import (
+    get_user_data,
     create_user_profile,
     update_user_data,
     update_payment_history
