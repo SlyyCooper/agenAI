@@ -86,53 +86,83 @@ class WebSocketManager:
 
 async def run_agent(task, report_type, report_source, source_urls, tone: Tone, websocket, headers=None):
     """Run the agent."""
-    start_time = datetime.datetime.now()
-    config_path = ""
-    if report_type == "multi_agents":
-        report = await run_research_task(query=task, websocket=websocket, stream_output=stream_output, tone=tone, headers=headers)
-        report = report.get("report", "")
-    elif report_type == ReportType.DetailedReport.value:
-        researcher = DetailedReport(
-            query=task,
-            report_type=report_type,
-            report_source=report_source,
-            source_urls=source_urls,
-            tone=tone,
-            config_path=config_path,
-            websocket=websocket,
-            headers=headers
-        )
-        report = await researcher.run()
-    else:
-        researcher = BasicReport(
-            query=task,
-            report_type=report_type,
-            report_source=report_source,
-            source_urls=source_urls,
-            tone=tone,
-            config_path=config_path,
-            websocket=websocket,
-            headers=headers
-        )
-        report = await researcher.run()
-
-    # measure time
-    end_time = datetime.datetime.now()
-    await websocket.send_json(
-        {"type": "logs", "output": f"\nTotal run time: {end_time - start_time}\n"}
-    )
-
-    # Get user_id from websocket
+    # Get user_id early and validate
     user_id = getattr(websocket, 'user_id', None)
     if not user_id:
         await websocket.send_json({"type": "error", "output": "No user ID found"})
         return
+
+    start_time = datetime.datetime.now()
+    config_path = ""
     
-    # Pass user_id when saving report
-    return {
-        "report": report,
-        "user_id": user_id
-    }
+    try:
+        if report_type == "multi_agents":
+            report = await run_research_task(
+                query=task, 
+                websocket=websocket, 
+                stream_output=stream_output, 
+                tone=tone, 
+                headers=headers,
+                user_id=user_id  # Pass user_id to research task
+            )
+            report = report.get("report", "")
+        elif report_type == ReportType.DetailedReport.value:
+            researcher = DetailedReport(
+                query=task,
+                report_type=report_type,
+                report_source=report_source,
+                source_urls=source_urls,
+                tone=tone,
+                config_path=config_path,
+                websocket=websocket,
+                headers=headers,
+                user_id=user_id  # Pass user_id to researcher
+            )
+            report = await researcher.run()
+        else:
+            researcher = BasicReport(
+                query=task,
+                report_type=report_type,
+                report_source=report_source,
+                source_urls=source_urls,
+                tone=tone,
+                config_path=config_path,
+                websocket=websocket,
+                headers=headers,
+                user_id=user_id  # Pass user_id to researcher
+            )
+            report = await researcher.run()
+
+        # Save report metadata to Firestore
+        report_ref = db.collection('users').document(user_id).collection('reports').document()
+        await report_ref.set({
+            'created_at': datetime.datetime.now(),
+            'query': task,
+            'report_type': report_type,
+            'report_source': report_source
+        })
+
+        # measure time
+        end_time = datetime.datetime.now()
+        await websocket.send_json(
+            {"type": "logs", "output": f"\nTotal run time: {end_time - start_time}\n"}
+        )
+
+        # Get user_id from websocket
+        user_id = getattr(websocket, 'user_id', None)
+        if not user_id:
+            await websocket.send_json({"type": "error", "output": "No user ID found"})
+            return
+        
+        # Pass user_id when saving report
+        return {
+            "report": report,
+            "user_id": user_id
+        }
+
+    except Exception as e:
+        await websocket.send_json({"type": "error", "output": str(e)})
+        return
 
 # Load environment variables
 load_dotenv()
