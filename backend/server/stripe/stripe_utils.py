@@ -119,22 +119,16 @@ async def fulfill_order(session):
                 'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
                 'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID")
             })
-        elif session['mode'] == 'payment':
-            # Get the product details to determine token amount
-            price_id = session['line_items']['data'][0]['price']['id']
-            product = stripe.Price.retrieve(price_id).product
-            token_amount = int(product.metadata.get('token_amount', 5))  # Default to 5 if not specified
-            
+        elif session['mode'] == 'payment':  # Explicitly check for one-time payment
             update_data.update({
                 'one_time_purchase': True,
                 'purchase_date': firestore.SERVER_TIMESTAMP,
                 'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
-                'price_id': price_id,
-                'tokens': firestore.Increment(token_amount),
+                'price_id': os.getenv("STRIPE_ONETIME_PRICE_ID"),
+                'tokens': firestore.Increment(5),
                 'token_history': firestore.ArrayUnion([{
-                    'amount': token_amount,
+                    'amount': 5,
                     'type': 'purchase',
-                    'price_paid': session['amount_total'] / 100,
                     'timestamp': firestore.SERVER_TIMESTAMP
                 }])
             })

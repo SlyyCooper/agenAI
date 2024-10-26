@@ -239,7 +239,8 @@ async def catch_all(request: Request, path_name: str):
     # Add specific handling for the common stripe_hook misrouting
     if path_name == "stripe_hook":
         logger.warning("""
-        Redirecting to "/api/stripe/webhook"
+        Deprecated Stripe webhook path accessed. 
+        Please update webhook URL to: /api/stripe/webhook
         """)
         # Redirect to correct endpoint
         return JSONResponse(
