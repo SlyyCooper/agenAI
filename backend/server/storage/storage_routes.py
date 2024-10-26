@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from backend.server.firebase.firebase_utils import verify_firebase_token
-from backend.server.firebase.storage.storage_utils import (
+from backend.server.storage.storage_utils import (
     upload_file_to_storage,
     delete_file_from_storage,
     list_files_in_storage,

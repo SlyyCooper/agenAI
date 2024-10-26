@@ -14,7 +14,7 @@ from backend.server.firebase.firebase_init import db
 from firebase_admin import auth, firestore
 from dotenv import load_dotenv
 from urllib.parse import urlparse
-from backend.server.firebase.storage.storage_utils import (
+from backend.server.storage.storage_utils import (
     upload_file_to_storage,
     delete_file_from_storage,
     list_files_in_storage

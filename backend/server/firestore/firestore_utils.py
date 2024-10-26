@@ -1,4 +1,4 @@
-from backend.server.firebase.firestore.firestore_init import db, SERVER_TIMESTAMP, ArrayUnion
+from backend.server.firestore.firestore_init import db, SERVER_TIMESTAMP, ArrayUnion
 import logging
 import stripe
 from datetime import datetime

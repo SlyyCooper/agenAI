@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from fastapi.responses import JSONResponse
 from backend.server.firebase.firebase_init import db
-from backend.server.firebase.firestore.firestore_init import firestore
+from backend.server.firestore.firestore_init import firestore
 from backend.server.stripe.stripe_init import stripe_client as stripe
 import logging
 

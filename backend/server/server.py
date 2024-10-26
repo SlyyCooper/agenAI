@@ -14,10 +14,12 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
+from backend.server.storage import storage_routes
 from backend.server.stripe.stripe_init import initialize_stripe
 from backend.server.firebase.firebase_init import db, initialize_firebase
-from backend.server.routes import user_routes, stripe_routes, storage_routes  # Add storage_routes
+from backend.server.firestore import firestore_routes  # Add storage_routes
 from backend.server.server_utils import generate_report_files
+from backend.server.stripe import stripe_routes
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
 from gpt_researcher.document.document import DocumentLoader
@@ -160,7 +162,7 @@ load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 # Include routers
-app.include_router(user_routes.router)
+app.include_router(firestore_routes.router)
 app.include_router(stripe_routes.router)
 app.include_router(storage_routes.router)
 
