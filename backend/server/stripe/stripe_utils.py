@@ -125,8 +125,8 @@ async def fulfill_order(session):
                 'purchase_date': firestore.SERVER_TIMESTAMP,
                 'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
                 'price_id': os.getenv("STRIPE_ONETIME_PRICE_ID"),
-                'tokens': firestore.Increment(5),
-                'token_history': firestore.ArrayUnion([{
+                'remaining_reports': firestore.Increment(5),
+                'report_history': firestore.ArrayUnion([{
                     'amount': 5,
                     'type': 'purchase',
                     'timestamp': firestore.SERVER_TIMESTAMP

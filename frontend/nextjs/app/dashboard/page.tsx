@@ -19,8 +19,9 @@ import {
   cancelSubscription
 } from '@/actions/stripeAPI';
 
-// Add import at the top
-import TokenDisplay from '@/components/userinfo/TokenDisplay';
+// Update imports at the top
+import { getUserReports, type ReportsResponse } from '@/actions/reportAPI';
+import ReportDisplay from '@/components/userinfo/ReportDisplay';  // We'll rename this file later
 
 // Types
 interface DashboardData {
@@ -28,6 +29,7 @@ interface DashboardData {
   subscription: SubscriptionData | null;
   payments: PaymentHistory['payments'];
   accessStatus: AccessStatus | null;
+  reportsData: ReportsResponse | null;  // Add this
 }
 
 export default function DashboardPage() {
@@ -39,7 +41,8 @@ export default function DashboardPage() {
     profile: null,
     subscription: null,
     payments: [],
-    accessStatus: null
+    accessStatus: null,
+    reportsData: null  // Add this
   });
 
   // Authentication check
@@ -64,18 +67,20 @@ export default function DashboardPage() {
           profile: contextProfile
         }));
 
-        // Load additional data in parallel
-        const [subscriptionData, paymentData, accessData] = await Promise.all([
+        // Load all data in parallel
+        const [subscriptionData, paymentData, accessData, reportsData] = await Promise.all([
           getUserSubscription(),
           getPaymentHistory(),
-          getAccessStatus()
+          getAccessStatus(),
+          getUserReports()
         ]);
 
         setDashboardData(prev => ({
           ...prev,
           subscription: subscriptionData,
           payments: paymentData.payments,
-          accessStatus: accessData
+          accessStatus: accessData,
+          reportsData: reportsData
         }));
       } catch (error) {
         console.error('Error loading dashboard data:', error);
@@ -131,7 +136,32 @@ export default function DashboardPage() {
     }
   };
 
-  const { profile, subscription, payments, accessStatus } = dashboardData;
+  const { profile, subscription, payments, accessStatus, reportsData } = dashboardData;
+
+  const refreshDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [subscriptionData, paymentData, accessData, reportsData] = await Promise.all([
+        getUserSubscription(),
+        getPaymentHistory(),
+        getAccessStatus(),
+        getUserReports()
+      ]);
+
+      setDashboardData(prev => ({
+        ...prev,
+        subscription: subscriptionData,
+        payments: paymentData.payments,
+        accessStatus: accessData,
+        reportsData: reportsData
+      }));
+    } catch (error) {
+      console.error('Error refreshing dashboard data:', error);
+      setError('Failed to refresh dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
@@ -158,14 +188,61 @@ export default function DashboardPage() {
                   <p className="font-medium">{profile.name || 'Not set'}</p>
                 </div>
               </div>
-              {/* Add Token Display */}
+              {/* Update Token Display to Report Display */}
               <div className="border-t pt-4">
-                <p className="text-gray-600 mb-2">Available Tokens</p>
-                <TokenDisplay size="large" className="ml-2" />
+                <p className="text-gray-600 mb-2">Available Reports</p>
+                <ReportDisplay size="large" className="ml-2" />
               </div>
             </div>
           )}
         </div>
+
+        {/* Report History Section - New */}
+        {reportsData && reportsData.report_history.length > 0 && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 className="text-2xl font-bold mb-4">Report History</h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead>
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Reason
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {reportsData.report_history.map((record, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {new Date(record.timestamp).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {record.type}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={record.amount > 0 ? 'text-green-600' : 'text-red-600'}>
+                          {record.amount > 0 ? '+' : ''}{record.amount}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {record.reason || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Subscription Status */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">

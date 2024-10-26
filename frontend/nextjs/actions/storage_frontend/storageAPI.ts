@@ -1,6 +1,6 @@
 import { getAuth } from 'firebase/auth';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
 
 export const storageAPI = {
   // Upload file
