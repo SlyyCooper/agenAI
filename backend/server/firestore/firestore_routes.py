@@ -37,6 +37,9 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
                 name=current_user.get('name', '')
             )
         
+        # Add token information to profile response
+        user_data['token_balance'] = user_data.get('tokens', 0)
+        
         # Add subscription check
         if user_data.get('subscription_id'):
             try:

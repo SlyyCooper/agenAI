@@ -22,12 +22,16 @@ import {
 // Add import at the top
 import TokenDisplay from '@/components/userinfo/TokenDisplay';
 
+// Add import
+import { getTokenBalance, type TokenBalance } from '@/actions/tokenAPI';
+
 // Types
 interface DashboardData {
   profile: UserProfile | null;
   subscription: SubscriptionData | null;
   payments: PaymentHistory['payments'];
   accessStatus: AccessStatus | null;
+  tokenBalance: TokenBalance | null; // Add this
 }
 
 export default function DashboardPage() {
@@ -39,7 +43,8 @@ export default function DashboardPage() {
     profile: null,
     subscription: null,
     payments: [],
-    accessStatus: null
+    accessStatus: null,
+    tokenBalance: null // Add this
   });
 
   // Authentication check
@@ -58,24 +63,21 @@ export default function DashboardPage() {
         setLoading(true);
         setError(null);
 
-        // Use context profile as initial data
-        setDashboardData(prev => ({
-          ...prev,
-          profile: contextProfile
-        }));
-
-        // Load additional data in parallel
-        const [subscriptionData, paymentData, accessData] = await Promise.all([
+        // Add token balance to parallel requests
+        const [subscriptionData, paymentData, accessData, tokenData] = await Promise.all([
           getUserSubscription(),
           getPaymentHistory(),
-          getAccessStatus()
+          getAccessStatus(),
+          getTokenBalance() // Add this
         ]);
 
         setDashboardData(prev => ({
           ...prev,
+          profile: contextProfile,
           subscription: subscriptionData,
           payments: paymentData.payments,
-          accessStatus: accessData
+          accessStatus: accessData,
+          tokenBalance: tokenData // Add this
         }));
       } catch (error) {
         console.error('Error loading dashboard data:', error);
@@ -131,7 +133,7 @@ export default function DashboardPage() {
     }
   };
 
-  const { profile, subscription, payments, accessStatus } = dashboardData;
+  const { profile, subscription, payments, accessStatus, tokenBalance } = dashboardData;
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
@@ -161,7 +163,11 @@ export default function DashboardPage() {
               {/* Add Token Display */}
               <div className="border-t pt-4">
                 <p className="text-gray-600 mb-2">Available Tokens</p>
-                <TokenDisplay size="large" className="ml-2" />
+                <TokenDisplay 
+                  size="large" 
+                  className="ml-2" 
+                  initialBalance={tokenBalance?.balance} 
+                />
               </div>
             </div>
           )}

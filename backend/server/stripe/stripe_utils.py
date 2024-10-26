@@ -5,6 +5,18 @@ from backend.server.firebase.firebase_init import db
 from backend.server.firestore.firestore_init import firestore
 from backend.server.stripe.stripe_init import stripe_client as stripe
 import logging
+from backend.server.firestore.firestore_utils import (
+    handle_subscription_tokens,
+    handle_one_time_purchase_tokens,
+    update_user_tokens
+)
+from backend.server.token_management.token_utils import (
+    SUBSCRIPTION_MONTHLY_TOKENS,
+    ONE_TIME_PURCHASE_TOKENS,
+    TOKEN_OPERATION_SUBSCRIPTION,
+    TOKEN_OPERATION_RENEWAL,
+    TOKEN_OPERATION_PURCHASE
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +101,15 @@ async def fulfill_order(session):
     if not user_id:
         logger.error("No user_id found in session metadata")
         raise ValueError("Missing user_id in session metadata")
-        
-    user_ref = db.collection('users').document(user_id)
+    
+    try:
+        if session['mode'] == 'subscription':
+            await update_user_tokens(user_id, SUBSCRIPTION_MONTHLY_TOKENS, TOKEN_OPERATION_SUBSCRIPTION)
+        elif session['mode'] == 'payment':
+            await update_user_tokens(user_id, ONE_TIME_PURCHASE_TOKENS, TOKEN_OPERATION_PURCHASE)
+    except Exception as e:
+        logger.error(f"Error handling tokens: {str(e)}")
+        raise
     
     @db.transactional
     def update_in_transaction(transaction, user_ref, session):
@@ -119,36 +138,29 @@ async def fulfill_order(session):
                 'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
                 'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID")
             })
-        elif session['mode'] == 'payment':  # Explicitly check for one-time payment
+            
+        elif session['mode'] == 'payment':
             update_data.update({
                 'one_time_purchase': True,
                 'purchase_date': firestore.SERVER_TIMESTAMP,
                 'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
-                'price_id': os.getenv("STRIPE_ONETIME_PRICE_ID"),
-                'tokens': firestore.Increment(5),
-                'token_history': firestore.ArrayUnion([{
-                    'amount': 5,
-                    'type': 'purchase',
-                    'timestamp': firestore.SERVER_TIMESTAMP
-                }])
+                'price_id': os.getenv("STRIPE_ONETIME_PRICE_ID")
             })
         else:
             raise ValueError(f"Unexpected session mode: {session['mode']}")
         
         transaction.update(user_ref, update_data)
-    
-    try:
-        # Execute the transaction
-        transaction = db.transaction()
-        update_in_transaction(transaction, user_ref, session)
-        logger.info(f"Order fulfilled for user {user_id}")
-    except Exception as e:
-        logger.error(f"Error fulfilling order: {str(e)}")
-        raise
 
 async def update_subscription_status(invoice):
     user_id = invoice['metadata']['user_id']
     user_ref = db.collection('users').document(user_id)
+    
+    # Move token handling outside the transaction
+    try:
+        await handle_subscription_tokens(user_id, is_renewal=True)
+    except Exception as e:
+        logger.error(f"Error handling subscription tokens: {str(e)}")
+        raise
     
     transaction = db.transaction()
     
@@ -164,13 +176,6 @@ async def update_subscription_status(invoice):
             'has_access': True,
             'last_updated': firestore.SERVER_TIMESTAMP
         })
-    
-    try:
-        update_in_transaction(transaction)
-        logger.info(f"Subscription updated for user {user_id}")
-    except Exception as e:
-        logger.error(f"Error updating subscription: {str(e)}")
-        raise
 
 async def handle_subscription_cancellation(subscription):
     user_id = subscription['metadata']['user_id']
