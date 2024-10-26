@@ -1,18 +1,15 @@
 import os
 from datetime import datetime
-import stripe
 from fastapi.responses import JSONResponse
 from backend.server.firebase.firebase_init import db
 from backend.server.firebase.firestore.firestore_init import firestore
+from backend.server.stripe.stripe_init import stripe_client as stripe
 import logging
 
 logger = logging.getLogger(__name__)
 
 # Add a set to track processed webhook events
 processed_events = set()
-
-def initialize_stripe():
-    stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 async def handle_stripe_webhook(event):
     """Handle Stripe webhook events."""
@@ -22,7 +19,7 @@ async def handle_stripe_webhook(event):
         return JSONResponse(content={"status": "skipped", "reason": "duplicate"})
     
     processed_events.add(event_id)
-    logger.info(f"Processing Stripe webhook event: {event['type']}")
+    logger.info(f"Processing Stripe webhook event: {event['xtype']}")
     
     handlers = {
         'customer.created': handle_customer_created,

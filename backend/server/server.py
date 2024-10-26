@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
-from backend.server.stripe.stripe_utils import initialize_stripe
+from backend.server.stripe.stripe_init import initialize_stripe
 from backend.server.firebase.firebase_init import db, initialize_firebase
 from backend.server.routes import user_routes, stripe_routes, storage_routes  # Add storage_routes
 from backend.server.server_utils import generate_report_files
@@ -30,7 +30,7 @@ from backend.server.server_utils import (
 )
 import logging
 
-# Add at the top of the file
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'

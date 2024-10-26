@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Request, HTTPException, Depends, logger
+import logging
+from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import stripe
 import os
@@ -6,6 +7,9 @@ from backend.server.stripe.stripe_utils import handle_stripe_webhook
 from backend.server.firebase.firebase_utils import verify_firebase_token
 from backend.server.firebase.firestore.firestore_utils import get_user_data
 from pydantic import BaseModel
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/stripe",
@@ -148,7 +152,7 @@ async def get_subscription_status(current_user: dict = Depends(get_current_user)
 
 @router.get("/products")
 async def get_products():
-    print("Products endpoint hit")
+    logger.info("Products endpoint hit")
     try:
         products = {
             'subscription': {
@@ -183,8 +187,8 @@ async def get_products():
         products['subscription']['price'] = subscription_price.unit_amount / 100
         products['one_time']['price'] = onetime_price.unit_amount / 100
 
-        print(f"Returning products: {products}")
+        logger.info(f"Returning products: {products}")
         return products
     except Exception as e:
-        print(f"Error in get_products: {str(e)}")
+        logger.error(f"Error in get_products: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
