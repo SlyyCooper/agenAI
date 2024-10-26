@@ -92,62 +92,68 @@ async def fulfill_order(session):
         
     user_ref = db.collection('users').document(user_id)
     
-    @db.transactional
-    def update_in_transaction(transaction, user_ref, session):
-        user_doc = user_ref.get(transaction=transaction)
-        if not user_doc.exists:
-            raise ValueError(f"User {user_id} not found")
-            
-        # Verify the payment was successful
-        if session.get('payment_status') != 'paid':
-            raise ValueError("Payment was not successful")
-
-        update_data = {
-            'has_access': True,
-            'last_updated': firestore.SERVER_TIMESTAMP
-        }
-            
-        if session['mode'] == 'subscription':
-            subscription_id = session['subscription']
-            subscription = stripe.Subscription.retrieve(subscription_id)
-            current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
-            
-            update_data.update({
-                'subscription_status': 'active',
-                'subscription_id': subscription_id,
-                'subscription_end_date': current_period_end,
-                'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
-                'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID")
-            })
-        elif session['mode'] == 'payment':
-            # Get the product details to determine token amount
-            price_id = session['line_items']['data'][0]['price']['id']
-            product = stripe.Price.retrieve(price_id).product
-            token_amount = int(product.metadata.get('token_amount', 5))  # Default to 5 if not specified
-            
-            update_data.update({
-                'one_time_purchase': True,
-                'purchase_date': firestore.SERVER_TIMESTAMP,
-                'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
-                'price_id': price_id,
-                'tokens': firestore.Increment(token_amount),
-                'token_history': firestore.ArrayUnion([{
-                    'amount': token_amount,
-                    'type': 'purchase',
-                    'price_paid': session['amount_total'] / 100,
-                    'timestamp': firestore.SERVER_TIMESTAMP
-                }])
-            })
-        else:
-            raise ValueError(f"Unexpected session mode: {session['mode']}")
-        
-        transaction.update(user_ref, update_data)
-    
     try:
-        # Execute the transaction
+        # Create transaction
         transaction = db.transaction()
-        update_in_transaction(transaction, user_ref, session)
-        logger.info(f"Order fulfilled for user {user_id}")
+        
+        def update_in_transaction(transaction):
+            # Get user document in transaction
+            user_doc = user_ref.get(transaction=transaction)
+            if not user_doc.exists:
+                raise ValueError(f"User {user_id} not found")
+                
+            # Verify the payment was successful
+            if session.get('payment_status') != 'paid':
+                raise ValueError("Payment was not successful")
+
+            update_data = {
+                'has_access': True,
+                'last_updated': firestore.SERVER_TIMESTAMP
+            }
+                
+            if session['mode'] == 'subscription':
+                subscription_id = session['subscription']
+                subscription = stripe.Subscription.retrieve(subscription_id)
+                current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+                
+                update_data.update({
+                    'subscription_status': 'active',
+                    'subscription_id': subscription_id,
+                    'subscription_end_date': current_period_end,
+                    'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
+                    'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID")
+                })
+            elif session['mode'] == 'payment':
+                # Get the product details to determine token amount
+                price_id = session['line_items']['data'][0]['price']['id']
+                product = stripe.Price.retrieve(price_id).product
+                token_amount = int(product.metadata.get('token_amount', 5))  # Default to 5 if not specified
+                
+                update_data.update({
+                    'one_time_purchase': True,
+                    'purchase_date': firestore.SERVER_TIMESTAMP,
+                    'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
+                    'price_id': price_id,
+                    'tokens': firestore.Increment(token_amount),
+                    'token_history': firestore.ArrayUnion([{
+                        'amount': token_amount,
+                        'type': 'purchase',
+                        'price_paid': session['amount_total'] / 100,
+                        'timestamp': firestore.SERVER_TIMESTAMP
+                    }])
+                })
+            else:
+                raise ValueError(f"Unexpected session mode: {session['mode']}")
+            
+            # Update document in transaction
+            transaction.update(user_ref, update_data)
+            return update_data
+
+        # Execute the transaction
+        update_data = transaction.run(update_in_transaction)
+        logger.info(f"Order fulfilled for user {user_id}: {update_data}")
+        return update_data
+        
     except Exception as e:
         logger.error(f"Error fulfilling order: {str(e)}")
         raise
@@ -156,24 +162,30 @@ async def update_subscription_status(invoice):
     user_id = invoice['metadata']['user_id']
     user_ref = db.collection('users').document(user_id)
     
-    transaction = db.transaction()
-    
-    @transaction.transactional
-    def update_in_transaction(transaction):
-        subscription = stripe.Subscription.retrieve(invoice['subscription'])
-        current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
-        
-        transaction.update(user_ref, {
-            'subscription_status': 'active',
-            'last_payment_date': firestore.SERVER_TIMESTAMP,
-            'subscription_end_date': current_period_end,
-            'has_access': True,
-            'last_updated': firestore.SERVER_TIMESTAMP
-        })
-    
     try:
-        update_in_transaction(transaction)
-        logger.info(f"Subscription updated for user {user_id}")
+        # Create transaction
+        transaction = db.transaction()
+        
+        def update_in_transaction(transaction):
+            subscription = stripe.Subscription.retrieve(invoice['subscription'])
+            current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+            
+            update_data = {
+                'subscription_status': 'active',
+                'last_payment_date': firestore.SERVER_TIMESTAMP,
+                'subscription_end_date': current_period_end,
+                'has_access': True,
+                'last_updated': firestore.SERVER_TIMESTAMP
+            }
+            
+            transaction.update(user_ref, update_data)
+            return update_data
+        
+        # Execute the transaction
+        update_data = transaction.run(update_in_transaction)
+        logger.info(f"Subscription updated for user {user_id}: {update_data}")
+        return update_data
+        
     except Exception as e:
         logger.error(f"Error updating subscription: {str(e)}")
         raise
