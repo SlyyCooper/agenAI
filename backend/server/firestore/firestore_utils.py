@@ -2,7 +2,6 @@ from backend.server.firestore.firestore_init import db, SERVER_TIMESTAMP, ArrayU
 import logging
 import stripe
 from datetime import datetime
-from backend.server.token_management.token_utils import SUBSCRIPTION_MONTHLY_TOKENS, ONE_TIME_PURCHASE_TOKENS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,11 +32,7 @@ async def create_user_profile(user_id: str, email: str, name: str = None):
             'stripe_customer_id': customer.id,
             'has_access': False,
             'one_time_purchase': False,
-            'tokens': 0,  # Initialize tokens to 0
-            'token_history': [],  # Initialize empty token history
-            'subscription_status': None,
-            'subscription_id': None,
-            'subscription_end_date': None
+            'tokens': 0
         }
         if name:
             user_data['name'] = name
@@ -118,51 +113,3 @@ async def create_report_document(user_id: str, report_data: dict):
     except Exception as e:
         logger.error(f"Error creating report document: {str(e)}")
         raise
-
-async def update_user_tokens(user_id: str, amount: int, reason: str):
-    """Update user's token balance and history."""
-    try:
-        user_ref = db.collection('users').document(user_id)
-        
-        update_data = {
-            'tokens': db.Increment(amount),
-            'token_history': ArrayUnion([{
-                'amount': amount,
-                'type': reason,
-                'timestamp': SERVER_TIMESTAMP
-            }])
-        }
-        
-        user_ref.update(update_data)
-        logger.info(f"Updated tokens for user {user_id}: {amount} tokens ({reason})")
-        return True
-    except Exception as e:
-        logger.error(f"Error updating user tokens: {str(e)}")
-        raise
-
-async def get_user_token_balance(user_id: str) -> int:
-    """Get user's current token balance."""
-    try:
-        user_data = await get_user_data(user_id)
-        return user_data.get('tokens', 0) if user_data else 0
-    except Exception as e:
-        logger.error(f"Error getting token balance: {str(e)}")
-        raise
-
-async def get_user_token_history(user_id: str) -> list:
-    """Get user's token transaction history."""
-    try:
-        user_data = await get_user_data(user_id)
-        return user_data.get('token_history', []) if user_data else []
-    except Exception as e:
-        logger.error(f"Error getting token history: {str(e)}")
-        raise
-
-async def handle_subscription_tokens(user_id: str, is_renewal: bool = False):
-    """Handle token updates for subscription events."""
-    reason = 'subscription_renewal' if is_renewal else 'subscription'
-    return await update_user_tokens(user_id, SUBSCRIPTION_MONTHLY_TOKENS, reason)
-
-async def handle_one_time_purchase_tokens(user_id: str):
-    """Handle token updates for one-time purchases."""
-    return await update_user_tokens(user_id, ONE_TIME_PURCHASE_TOKENS, 'purchase')

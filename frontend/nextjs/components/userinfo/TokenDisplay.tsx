@@ -1,35 +1,27 @@
 import { useEffect, useState } from 'react';
-import { getTokenBalance } from '../../actions/tokenAPI';
+import { getUserProfile } from '../../actions/userprofileAPI';
 
 interface TokenDisplayProps {
   className?: string;
   showLabel?: boolean;
   size?: 'small' | 'medium' | 'large';
-  initialBalance?: number; // Add this
 }
 
-const TokenDisplay = ({ 
-  className = '', 
-  showLabel = true, 
-  size = 'medium',
-  initialBalance 
-}: TokenDisplayProps) => {
-  const [tokens, setTokens] = useState<number | null>(initialBalance ?? null);
+const TokenDisplay = ({ className = '', showLabel = true, size = 'medium' }: TokenDisplayProps) => {
+  const [tokens, setTokens] = useState<number | null>(null);
 
   useEffect(() => {
-    // Only fetch if no initial balance provided
-    if (initialBalance === undefined) {
-      const fetchTokens = async () => {
-        try {
-          const response = await getTokenBalance();
-          setTokens(response.balance);
-        } catch (error) {
-          console.error('Error fetching tokens:', error);
-        }
-      };
-      fetchTokens();
-    }
-  }, [initialBalance]);
+    const fetchTokens = async () => {
+      try {
+        const profile = await getUserProfile();
+        setTokens(profile.tokens);
+      } catch (error) {
+        console.error('Error fetching tokens:', error);
+      }
+    };
+
+    fetchTokens();
+  }, []);
 
   const sizeClasses = {
     small: 'text-sm',
@@ -61,3 +53,4 @@ const TokenDisplay = ({
 };
 
 export default TokenDisplay;
+
