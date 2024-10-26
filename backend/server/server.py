@@ -236,6 +236,21 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def catch_all(request: Request, path_name: str):
+    # Add specific handling for the common stripe_hook misrouting
+    if path_name == "stripe_hook":
+        logger.warning("""
+        Deprecated Stripe webhook path accessed. 
+        Please update webhook URL to: /api/stripe/webhook
+        """)
+        # Redirect to correct endpoint
+        return JSONResponse(
+            status_code=308,
+            content={
+                "detail": "This endpoint has moved to /api/stripe/webhook",
+                "permanent_redirect": "/api/stripe/webhook"
+            }
+        )
+
     logger.warning(f"""
     Unmatched Route Accessed:
     - Path: {path_name}

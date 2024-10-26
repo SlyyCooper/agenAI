@@ -19,7 +19,7 @@ async def handle_stripe_webhook(event):
         return JSONResponse(content={"status": "skipped", "reason": "duplicate"})
     
     processed_events.add(event_id)
-    logger.info(f"Processing Stripe webhook event: {event['xtype']}")
+    logger.info(f"Processing Stripe webhook event: {event['type']}")
     
     handlers = {
         'customer.created': handle_customer_created,
