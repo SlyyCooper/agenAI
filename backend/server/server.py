@@ -106,7 +106,8 @@ app.add_middleware(
         "https://agenai.app",
         "https://www.agenai.app",
         "http://agenai.app",
-        "http://www.agenai.app"
+        "http://www.agenai.app",
+        "https://orca-app-jfdlt.ondigitalocean.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
