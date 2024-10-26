@@ -29,18 +29,30 @@ class CheckoutSessionRequest(BaseModel):
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
     try:
+        # Add detailed webhook logging
+        logger.info(f"""
+        Webhook Request Details:
+        - Full URL: {request.url}
+        - Base URL: {request.base_url}
+        - Headers: {request.headers}
+        - Client: {request.client.host if request.client else 'Unknown'}
+        - Stripe-Signature: {request.headers.get('Stripe-Signature', 'Not Found')}
+        """)
+        
         payload = await request.body()
         sig_header = request.headers.get("Stripe-Signature")
         
         if not sig_header:
+            logger.warning("No Stripe signature found in headers")
             raise HTTPException(status_code=400, detail="No Stripe signature found")
             
         event = stripe.Webhook.construct_event(
             payload, sig_header, os.getenv("STRIPE_WEBHOOK_SECRET")
         )
+        logger.info(f"Successfully constructed Stripe event: {event.type}")
         return await handle_stripe_webhook(event)
     except Exception as e:
-        print(f"Webhook error: {str(e)}")
+        logger.error(f"Webhook error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/create-checkout-session")

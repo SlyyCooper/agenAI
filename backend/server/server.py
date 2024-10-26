@@ -116,9 +116,27 @@ app.add_middleware(
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
+    
+    # Log detailed request information
+    logger.info(f"""
+    Request Details:
+    - Method: {request.method}
+    - URL: {request.url}
+    - Path: {request.url.path}
+    - Headers: {request.headers}
+    - Client Host: {request.client.host if request.client else 'Unknown'}
+    """)
+    
     response = await call_next(request)
     duration = time.time() - start_time
-    print(f"Request: {request.method} {request.url.path} - Status: {response.status_code} - Duration: {duration:.2f}s")
+    
+    logger.info(f"""
+    Response Details:
+    - Status: {response.status_code}
+    - Duration: {duration:.2f}s
+    - Path: {request.url.path}
+    """)
+    
     return response
 
 @app.exception_handler(HTTPException)
@@ -215,3 +233,14 @@ async def websocket_endpoint(websocket: WebSocket):
             await handle_websocket_communication(websocket, manager)
         except WebSocketDisconnect:
             await manager.disconnect(websocket)
+
+@app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def catch_all(request: Request, path_name: str):
+    logger.warning(f"""
+    Unmatched Route Accessed:
+    - Path: {path_name}
+    - Full URL: {request.url}
+    - Method: {request.method}
+    - Headers: {request.headers}
+    """)
+    raise HTTPException(status_code=404, detail=f"Path not found: {path_name}")
