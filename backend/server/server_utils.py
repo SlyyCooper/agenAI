@@ -48,28 +48,35 @@ def sanitize_filename(filename: str) -> str:
 
 async def handle_start_command(websocket, data: str, manager):
     json_data = json.loads(data[6:])
-    task, report_type, source_urls, tone, headers, report_source = extract_command_data(
-        json_data)
-
-    if not task or not report_type:
-        print("Error: Missing task or report_type")
-        return
-
-    sanitized_filename = sanitize_filename(task)
-    user_id = getattr(websocket, 'user_id', None)
+    task, report_type, source_urls, tone, headers, report_source = extract_command_data(json_data)
     
+    user_id = getattr(websocket, 'user_id', None)
     if not user_id:
-        print("Error: No user ID found")
+        await websocket.send_json({"type": "error", "output": "No user ID found"})
         return
 
-    # Prefix filename with user_id
-    user_filename = f"{user_id}/{sanitized_filename}"
-
-    report = await manager.start_streaming(
+    report_data = await manager.start_streaming(
         task, report_type, report_source, source_urls, tone, websocket, headers
     )
-    report = str(report)
-    file_paths = await generate_report_files(report, user_filename)
+    
+    # Generate files with user-specific paths
+    sanitized_filename = sanitize_filename(task)
+    file_paths = await generate_report_files(
+        report_data["report"], 
+        sanitized_filename,
+        user_id
+    )
+    
+    # Store report metadata in Firestore
+    report_ref = db.collection('users').document(user_id).collection('reports').document()
+    await report_ref.set({
+        'task': task,
+        'report_type': report_type,
+        'created_at': firestore.SERVER_TIMESTAMP,
+        'file_paths': file_paths,
+        'status': 'completed'
+    })
+
     await send_file_paths(websocket, file_paths)
 
 
@@ -79,7 +86,7 @@ async def handle_human_feedback(data: str):
     # TODO: Add logic to forward the feedback to the appropriate agent or update the research state
 
 
-async def generate_report_files(report: str, filename: str) -> Dict[str, str]:
+async def generate_report_files(report: str, filename: str, user_id: str) -> Dict[str, str]:
     pdf_path = await write_md_to_pdf(report, filename)
     docx_path = await write_md_to_word(report, filename)
     md_path = await write_text_to_md(report, filename)

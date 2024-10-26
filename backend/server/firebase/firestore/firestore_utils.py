@@ -95,3 +95,21 @@ async def update_payment_history(user_id: str, payment_data: dict):
         logger.error(f"Error updating payment history: {str(e)}")
         raise
 
+async def create_report_document(user_id: str, report_data: dict):
+    """Create a new report document in Firestore."""
+    try:
+        report_ref = db.collection('users').document(user_id)\
+                      .collection('reports').document()
+        
+        report_ref.set({
+            'title': report_data['title'],
+            'created_at': SERVER_TIMESTAMP,
+            'file_urls': report_data['file_urls'],
+            'query': report_data['query'],
+            'report_type': report_data['report_type']
+        })
+        
+        return report_ref.id
+    except Exception as e:
+        logger.error(f"Error creating report document: {str(e)}")
+        raise

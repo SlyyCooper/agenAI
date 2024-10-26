@@ -4,6 +4,8 @@
 import aiofiles
 import urllib
 import mistune
+from backend.server.firebase.storage.storage_utils import upload_file_to_storage
+import io
 
 async def write_to_file(filename: str, text: str) -> None:
     """Asynchronously write text to a file in UTF-8 encoding.
@@ -25,66 +27,40 @@ async def write_to_file(filename: str, text: str) -> None:
     async with aiofiles.open(filename, "w", encoding='utf-8') as file:
         await file.write(text_utf8)
 
-async def write_text_to_md(text: str, filename: str = "") -> str:
-    """Writes text to a Markdown file and returns the file path.
+async def write_text_to_md(text: str, filename: str, user_id: str) -> str:
+    """Save Markdown to Firebase Storage with user-specific path"""
+    return await write_to_firebase_storage(
+        text, 
+        f"{filename}.md",
+        'text/markdown',
+        user_id
+    )
 
-    This function is used to save the research report in Markdown format.
-    It's part of the report generation process, providing a basic text format output.
+async def write_md_to_pdf(text: str, filename: str, user_id: str) -> str:
+    """Convert to PDF and save to Firebase Storage with user-specific path"""
+    # Convert to PDF in memory
+    from md2pdf.core import md2pdf
+    pdf_buffer = io.BytesIO()
+    md2pdf(pdf_buffer, md_content=text, css_file_path="./frontend/pdf_styles.css")
+    
+    # Upload PDF with user-specific path
+    file_path = f"reports/{user_id}/{filename}.pdf"
+    return await upload_file_to_storage(pdf_buffer, file_path, 'application/pdf')
 
-    Args:
-        text (str): Text to write to the Markdown file.
-        filename (str): Base name for the file (without extension).
+async def write_md_to_word(text: str, filename: str, user_id: str) -> str:
+    """Convert and save Word doc with user-specific path"""
+    # Convert Markdown text to a DOCX file and return the file path.
 
-    Returns:
-        str: The URL-encoded file path of the generated Markdown file.
-    """
-    file_path = f"outputs/{filename[:60]}.md"
-    await write_to_file(file_path, text)
-    return urllib.parse.quote(file_path)
+    # This function generates a Word document version of the research report.
+    # It uses mistune to convert Markdown to HTML, then htmldocx to convert HTML to DOCX.
 
-async def write_md_to_pdf(text: str, filename: str = "") -> str:
-    """Converts Markdown text to a PDF file and returns the file path.
+    # Args:
+    #     text (str): Markdown text to convert.
+    #     filename (str): Base name for the file (without extension).
 
-    This function generates a PDF version of the research report.
-    It uses md2pdf library to convert Markdown to PDF, applying custom CSS styling.
-
-    Args:
-        text (str): Markdown text to convert.
-        filename (str): Base name for the file (without extension).
-
-    Returns:
-        str: The URL-encoded file path of the generated PDF.
-    """
-    file_path = f"outputs/{filename[:60]}.pdf"
-
-    try:
-        from md2pdf.core import md2pdf
-        md2pdf(file_path,
-               md_content=text,
-               css_file_path="./frontend/pdf_styles.css",
-               base_url=None)
-        print(f"Report written to {file_path}")
-    except Exception as e:
-        print(f"Error in converting Markdown to PDF: {e}")
-        return ""
-
-    encoded_file_path = urllib.parse.quote(file_path)
-    return encoded_file_path
-
-async def write_md_to_word(text: str, filename: str = "") -> str:
-    """Converts Markdown text to a DOCX file and returns the file path.
-
-    This function generates a Word document version of the research report.
-    It uses mistune to convert Markdown to HTML, then htmldocx to convert HTML to DOCX.
-
-    Args:
-        text (str): Markdown text to convert.
-        filename (str): Base name for the file (without extension).
-
-    Returns:
-        str: The URL-encoded file path of the generated DOCX.
-    """
-    file_path = f"outputs/{filename[:60]}.docx"
+    # Returns:
+    #     str: The URL-encoded file path of the generated DOCX.
+    file_path = f"reports/{user_id}/{filename}.docx"
 
     try:
         from docx import Document
@@ -107,6 +83,18 @@ async def write_md_to_word(text: str, filename: str = "") -> str:
     except Exception as e:
         print(f"Error in converting Markdown to DOCX: {e}")
         return ""
+
+async def write_to_firebase_storage(content: str, filename: str, content_type: str, user_id: str):
+    """Write content to Firebase Storage with user-specific path"""
+    if not user_id:
+        raise ValueError("User ID is required for storage operations")
+        
+    # Create file-like object in memory
+    buffer = io.BytesIO(content.encode('utf-8'))
+    # Create user-specific path
+    file_path = f"reports/{user_id}/{filename}"
+    # Upload to Firebase Storage
+    return await upload_file_to_storage(buffer, file_path, content_type)
 
 # These utility functions work together to provide a comprehensive report generation system:
 # 1. The research report is initially generated in Markdown format.

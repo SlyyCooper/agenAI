@@ -79,6 +79,7 @@ class WebSocketManager:
     async def start_streaming(self, task, report_type, report_source, source_urls, tone, websocket, headers=None):
         """Start streaming the output."""
         tone = Tone[tone]
+        # Pass websocket.user_id to run_agent
         report = await run_agent(task, report_type, report_source, source_urls, tone, websocket, headers)
         return report
 
@@ -121,7 +122,17 @@ async def run_agent(task, report_type, report_source, source_urls, tone: Tone, w
         {"type": "logs", "output": f"\nTotal run time: {end_time - start_time}\n"}
     )
 
-    return report
+    # Get user_id from websocket
+    user_id = getattr(websocket, 'user_id', None)
+    if not user_id:
+        await websocket.send_json({"type": "error", "output": "No user ID found"})
+        return
+    
+    # Pass user_id when saving report
+    return {
+        "report": report,
+        "user_id": user_id
+    }
 
 # Load environment variables
 load_dotenv()

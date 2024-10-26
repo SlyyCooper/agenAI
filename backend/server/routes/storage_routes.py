@@ -33,9 +33,10 @@ async def upload_file(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
+    """Upload a general file to user's storage"""
     try:
         user_id = current_user['uid']
-        filename = f"{user_id}/{file.filename}"  # Prefix with user_id for organization
+        filename = f"{user_id}/{file.filename}"
         
         file_url = await upload_file_to_storage(
             file.file,

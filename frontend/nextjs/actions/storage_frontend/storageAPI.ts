@@ -121,5 +121,51 @@ export const storageAPI = {
     });
     return response.json();
   },
-};
 
+  // Upload report
+  uploadReport: async (file: File, reportType?: string, query?: string) => {
+    const auth = getAuth();
+    const token = await auth.currentUser?.getIdToken();
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    if (reportType) formData.append('report_type', reportType);
+    if (query) formData.append('query', query);
+
+    const response = await fetch(`${BASE_URL}/api/storage/reports/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    return response.json();
+  },
+
+  // List reports
+  listReports: async () => {
+    const auth = getAuth();
+    const token = await auth.currentUser?.getIdToken();
+
+    const response = await fetch(`${BASE_URL}/api/storage/reports`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return response.json();
+  },
+
+  // Delete report
+  deleteReport: async (filename: string) => {
+    const auth = getAuth();
+    const token = await auth.currentUser?.getIdToken();
+
+    const response = await fetch(`${BASE_URL}/api/storage/reports/${filename}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return response.json();
+  },
+};
