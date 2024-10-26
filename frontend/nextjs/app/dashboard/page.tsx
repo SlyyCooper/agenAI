@@ -21,6 +21,7 @@ import {
 
 // Add import at the top
 import TokenDisplay from '@/components/userinfo/TokenDisplay';
+import { getTokenHistory, getTokenUsageStats, TokenHistory, TokenUsageStats } from '@/actions/tokenAPI';
 
 // Types
 interface DashboardData {
@@ -28,6 +29,8 @@ interface DashboardData {
   subscription: SubscriptionData | null;
   payments: PaymentHistory['payments'];
   accessStatus: AccessStatus | null;
+  tokenHistory: TokenHistory[] | null;
+  tokenStats: TokenUsageStats | null;
 }
 
 export default function DashboardPage() {
@@ -39,7 +42,9 @@ export default function DashboardPage() {
     profile: null,
     subscription: null,
     payments: [],
-    accessStatus: null
+    accessStatus: null,
+    tokenHistory: null,
+    tokenStats: null
   });
 
   // Authentication check
@@ -64,18 +69,28 @@ export default function DashboardPage() {
           profile: contextProfile
         }));
 
-        // Load additional data in parallel
-        const [subscriptionData, paymentData, accessData] = await Promise.all([
+        // Load all data in parallel
+        const [
+          subscriptionData, 
+          paymentData, 
+          accessData,
+          tokenHistoryData,
+          tokenStatsData
+        ] = await Promise.all([
           getUserSubscription(),
           getPaymentHistory(),
-          getAccessStatus()
+          getAccessStatus(),
+          getTokenHistory(),
+          getTokenUsageStats()
         ]);
 
         setDashboardData(prev => ({
           ...prev,
           subscription: subscriptionData,
           payments: paymentData.payments,
-          accessStatus: accessData
+          accessStatus: accessData,
+          tokenHistory: tokenHistoryData.history,
+          tokenStats: tokenStatsData
         }));
       } catch (error) {
         console.error('Error loading dashboard data:', error);
@@ -131,7 +146,7 @@ export default function DashboardPage() {
     }
   };
 
-  const { profile, subscription, payments, accessStatus } = dashboardData;
+  const { profile, subscription, payments, accessStatus, tokenHistory, tokenStats } = dashboardData;
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
@@ -143,7 +158,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Profile Section */}
+        {/* Profile and Token Section */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-2xl font-bold mb-4">Profile Information</h2>
           {profile && (
@@ -158,12 +173,71 @@ export default function DashboardPage() {
                   <p className="font-medium">{profile.name || 'Not set'}</p>
                 </div>
               </div>
-              {/* Add Token Display */}
+              {/* Token Display with Stats */}
               <div className="border-t pt-4">
-                <p className="text-gray-600 mb-2">Available Tokens</p>
-                <TokenDisplay size="large" className="ml-2" />
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-gray-600 mb-2">Available Tokens</p>
+                    <TokenDisplay size="large" className="ml-2" />
+                  </div>
+                  {tokenStats && (
+                    <div className="text-sm text-gray-500">
+                      <p>Total Purchased: {tokenStats.total_tokens_purchased}</p>
+                      <p>Total Used: {tokenStats.total_tokens_used}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+          )}
+        </div>
+
+        {/* Token History Section */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-2xl font-bold mb-4">Token History</h2>
+          {tokenHistory && tokenHistory.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead>
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Balance
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {tokenHistory.map((record, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {new Date(record.timestamp).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={record.amount > 0 ? 'text-green-600' : 'text-red-600'}>
+                          {record.amount > 0 ? '+' : ''}{record.amount}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {record.reason}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {record.balance}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-gray-500">No token history available.</p>
           )}
         </div>
 

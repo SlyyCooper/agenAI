@@ -113,3 +113,65 @@ async def create_report_document(user_id: str, report_data: dict):
     except Exception as e:
         logger.error(f"Error creating report document: {str(e)}")
         raise
+
+async def update_user_tokens(user_id: str, amount: int, reason: str):
+    """Update user's token balance and history."""
+    try:
+        user_ref = db.collection('users').document(user_id)
+        
+        # Use a transaction to ensure atomic updates
+        @db.transactional
+        def update_tokens_transaction(transaction, user_ref):
+            user_doc = user_ref.get(transaction=transaction)
+            if not user_doc.exists:
+                raise ValueError(f"User {user_id} not found")
+            
+            current_tokens = user_doc.to_dict().get('tokens', 0)
+            new_token_count = current_tokens + amount
+            
+            if new_token_count < 0:
+                raise ValueError("Insufficient tokens")
+            
+            transaction.update(user_ref, {
+                'tokens': new_token_count,
+                'token_history': ArrayUnion([{
+                    'amount': amount,
+                    'type': reason,
+                    'balance': new_token_count,
+                    'timestamp': SERVER_TIMESTAMP
+                }]),
+                'last_updated': SERVER_TIMESTAMP
+            })
+            
+            return new_token_count
+            
+        new_balance = update_tokens_transaction(db.transaction(), user_ref)
+        logger.info(f"Updated tokens for user {user_id}: {amount} ({reason}). New balance: {new_balance}")
+        return new_balance
+        
+    except Exception as e:
+        logger.error(f"Error updating tokens: {str(e)}")
+        raise
+
+async def get_user_token_balance(user_id: str):
+    """Get user's current token balance."""
+    try:
+        user_data = await get_user_data(user_id)
+        if not user_data:
+            raise ValueError(f"User {user_id} not found")
+        return user_data.get('tokens', 0)
+    except Exception as e:
+        logger.error(f"Error getting token balance: {str(e)}")
+        raise
+
+async def consume_tokens(user_id: str, amount: int, reason: str = "usage"):
+    """Consume tokens for a service."""
+    try:
+        current_balance = await get_user_token_balance(user_id)
+        if current_balance < amount:
+            raise ValueError("Insufficient tokens")
+            
+        return await update_user_tokens(user_id, -amount, reason)
+    except Exception as e:
+        logger.error(f"Error consuming tokens: {str(e)}")
+        raise
