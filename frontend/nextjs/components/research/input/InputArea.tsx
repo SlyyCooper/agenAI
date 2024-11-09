@@ -1,6 +1,7 @@
 import { FC } from "react";
 import { Search, Loader2 } from "lucide-react";
-import { Button } from "./button";
+import { Button } from "@/components/ui/button";
+import { ResearchSettings } from "../Settings/ResearchSettings";
 
 type TInputAreaProps = {
   promptValue: string;
@@ -8,6 +9,12 @@ type TInputAreaProps = {
   handleDisplayResult: () => void;
   disabled?: boolean;
   reset?: () => void;
+  chatBoxSettings: {
+    report_type: string;
+    report_source: string;
+    tone: string;
+  };
+  onSettingsChange: (settings: any) => void;
 };
 
 const InputArea: FC<TInputAreaProps> = ({
@@ -16,6 +23,8 @@ const InputArea: FC<TInputAreaProps> = ({
   handleDisplayResult,
   disabled,
   reset,
+  chatBoxSettings,
+  onSettingsChange,
 }) => {
   return (
     <form
@@ -26,6 +35,10 @@ const InputArea: FC<TInputAreaProps> = ({
         handleDisplayResult();
       }}
     >
+      <ResearchSettings 
+        chatBoxSettings={chatBoxSettings}
+        onSettingsChange={onSettingsChange}
+      />
       <input
         type="text"
         placeholder="What would you like me to research next?"

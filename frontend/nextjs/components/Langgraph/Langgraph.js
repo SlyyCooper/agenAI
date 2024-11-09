@@ -1,5 +1,5 @@
 import { Client } from "@langchain/langgraph-sdk";
-import { task } from '../../config/task';
+import { task } from '@/config/task';
 
 export async function startLanggraphResearch(newQuestion, report_source, langgraphHostUrl) {
     // Update the task query with the new question

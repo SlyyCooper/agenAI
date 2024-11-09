@@ -1,5 +1,5 @@
 import { Link } from 'lucide-react';
-import SourceCard from "./SourceCard";
+import SourceCard from "@/components/research/ui/SourceCard";
 
 export default function Sources({
   sources,

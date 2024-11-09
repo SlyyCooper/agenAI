@@ -3,7 +3,7 @@ import { Inter } from 'next/font/google'
 import { Metadata } from 'next'
 import PlausibleProvider from "next-plausible"
 import { AuthProvider } from '@/config/firebase/AuthContext'
-import UserProfileButton from '@/components/profile/UserProfileButton'
+import UserProfileButton from '@/components/dashboard/UserProfileButton'
 import Link from 'next/link'
 import Image from 'next/image'
 

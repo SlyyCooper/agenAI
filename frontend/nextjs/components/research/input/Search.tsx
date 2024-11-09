@@ -1,10 +1,9 @@
 // Search.js
 import React, { useState, useEffect } from 'react';
-import ResearchForm from './Task/ResearchForm';
-import Report from './Task/Report';
-import AgentLogs from './Task/AgentLogs';
-import AccessReport from './Task/AccessReport';
-import InputArea from './InputArea';
+import ResearchForm from '@/components/research/input/ResearchForm';
+import Report from '@/components/research/output/Report';
+import AgentLogs from '@/components/research/output/AgentLogs';
+import AccessReport from '@/components/research/output/AccessReport';
 
 const Search = () => {
   const [task, setTask] = useState<string>('');

@@ -1,34 +1,14 @@
 import { loadStripe } from '@stripe/stripe-js';
 import { getAuth } from 'firebase/auth';
+import {
+  CheckoutSessionRequest,
+  SubscriptionStatusResponse,
+  Product,
+  ProductsResponse,
+  CancelSubscriptionResponse
+} from './types/models';
 
 const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
-
-// Types
-interface CreateCheckoutSessionRequest {
-  price_id: string;
-  mode: 'subscription' | 'payment';
-}
-
-export interface SubscriptionStatusResponse {
-  has_access: boolean;
-  subscription_status?: string;
-  subscription_end_date?: string;
-  subscription_id?: string;
-  one_time_purchase: boolean;
-}
-
-export interface Product {
-  product_id: string;
-  price_id: string;
-  name: string;
-  price: number;
-  features: string[];
-}
-
-export interface ProductsResponse {
-  subscription: Product;
-  one_time: Product;
-}
 
 // Helper function to get Firebase token
 const getFirebaseToken = async (): Promise<string> => {
@@ -47,13 +27,15 @@ export const createCheckoutSession = async (
 ): Promise<void> => {
   try {
     const firebaseToken = await getFirebaseToken();
+    const checkoutData: CheckoutSessionRequest = { price_id, mode };
+    
     const response = await fetch(`${BASE_URL}/api/stripe/create-checkout-session`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${firebaseToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ price_id, mode }),
+      body: JSON.stringify(checkoutData),
     });
     
     if (!response.ok) {
@@ -98,7 +80,7 @@ export const createPortalSession = async (): Promise<string> => {
   }
 };
 
-export const cancelSubscription = async (): Promise<{ status: string; subscription: any }> => {
+export const cancelSubscription = async (): Promise<CancelSubscriptionResponse> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/stripe/cancel-subscription`, {

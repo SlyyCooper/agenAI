@@ -1,59 +1,111 @@
-// Storage Related Types
+/* ----------------------------------------------
+ * ****⚠️ IMPORTANT: DO NOT EDIT THESE TYPES ⚠️****
+ *----------------------------------------------
+
+These interfaces are carefully synchronized with the backend models.
+Any changes here must be matched with corresponding changes in:
+- backend/server/firebase/storage_utils.py
+- backend/server/firebase/firestore_utils.py 
+- backend/server/firebase/stripe_utils.py
+@maintenance: Must be kept in sync with backend model changes
+*/
+
+/**
+ * @purpose: Storage Models - Map to storage_utils.py interfaces
+ * @reference: See upload_file_to_storage() in storage_utils.py
+ */
 export interface FileUpload {
-  fileStream: File | Blob  // Frontend version of BinaryIO/BytesIO
+  file_stream: File | Blob  // @limitation: Frontend version of Python's BinaryIO/BytesIO
   filename: string
-  contentType: string
-  userId?: string
-  makePublic: boolean
+  content_type: string
+  user_id?: string
+  make_public: boolean
 }
 
 export interface UserReport {
   name: string
-  fullPath: string
-  createdAt: Date
+  full_path: string
+  created_at: Date
   size: number
-  contentType: string
+  content_type: string
 }
 
 export interface FileMetadata {
   name: string
   size: number
-  contentType: string
+  content_type: string
   created: Date
   updated: Date
-  publicUrl?: string
+  public_url?: string
 }
 
-// User Related Types
+/**
+ * @purpose: Firestore Models - Map to firestore_utils.py interfaces
+ * @reference: See create_user_profile() and related functions
+ */
 export interface UserProfileData {
   email: string
-  createdAt: string  // ISO timestamp
-  lastLogin: string  // ISO timestamp
-  stripeCustomerId: string
-  hasAccess: boolean
-  oneTimePurchase: boolean
+  created_at: string  // @invariant: Must be ISO timestamp
+  last_login: string  // @invariant: Must be ISO timestamp
+  stripe_customer_id: string
+  has_access: boolean
+  one_time_purchase: boolean
   tokens: number
+  name?: string
+  payment_history?: PaymentRecord[]
+}
+
+export interface ReportDocument {
+  title: string
+  created_at: Date | string
+  file_urls: string[]
+  query: string
+  report_type: string
+  id?: string
+}
+
+export interface UserProfileCreate {
+  user_id: string
+  email: string
   name?: string
 }
 
-// Report Related Types
-export interface ReportDocument {
-  title: string
-  createdAt: Date
-  fileUrls: string[]
-  query: string
-  reportType: string
+export interface UserDataUpdate {
+  email?: string
+  name?: string
+  last_login?: string
+  has_access?: boolean
+  one_time_purchase?: boolean
+  tokens?: number
 }
 
-// Payment & Subscription Related Types
+export interface CreateReportRequest {
+  title: string
+  file_urls: string[]
+  query: string
+  report_type: string
+}
+
+export interface ServerTimestamp {
+  _seconds: number
+  _nanoseconds: number
+}
+
+/**
+ * @purpose: Stripe Models - Map to stripe_utils.py interfaces
+ * @reference: See handle_stripe_webhook() and related handlers
+ */
 export interface SubscriptionData {
-  subscriptionStatus: 'active' | 'cancelled'
-  subscriptionId: string
-  subscriptionEndDate: Date
-  productId: string
-  priceId: string
-  hasAccess: boolean
-  lastUpdated: Date
+  subscription_status: 'active' | 'cancelled'
+  subscription_id: string
+  subscription_end_date: string
+  product_id: string
+  price_id: string
+  has_access: boolean
+  last_updated: Date
+  status: 'active' | 'cancelled' | 'trialing'
+  current_period_end: number
+  cancel_at_period_end: boolean
 }
 
 export interface TokenTransaction {
@@ -63,36 +115,35 @@ export interface TokenTransaction {
 }
 
 export interface Product {
-  productId: string
-  priceId: string
+  product_id: string
+  price_id: string
   name: string
   price: number
   features: string[]
 }
 
 export interface CheckoutSessionRequest {
-  priceId: string
+  price_id: string
   mode: 'subscription' | 'payment'
 }
 
-// API Response Types
 export interface SubscriptionStatusResponse {
-  hasAccess: boolean
-  subscriptionStatus?: string
-  subscriptionEndDate?: string
-  subscriptionId?: string
-  oneTimePurchase: boolean
+  has_access: boolean
+  subscription_status?: string
+  subscription_end_date?: string
+  subscription_id?: string
+  one_time_purchase: boolean
 }
 
 export interface ProductsResponse {
   subscription: Product
-  oneTime: Product
+  one_time: Product
 }
 
 export interface AccessStatus {
-  hasAccess: boolean
-  accessType: 'subscription' | 'one_time' | null
-  accessExpiry?: string
+  has_access: boolean
+  access_type: 'subscription' | 'one_time' | null
+  access_expiry?: string
 }
 
 export interface PaymentHistory {
@@ -103,4 +154,33 @@ export interface PaymentHistory {
     created: number
     currency: string
   }>
-} 
+}
+
+/**
+ * @purpose: Payment record tracking models
+ * @reference: See update_payment_history() in firestore_utils.py
+ * @invariant: created_at must be ISO timestamp
+ */
+export interface PaymentRecord {
+  type: 'payment' | 'subscription'
+  amount: number
+  status: string
+  payment_id?: string
+  invoice_id?: string
+  created_at: string
+}
+
+export interface PaymentHistoryResponse {
+  payment_history: PaymentRecord[]
+}
+
+export interface CancelSubscriptionResponse {
+  status: string;
+  subscription: {
+    id: string;
+    status: string;
+    cancel_at_period_end: boolean;
+    current_period_end: number;
+    // ... other relevant fields
+  };
+}

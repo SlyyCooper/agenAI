@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import ResearchForm from '../Task/ResearchForm';
-import Report from '../Task/Report';
-import AgentLogs from '../Task/AgentLogs';
-import AccessReport from '../Task/AccessReport';
+import ResearchForm from '@/components/research/input/ResearchForm';
+import Report from '@/components/research/output/Report';
+import AgentLogs from '@/components/research/output/AgentLogs';
 
 export default function ChatBox({ chatBoxSettings, setChatBoxSettings }) {
 

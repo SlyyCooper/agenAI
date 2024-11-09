@@ -1,5 +1,3 @@
-// multi_agents/gpt_researcher_nextjs/components/Task/ResearchForm.js
-
 import React from 'react';
 import FileUpload from '../Settings/FileUpload';
 import ToneSelector from '../Settings/ToneSelector'; // Import ToneSelector

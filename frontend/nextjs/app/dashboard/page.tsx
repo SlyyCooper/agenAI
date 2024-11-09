@@ -8,38 +8,41 @@ import {
   getUserSubscription,
   getPaymentHistory,
   getAccessStatus,
-  type UserProfile,
-  type SubscriptionData,
-  type PaymentHistory,
-  type AccessStatus
 } from '@/api/userprofileAPI';
 
-import {
-  createPortalSession,
-  cancelSubscription
-} from '@/api/stripeAPI';
+import { cancelSubscription } from '@/api/stripeAPI';
 
-// Add import at the top
-import TokenDisplay from '@/components/userinfo/TokenDisplay';
+// Import types from models
+import type {
+  UserProfileData,
+  SubscriptionData,
+  PaymentHistory,
+  AccessStatus,
+  CancelSubscriptionResponse
+} from '@/api/types/models';
 
-// Types
-interface DashboardData {
-  profile: UserProfile | null;
+// Import components
+import TokenDisplay from '@/components/dashboard/TokenDisplay';
+
+// Define local interface for component state
+interface DashboardState {
+  profile: UserProfileData | null;
   subscription: SubscriptionData | null;
   payments: PaymentHistory['payments'];
   accessStatus: AccessStatus | null;
+  error: string | null;
 }
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, loading: authLoading, userProfile: contextProfile } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dashboardData, setDashboardData] = useState<DashboardData>({
+  const [state, setState] = useState<DashboardState>({
     profile: null,
     subscription: null,
     payments: [],
-    accessStatus: null
+    accessStatus: null,
+    error: null
   });
 
   // Authentication check
@@ -56,10 +59,10 @@ export default function DashboardPage() {
 
       try {
         setLoading(true);
-        setError(null);
+        setState(prev => ({ ...prev, error: null }));
 
         // Use context profile as initial data
-        setDashboardData(prev => ({
+        setState(prev => ({
           ...prev,
           profile: contextProfile
         }));
@@ -71,7 +74,7 @@ export default function DashboardPage() {
           getAccessStatus()
         ]);
 
-        setDashboardData(prev => ({
+        setState(prev => ({
           ...prev,
           subscription: subscriptionData,
           payments: paymentData.payments,
@@ -79,7 +82,10 @@ export default function DashboardPage() {
         }));
       } catch (error) {
         console.error('Error loading dashboard data:', error);
-        setError('Failed to load dashboard data. Please try again.');
+        setState(prev => ({
+          ...prev,
+          error: error instanceof Error ? error.message : 'Failed to load dashboard data'
+        }));
       } finally {
         setLoading(false);
       }
@@ -104,34 +110,34 @@ export default function DashboardPage() {
     return null; // Router will handle redirect
   }
 
-  // Handle subscription management
-  const handleManageSubscription = async () => {
-    try {
-      setError(null);
-      const url = await createPortalSession();
-      window.location.href = url;
-    } catch (error) {
-      console.error('Error managing subscription:', error);
-      setError('Failed to open subscription management. Please try again.');
-    }
-  };
-
   // Handle subscription cancellation
   const handleCancelSubscription = async () => {
     if (!confirm('Are you sure you want to cancel your subscription?')) return;
     
     try {
-      setError(null);
-      await cancelSubscription();
+      setState(prev => ({ ...prev, error: null }));
+      const response: CancelSubscriptionResponse = await cancelSubscription();
+      
       // Refresh dashboard data after cancellation
-      window.location.reload();
-    } catch (error) {
-      console.error('Error cancelling subscription:', error);
-      setError('Failed to cancel subscription. Please try again.');
+      const [newSubscription, newAccess] = await Promise.all([
+        getUserSubscription(),
+        getAccessStatus()
+      ]);
+
+      setState(prev => ({
+        ...prev,
+        subscription: newSubscription,
+        accessStatus: newAccess
+      }));
+    } catch (err) {
+      setState(prev => ({
+        ...prev,
+        error: err instanceof Error ? err.message : 'Failed to cancel subscription'
+      }));
     }
   };
 
-  const { profile, subscription, payments, accessStatus } = dashboardData;
+  const { profile, subscription, payments, accessStatus, error } = state;
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
@@ -186,32 +192,17 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-
-              {subscription.current_period_end && (
+              {/* Cancel Subscription Button */}
+              {subscription.status === 'active' && (
                 <div>
-                  <p className="text-gray-600">Current Period Ends</p>
-                  <p className="font-medium">
-                    {new Date(subscription.current_period_end * 1000).toLocaleDateString()}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex space-x-4">
-                <button
-                  onClick={handleManageSubscription}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Manage Subscription
-                </button>
-                {subscription.status === 'active' && !subscription.cancel_at_period_end && (
                   <button
                     onClick={handleCancelSubscription}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
                   >
                     Cancel Subscription
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>

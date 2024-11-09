@@ -1,9 +1,7 @@
-// multi_agents/gpt_researcher_nextjs/components/Task/LogMessage.tsx
-
 import { useEffect, useState } from 'react';
 import { remark } from 'remark';
 import html from 'remark-html';
-import Accordion from './Accordion';
+import Accordion from '@/components/research/output/Accordion';
 import { FileText } from 'lucide-react';
 
 const LogMessage = ({ logs }: { logs: any[] }) => {

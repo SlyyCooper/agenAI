@@ -1,54 +1,16 @@
 import { getAuth } from 'firebase/auth';
+import {
+  UserProfileData,
+  UserProfileCreate,
+  UserDataUpdate,
+  SubscriptionData,
+  PaymentRecord,
+  TokenTransaction,
+  PaymentHistory,
+  AccessStatus,
+} from './types/models';
 
 const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
-
-// Types
-export interface UserProfile {
-  email: string;
-  name?: string;
-  created_at: string;
-  last_login: string;
-  has_access: boolean;
-  stripe_customer_id?: string;
-  subscription_status?: string;
-  subscription_end_date?: string;
-  subscription_current_period_end?: number;
-  one_time_purchase?: boolean;
-  tokens: number;
-}
-
-interface UserProfileUpdateRequest {
-  email?: string;
-  name?: string;
-  [key: string]: any;
-}
-
-export interface SubscriptionData {
-  has_access: boolean;
-  subscription_status?: string;
-  subscription_end_date?: string;
-  one_time_purchase: boolean;
-  payment_history: any[];
-  current_period_end?: number;
-  cancel_at_period_end?: boolean;
-  status?: string;
-}
-
-export interface PaymentHistory {
-  payments: Array<{
-    id: string;
-    amount: number;
-    status: string;
-    created: number;
-    currency: string;
-  }>;
-}
-
-export interface AccessStatus {
-  has_access: boolean;
-  access_type: 'subscription' | 'one_time' | null;
-  access_expiry?: string;
-}
 
 // Helper function to get Firebase token
 const getFirebaseToken = async (): Promise<string> => {
@@ -61,7 +23,7 @@ const getFirebaseToken = async (): Promise<string> => {
 };
 
 // API Functions
-export const getUserProfile = async (): Promise<UserProfile> => {
+export const getUserProfile = async (): Promise<UserProfileData> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/user/profile`, {
@@ -82,7 +44,7 @@ export const getUserProfile = async (): Promise<UserProfile> => {
   }
 };
 
-export const createUserProfile = async (data: { email: string; name?: string }): Promise<UserProfile> => {
+export const createUserProfile = async (data: UserProfileCreate): Promise<UserProfileData> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/user/profile`, {
@@ -104,7 +66,7 @@ export const createUserProfile = async (data: { email: string; name?: string }):
   }
 };
 
-export const updateUserProfile = async (data: UserProfileUpdateRequest): Promise<UserProfile> => {
+export const updateUserProfile = async (data: UserDataUpdate): Promise<UserProfileData> => {
   try {
     const firebaseToken = await getFirebaseToken();
     const response = await fetch(`${BASE_URL}/api/user/update`, {

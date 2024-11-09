@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Settings as SettingsIcon } from 'lucide-react';
-import Modal from './Settings/Modal';
+import Modal from '@/components/research/Settings/Modal';
 
 const Settings = ({ setChatBoxSettings, chatBoxSettings }: { setChatBoxSettings: React.Dispatch<React.SetStateAction<any>>, chatBoxSettings: any }) => {
   const [isOpen, setIsOpen] = React.useState(false);

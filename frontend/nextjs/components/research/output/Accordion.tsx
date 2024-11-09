@@ -1,5 +1,3 @@
-// multi_agents/gpt_researcher_nextjs/components/Task/Accordion.tsx
-
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 

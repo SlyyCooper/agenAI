@@ -2,19 +2,34 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+
+// Import API functions from their respective files
 import { getSubscriptionStatus } from '@/api/stripeAPI';
-import type { SubscriptionStatusResponse } from '@/api/stripeAPI';
+import { getAccessStatus } from '@/api/userprofileAPI';
+
+// Import types from models
+import type { 
+  SubscriptionStatusResponse, 
+  AccessStatus 
+} from '@/api/types/models';
 
 export default function SuccessPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<SubscriptionStatusResponse | null>(null);
+  const [accessStatus, setAccessStatus] = useState<AccessStatus | null>(null);
 
   useEffect(() => {
-    const checkSubscriptionStatus = async () => {
+    const checkStatus = async () => {
       try {
-        const status = await getSubscriptionStatus();
-        setSubscription(status);
+        // Get both subscription and access status
+        const [subStatus, access] = await Promise.all([
+          getSubscriptionStatus(),
+          getAccessStatus()
+        ]);
+        
+        setSubscription(subStatus);
+        setAccessStatus(access);
         setLoading(false);
         
         // Redirect to dashboard after 5 seconds
@@ -22,12 +37,12 @@ export default function SuccessPage() {
           router.push('/dashboard');
         }, 5000);
       } catch (error) {
-        console.error('Error checking subscription:', error);
+        console.error('Error checking status:', error);
         setLoading(false);
       }
     };
 
-    checkSubscriptionStatus();
+    checkStatus();
   }, [router]);
 
   return (
@@ -60,10 +75,10 @@ export default function SuccessPage() {
               <p className="mt-2 text-sm text-gray-500">
                 Confirming your payment...
               </p>
-            ) : subscription ? (
+            ) : subscription && accessStatus ? (
               <div className="mt-4">
                 <p className="text-sm text-gray-500">
-                  {subscription.subscription_status === 'active' 
+                  {accessStatus.access_type === 'subscription' 
                     ? 'Your subscription is now active.'
                     : 'Your one-time purchase is confirmed.'}
                 </p>
@@ -72,14 +87,6 @@ export default function SuccessPage() {
                 </p>
               </div>
             ) : null}
-
-            {/* Manual Navigation Button */}
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="mt-6 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Go to Dashboard
-            </button>
           </div>
         </div>
       </div>

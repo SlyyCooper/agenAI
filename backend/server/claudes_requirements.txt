@@ -72,3 +72,28 @@ Keep only these essential variables in your `.env`:
 
 ### 3. CORS Origins
 - `ALLOWED_ORIGINS`
+
+Let me explain when to import from each file:
+1. Import from userprofileAPI.ts when:
+   - You need to make API calls to the backend
+   - You're performing actions like fetching, creating, or updating data
+2. Import from models.ts when:
+   - You need type definitions for props, state, or variables
+   - You're defining interfaces that extend or use these base types
+   - You're typing function parameters or return values
+
+// ✅ CORRECT USAGE:
+
+// When making API calls:
+import { getUserProfile, updateUserProfile } from '@/api/userprofileAPI';
+
+// When defining types:
+import type { UserProfileData, SubscriptionData } from '@/api/types/models';
+
+// ❌ INCORRECT USAGE:
+
+// Don't import types from userprofileAPI:
+import type { UserProfile } from '@/api/userprofileAPI'; // Wrong!
+
+// Don't import API functions from models:
+import { getUserProfile } from '@/api/types/models'; // Wrong!

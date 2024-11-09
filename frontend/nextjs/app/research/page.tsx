@@ -4,22 +4,20 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/config/firebase/AuthContext";
 
-import Answer from "@/components/Answer";
-import Hero from "@/components/Hero";
-import InputArea from "@/components/InputArea";
+import Answer from "@/components/research/output/Answer";
+import Hero from "@/components/ui/Hero";
+import InputArea from "@/components/research/input/InputArea";
 
-import Sources from "@/components/Sources";
-import Question from "@/components/Question";
-import SubQuestions from "@/components/SubQuestions";
+import Sources from "@/components/research/output/Sources";
+import Question from "@/components/research/input/Question";
+import SubQuestions from "@/components/research/output/SubQuestions";
 import { useRef, useState } from "react";
-import AccessReport from '@/components/Task/AccessReport';
-import Accordion from '@/components/Task/Accordion';
-import LogMessage from '@/components/Task/LogMessage';
+import AccessReport from '@/components/research/output/AccessReport';
+import LogMessage from '@/components/research/output/LogMessage';
 
 import { startLanggraphResearch } from '@/components/Langgraph/Langgraph';
 import findDifferences from '@/helpers/findDifferences';
-import HumanFeedback from "@/components/HumanFeedback";
-import Settings from "@/components/Settings";
+import HumanFeedback from "@/components/research/input/HumanFeedback";
 import Image from 'next/image';
 
 export default function ResearchPage() {
@@ -421,7 +419,6 @@ export default function ResearchPage() {
                   className="transition-all duration-500 ease-in-out"
                 />
               </div>
-              <Settings setChatBoxSettings={setChatBoxSettings} chatBoxSettings={chatBoxSettings} />
             </div>
             
             <div className={`transition-all duration-500 ease-in-out ${
@@ -433,6 +430,8 @@ export default function ResearchPage() {
                 handleDisplayResult={handleDisplayResult}
                 disabled={loading}
                 reset={reset}
+                chatBoxSettings={chatBoxSettings}
+                onSettingsChange={setChatBoxSettings}
               />
             </div>
             
@@ -442,6 +441,8 @@ export default function ResearchPage() {
                   promptValue={promptValue}
                   setPromptValue={setPromptValue}
                   handleDisplayResult={handleDisplayResult}
+                  chatBoxSettings={chatBoxSettings}
+                  onSettingsChange={setChatBoxSettings}
                 />
               </div>
             )}

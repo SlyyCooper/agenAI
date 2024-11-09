@@ -7,11 +7,18 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, TwitterAuthProvider } from 'firebase/auth'
 import { auth } from '@/config/firebase/firebase'
-import GoogleSignInButton from '@/components/GoogleSignInButton'
-import XSignInButton from '@/components/XSigninButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
+
+// Import Auth Buttons
+import GoogleSignInButton from '@/components/auth/GoogleAuthButton'
+import XSignInButton from '@/components/auth/XAuthButton'
+
+// Import API functions
 import { createUserProfile, getUserProfile, updateUserProfile } from '@/api/userprofileAPI'
+
+// Import types from models
+import type { UserProfileCreate, UserProfileData, UserDataUpdate } from '@/api/types/models'
 
 interface AuthError {
   code?: string;
@@ -30,7 +37,6 @@ export default function LoginPage() {
   const handleAuthError = (error: AuthError) => {
     switch (error.code) {
       case 'auth/user-not-found':
-        // Redirect to signup page with email pre-filled
         router.push(`/signup?email=${encodeURIComponent(email)}`)
         break
       case 'auth/wrong-password':
@@ -53,18 +59,19 @@ export default function LoginPage() {
         throw new Error('User authentication data missing');
       }
 
-      // Try to get existing profile
       const profile = await getUserProfile();
       
       if (!profile) {
-        // Create new profile if doesn't exist
-        await createUserProfile({
+        // Create new profile with proper type
+        const newProfile: UserProfileCreate = {
+          user_id: auth.currentUser.uid,
           email: auth.currentUser.email,
           name: auth.currentUser.displayName || undefined
-        });
+        };
+        await createUserProfile(newProfile);
       } else {
-        // If profile exists but needs updates
-        const updates: any = {};
+        // Use UserDataUpdate type for updates
+        const updates: UserDataUpdate = {};
         
         if (!profile.email && auth.currentUser.email) {
           updates.email = auth.currentUser.email;
@@ -73,7 +80,6 @@ export default function LoginPage() {
           updates.name = auth.currentUser.displayName;
         }
         
-        // Only update if there are changes
         if (Object.keys(updates).length > 0) {
           await updateUserProfile(updates);
         }
@@ -96,12 +102,8 @@ export default function LoginPage() {
     }
 
     try {
-      // Sign in with Firebase
       await signInWithEmailAndPassword(auth, email, password)
-      
-      // Verify/update user profile
       await verifyUserProfile()
-      
       router.push('/research')
     } catch (error: any) {
       console.error('Error signing in:', error)
@@ -115,30 +117,17 @@ export default function LoginPage() {
     setIsLoading(true)
     setError('')
 
-    if (!auth) {
-      setError('Authentication not initialized')
-      setIsLoading(false)
-      return
-    }
-
     try {
-      // Sign in with social provider
       const result = await signInWithPopup(auth, provider)
-      
-      // Verify/update user profile
       await verifyUserProfile()
-      
       router.push('/research')
     } catch (error: any) {
-      console.error('Error signing in:', error)
+      console.error('Error with social sign in:', error)
       handleAuthError(error)
     } finally {
       setIsLoading(false)
     }
   }
-
-  const handleGoogleSignIn = () => handleSocialSignIn(new GoogleAuthProvider())
-  const handleXSignIn = () => handleSocialSignIn(new TwitterAuthProvider())
 
   if (user) {
     router.push('/research')
@@ -237,8 +226,12 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-6 flex justify-center space-x-4">
-            <GoogleSignInButton onClick={handleGoogleSignIn} />
-            <XSignInButton onClick={handleXSignIn} />
+            <GoogleSignInButton 
+              onClick={() => handleSocialSignIn(new GoogleAuthProvider())} 
+            />
+            <XSignInButton 
+              onClick={() => handleSocialSignIn(new TwitterAuthProvider())} 
+            />
           </div>
           
           <div className="mt-4 text-center">

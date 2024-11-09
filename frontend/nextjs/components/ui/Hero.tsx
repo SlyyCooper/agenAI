@@ -1,18 +1,26 @@
-import { FC } from "react";
+import { FC, Dispatch, SetStateAction } from "react";
 import { ArrowRight } from "lucide-react";
-import { Button } from "./button";
-import InputArea from "./InputArea";
+import { Button } from "@/components/ui/button";
+import InputArea from "@/components/research/input/InputArea";
 
 type THeroProps = {
   promptValue: string;
-  setPromptValue: React.Dispatch<React.SetStateAction<string>>;
+  setPromptValue: Dispatch<SetStateAction<string>>;
   handleDisplayResult: () => void;
+  chatBoxSettings: {
+    report_type: string;
+    report_source: string;
+    tone: string;
+  };
+  onSettingsChange: (settings: any) => void;
 };
 
 const Hero: FC<THeroProps> = ({
   promptValue,
   setPromptValue,
   handleDisplayResult,
+  chatBoxSettings,
+  onSettingsChange,
 }) => {
   const handleClickSuggestion = (value: string) => {
     setPromptValue(value);
@@ -38,6 +46,8 @@ const Hero: FC<THeroProps> = ({
             promptValue={promptValue}
             setPromptValue={setPromptValue}
             handleDisplayResult={handleDisplayResult}
+            chatBoxSettings={chatBoxSettings}
+            onSettingsChange={onSettingsChange}
           />
         </div>
 

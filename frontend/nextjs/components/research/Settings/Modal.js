@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import './App.css';
-import ChatBox from './ChatBox';
+import './Settings.css';
+import ChatBox from '../ui/ChatBox';
 import axios from 'axios';
-import { getHost } from '../../helpers/getHost';
+import { getHost } from '../../../helpers/getHost';
 import { motion } from 'framer-motion';
 
 export default function Modal({ setChatBoxSettings, chatBoxSettings }) {

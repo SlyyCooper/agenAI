@@ -6,8 +6,24 @@
  */
 
 import { getAuth } from 'firebase/auth';
+import {
+  FileUpload,
+  UserReport,
+  FileMetadata,
+  CreateReportRequest,
+} from './types/models';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
+// Helper function to get Firebase token (similar to userprofileAPI)
+const getFirebaseToken = async (): Promise<string> => {
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('No user logged in');
+  }
+  return await currentUser.getIdToken();
+};
 
 export const storageAPI = {
   /**
@@ -18,7 +34,7 @@ export const storageAPI = {
    *   const result = await storageAPI.uploadFile(fileObj);
    *   console.log(result.url);
    */
-  uploadFile: async (file: File) => {
+  uploadFile: async (file: File): Promise<FileMetadata> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
     
@@ -40,7 +56,7 @@ export const storageAPI = {
    * @prereq: File must exist in user's storage space
    * @invariant: Users can only delete their own files
    */
-  deleteFile: async (filename: string) => {
+  deleteFile: async (filename: string): Promise<{ success: boolean }> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
 
@@ -58,7 +74,7 @@ export const storageAPI = {
    * @performance: O(n) where n is number of user files
    * @limitation: Returns up to 1000 files per request
    */
-  listFiles: async () => {
+  listFiles: async (): Promise<FileMetadata[]> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
 
@@ -76,7 +92,7 @@ export const storageAPI = {
    * @performance: Download time scales with file size
    * @limitation: Memory limited by file size
    */
-  downloadFile: async (filename: string) => {
+  downloadFile: async (filename: string): Promise<Blob> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
 
@@ -93,7 +109,7 @@ export const storageAPI = {
    * @reference: Maps to Firebase Storage metadata fields
    * @example: Returns size, content type, creation time
    */
-  getMetadata: async (filename: string) => {
+  getMetadata: async (filename: string): Promise<FileMetadata> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
 
@@ -110,7 +126,7 @@ export const storageAPI = {
    * @limitation: URL expires after configured duration (default 1 hour)
    * @security: URL grants read-only access to single file
    */
-  getSignedUrl: async (filename: string) => {
+  getSignedUrl: async (filename: string): Promise<{ url: string; expires: string }> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
 
@@ -127,7 +143,7 @@ export const storageAPI = {
    * @prereq: File must exist in user's storage space
    * @limitation: Cannot modify system metadata fields
    */
-  updateMetadata: async (filename: string, metadata: Record<string, any>) => {
+  updateMetadata: async (filename: string, metadata: Partial<FileMetadata>): Promise<FileMetadata> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
 
@@ -148,7 +164,7 @@ export const storageAPI = {
    * @performance: O(1) for same-bucket copies
    * @limitation: Cross-bucket copies not supported
    */
-  copyFile: async (sourceFilename: string, destinationFilename: string) => {
+  copyFile: async (sourceFilename: string, destinationFilename: string): Promise<FileMetadata> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
 
@@ -173,7 +189,7 @@ export const storageAPI = {
    *   await storageAPI.uploadReport(file, 'financial', 'Q4 2023');
    * @reference: Interfaces with reports endpoint in storage_routes.py
    */
-  uploadReport: async (file: File, reportType?: string, query?: string) => {
+  uploadReport: async (file: File, reportType?: string, query?: string): Promise<UserReport> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
     
@@ -197,7 +213,7 @@ export const storageAPI = {
    * @performance: O(n) where n is number of reports
    * @reference: Maps to list_user_reports in storage_utils.py
    */
-  listReports: async () => {
+  listReports: async (): Promise<UserReport[]> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
 
@@ -215,7 +231,7 @@ export const storageAPI = {
    * @invariant: Users can only delete their own reports
    * @reference: Maps to delete_user_report in storage_utils.py
    */
-  deleteReport: async (filename: string) => {
+  deleteReport: async (filename: string): Promise<{ success: boolean }> => {
     const auth = getAuth();
     const token = await auth.currentUser?.getIdToken();
 

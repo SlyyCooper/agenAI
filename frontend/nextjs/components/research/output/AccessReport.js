@@ -1,4 +1,4 @@
-import {getHost} from '../../helpers/getHost'
+import {getHost} from '@/helpers/getHost'
 import { FileText, Download } from 'lucide-react';
 
 export default function AccessReport({ accessData, report }) {

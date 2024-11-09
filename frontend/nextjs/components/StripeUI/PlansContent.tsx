@@ -4,15 +4,17 @@ import { useState, useEffect } from 'react';
 import { 
   createCheckoutSession, 
   getProducts, 
-  getSubscriptionStatus,
-  type Product,
-  type ProductsResponse,
-  type SubscriptionStatusResponse 
+  getSubscriptionStatus 
 } from '@/api/stripeAPI';
-import { 
-  getAccessStatus,
-  type AccessStatus 
-} from '@/api/userprofileAPI';
+import { getAccessStatus } from '@/api/userprofileAPI';
+
+import type { 
+  Product,
+  ProductsResponse,
+  SubscriptionStatusResponse,
+  AccessStatus 
+} from '@/api/types/models';
+
 import { useAuth } from '@/config/firebase/AuthContext';
 
 interface LoadingState {

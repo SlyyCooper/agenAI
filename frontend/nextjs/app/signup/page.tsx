@@ -7,11 +7,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, TwitterAuthProvider } from 'firebase/auth'
 import { auth } from '@/config/firebase/firebase'
-import GoogleSignInButton from '@/components/GoogleSignInButton'
-import XSignInButton from '@/components/XSigninButton'
+import GoogleSignInButton from '@/components/auth/GoogleAuthButton'
+import XSignInButton from '@/components/auth/XAuthButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
 import { createUserProfile } from '@/api/userprofileAPI'
+import type { UserProfileCreate } from '@/api/types/models';
 
 export default function SignupPage() {
   const [name, setName] = useState('')
@@ -48,12 +49,14 @@ export default function SignupPage() {
       // Create Firebase user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       
-      // Create user profile with required fields
-      await createUserProfile({
+      // Create user profile with proper typing
+      const profileData: UserProfileCreate = {
+        user_id: userCredential.user.uid,
         email: email,
-        name: name || undefined // Only include name if it's not empty
-      })
-
+        name: name || undefined
+      }
+      
+      await createUserProfile(profileData)
       router.push('/research')
     } catch (error: any) {
       console.error('Error signing up:', error)
@@ -83,12 +86,14 @@ export default function SignupPage() {
     try {
       const result = await signInWithPopup(auth, provider)
       
-      // Create user profile for Google sign-up
-      await createUserProfile({
+      // Create user profile with proper typing
+      const profileData: UserProfileCreate = {
+        user_id: result.user.uid,
         email: result.user.email!,
         name: result.user.displayName || undefined
-      })
-
+      }
+      
+      await createUserProfile(profileData)
       router.push('/research')
     } catch (error: any) {
       console.error('Error signing up with Google:', error)
@@ -112,12 +117,14 @@ export default function SignupPage() {
     try {
       const result = await signInWithPopup(auth, provider)
       
-      // Create user profile for Twitter sign-up
-      await createUserProfile({
+      // Create user profile with proper typing
+      const profileData: UserProfileCreate = {
+        user_id: result.user.uid,
         email: result.user.email!,
         name: result.user.displayName || undefined
-      })
-
+      }
+      
+      await createUserProfile(profileData)
       router.push('/research')
     } catch (error: any) {
       console.error('Error signing up with X:', error)
