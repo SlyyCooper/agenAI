@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getUserProfile } from '../../actions/userprofileAPI';
+import { getUserProfile } from '../../api/userprofileAPI';
 
 interface TokenDisplayProps {
   className?: string;

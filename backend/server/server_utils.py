@@ -10,11 +10,11 @@ from gpt_researcher.document.document import DocumentLoader
 from backend.utils import write_md_to_pdf, write_md_to_word, write_text_to_md
 from gpt_researcher.orchestrator.actions.utils import stream_output
 from multi_agents.main import run_research_task
-from backend.server.firebase.firebase_init import db
+from backend.server.firebase.firebase import db
 from firebase_admin import auth, firestore
 from dotenv import load_dotenv
 from urllib.parse import urlparse
-from backend.server.storage.storage_utils import (
+from backend.server.firebase.storage_utils import (
     upload_file_to_storage,
     delete_file_from_storage,
     list_files_in_storage

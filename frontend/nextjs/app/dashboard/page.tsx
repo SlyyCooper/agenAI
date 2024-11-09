@@ -12,12 +12,12 @@ import {
   type SubscriptionData,
   type PaymentHistory,
   type AccessStatus
-} from '@/actions/userprofileAPI';
+} from '@/api/userprofileAPI';
 
 import {
   createPortalSession,
   cancelSubscription
-} from '@/actions/stripeAPI';
+} from '@/api/stripeAPI';
 
 // Add import at the top
 import TokenDisplay from '@/components/userinfo/TokenDisplay';

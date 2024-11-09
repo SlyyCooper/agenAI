@@ -4,7 +4,7 @@
 import aiofiles
 import urllib
 import mistune
-from backend.server.storage.storage_utils import upload_file_to_storage
+from backend.server.firebase.storage_utils import upload_file_to_storage
 import io
 
 async def write_to_file(filename: str, text: str) -> None:

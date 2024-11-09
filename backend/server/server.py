@@ -14,19 +14,16 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import HTTPException
-from backend.server.storage import storage_routes
-from backend.server.stripe.stripe_init import initialize_stripe
-from backend.server.firebase.firebase_init import db, initialize_firebase
-from backend.server.firestore import firestore_routes  # Add storage_routes
+from backend.server.firebase import storage_routes
+from backend.server.firebase.firebase import db, initialize_firebase
+from backend.server.firebase import firestore_routes  # Add storage_routes
 from backend.server.server_utils import generate_report_files
-from backend.server.stripe import stripe_routes
+from backend.server.firebase import stripe_routes
 from backend.server.websocket_manager import WebSocketManager
 from multi_agents.main import run_research_task
 from gpt_researcher.document.document import DocumentLoader
 from gpt_researcher.orchestrator.actions import stream_output
-from backend.server.server_utils import (
-    sanitize_filename, handle_start_command, handle_human_feedback,
-    generate_report_files, send_file_paths, get_config_dict,
+from backend.server.server_utils import ( get_config_dict,
     update_environment_variables, handle_file_upload, handle_file_deletion,
     execute_multi_agents, handle_websocket_communication, extract_command_data
 )
@@ -85,7 +82,6 @@ async def lifespan(app: FastAPI):
     app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
     os.makedirs(DOC_PATH, exist_ok=True)
     initialize_firebase()
-    initialize_stripe()
     yield
 
 app = FastAPI(lifespan=lifespan)

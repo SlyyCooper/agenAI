@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSubscriptionStatus } from '@/actions/stripeAPI';
-import type { SubscriptionStatusResponse } from '@/actions/stripeAPI';
+import { getSubscriptionStatus } from '@/api/stripeAPI';
+import type { SubscriptionStatusResponse } from '@/api/stripeAPI';
 
 export default function SuccessPage() {
   const router = useRouter();

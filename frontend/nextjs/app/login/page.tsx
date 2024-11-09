@@ -11,7 +11,7 @@ import GoogleSignInButton from '@/components/GoogleSignInButton'
 import XSignInButton from '@/components/XSigninButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
-import { createUserProfile, getUserProfile, updateUserProfile } from '@/actions/userprofileAPI'
+import { createUserProfile, getUserProfile, updateUserProfile } from '@/api/userprofileAPI'
 
 interface AuthError {
   code?: string;

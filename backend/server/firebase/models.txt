@@ -1,0 +1,110 @@
+# From storage_utils.py
+
+1. FileUpload
+   - file_stream: BinaryIO | BytesIO
+   - filename: string
+   - content_type: string
+   - user_id?: string
+   - make_public: boolean
+   -> returns: string (URL)
+
+2. UserReport
+   - name: string
+   - full_path: string
+   - created_at: Date
+   - size: number
+   - content_type: string
+
+3. FileMetadata
+   - name: string
+   - size: number
+   - content_type: string
+   - created: Date
+   - updated: Date
+   - public_url?: string
+
+4. StorageFile
+   - filename: string
+   - destination_filename?: string
+   - expiration?: number
+
+
+# From firestore_utils.py
+
+5. UserProfileCreate
+   - user_id: string
+   - email: string
+   - name?: string
+   -> returns: UserProfileData
+
+6. UserProfileData
+   - email: string
+   - created_at: string (ISO timestamp)
+   - last_login: string (ISO timestamp)
+   - stripe_customer_id: string
+   - has_access: boolean
+   - one_time_purchase: boolean
+   - tokens: number
+   - name?: string
+
+7. PaymentRecord
+   - created_at: string (ISO timestamp)
+   - [additional payment fields from payment_data]
+
+8. ReportDocument
+   - title: string
+   - created_at: timestamp
+   - file_urls: string[]
+   - query: string
+   - report_type: string
+
+# From stripe_utils.py
+
+9. StripeCustomer
+   - id: string
+   - email: string
+   - metadata: {
+     - user_id: string
+   }
+   - stripe_created_at: timestamp
+   - customer_email: string
+
+10. SubscriptionData
+    - subscription_status: string ('active' | 'cancelled')
+    - subscription_id: string
+    - subscription_end_date: timestamp
+    - product_id: string
+    - price_id: string
+    - has_access: boolean
+    - last_updated: timestamp
+
+11. TokenTransaction
+    - amount: number
+    - type: string ('purchase')
+    - timestamp: timestamp
+
+12. PaymentIntent
+    - metadata: {
+      - user_id: string
+    }
+    - amount: number
+    - payment_status: string
+
+13. CheckoutSession
+    - metadata: {
+      - user_id: string
+    }
+    - mode: string ('subscription' | 'payment')
+    - payment_status: string
+    - subscription?: string
+
+14. CheckoutSessionRequest
+    - price_id: string
+    - mode: string ('subscription' | 'payment')
+
+15. Product
+    - product_id: string
+    - price_id: string
+    - name: string
+    - price: number
+    - features: string[]

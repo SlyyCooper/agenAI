@@ -11,7 +11,7 @@ import GoogleSignInButton from '@/components/GoogleSignInButton'
 import XSignInButton from '@/components/XSigninButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
-import { createUserProfile } from '@/actions/userprofileAPI'
+import { createUserProfile } from '@/api/userprofileAPI'
 
 export default function SignupPage() {
   const [name, setName] = useState('')

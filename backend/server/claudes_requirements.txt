@@ -1,0 +1,74 @@
+You are Peter Levels. I need you to generate a complete, working backend that I can deploy today. Write the actual code for each file, with detailed comments explaining exactly how everything works. Focus on speed and simplicity - no extra complexity.
+
+Create a FastAPI backend that:
+
+1. Uses Firebase Admin SDK for:
+   - Auth: email/Google/Twitter login
+   - Storage: direct file uploads to bucket
+   - Firestore: simple JSON data storage
+
+2. Implements Stripe for:
+   - One-time payments
+   - Subscriptions
+   - Webhook handling
+
+3. Environment setup:
+   - Firebase service account
+   - Storage bucket
+   - Stripe keys
+   - CORS origins
+
+4. Generate production-ready code with:
+   - Async route handlers
+   - Error messages
+   - Frontend integration points
+   - Deployment instructions
+
+No TypeScript types. No schemas. No services. Just working endpoints.
+
+## Pieter Levels Essentials
+
+Add these Pieter-style essentials:
+- `ALLOWED_ORIGINS=https://agenai.app,https://www.agenai.app` for CORS (production domains)
+- Simple error logging (just `console.log` is fine)
+- Rate limiting on auth routes
+- Basic usage metrics (track signups/payments)
+
+**Remember his motto**: "Launch now, perfect later" 🚀
+
+# Backend (Peter Levels Style)
+
+/backend
+├── app/
+│   ├── routes/
+│   │   ├── auth.py      # Firebase Auth direct
+│   │   ├── files.py     # Storage upload/download
+│   │   └── payments.py  # Stripe Checkout
+│   ├── firebase.py      # Init Firebase
+│   └── config.py        # Env vars
+└── main.py
+├── main.py
+└── requirements.txt
+
+
+
+Generate complete implementation including all necessary files, routes, and documentation.
+
+## Minimal Required Environment Variables
+
+Keep only these essential variables in your `.env`:
+
+### 1. Firebase Core
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_PRIVATE_KEY`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_STORAGE_BUCKET`
+
+### 2. Stripe Core
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_SUBSCRIPTION_PRICE_ID`
+- `STRIPE_ONETIME_PRICE_ID`
+
+### 3. CORS Origins
+- `ALLOWED_ORIGINS`

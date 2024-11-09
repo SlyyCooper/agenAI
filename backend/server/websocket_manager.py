@@ -9,8 +9,8 @@ from backend.report_type import BasicReport, DetailedReport
 from gpt_researcher.utils.enum import ReportType, Tone
 from multi_agents.main import run_research_task
 from gpt_researcher.orchestrator.actions import stream_output  # Import stream_output
-from backend.server.firebase.firebase_utils import verify_firebase_token
-from backend.server.firebase.firebase_init import db
+from backend.server.firebase.firebase import verify_firebase_token
+from backend.server.firebase.firebase import db
 
 
 class WebSocketManager:

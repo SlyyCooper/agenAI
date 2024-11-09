@@ -8,11 +8,11 @@ import {
   type Product,
   type ProductsResponse,
   type SubscriptionStatusResponse 
-} from '@/actions/stripeAPI';
+} from '@/api/stripeAPI';
 import { 
   getAccessStatus,
   type AccessStatus 
-} from '@/actions/userprofileAPI';
+} from '@/api/userprofileAPI';
 import { useAuth } from '@/config/firebase/AuthContext';
 
 interface LoadingState {
