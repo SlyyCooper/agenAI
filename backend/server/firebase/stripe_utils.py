@@ -95,7 +95,7 @@ class PaymentProcessor:
         
         @firestore.transactional
         def create_in_transaction(transaction, payment_ref):
-            payment_doc = payment_ref.get(transaction=transaction)
+            payment_doc = transaction.get(payment_ref)
             if payment_doc.exists:
                 return False
                 
@@ -242,11 +242,11 @@ async def handle_checkout_session(
             
             @firestore.transactional
             def update_user_benefits(transaction, user_ref):
-                user_doc = user_ref.get(transaction=transaction)
+                user_doc = transaction.get(user_ref)
                 if not user_doc.exists:
                     raise ValueError("User not found")
                     
-                current_tokens = user_doc.get('tokens', 0)
+                current_tokens = user_doc.get('tokens') or 0
                 
                 transaction.update(user_ref, {
                     'tokens': current_tokens + 5,
