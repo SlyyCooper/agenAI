@@ -107,18 +107,22 @@ async def fulfill_order(session):
     
     try:
         if session['mode'] == 'payment':
-            # Modern atomic token update for one-time purchase
-            user_ref.update({
-                'tokens': firestore.Increment(5),  # Add 5 tokens
+            # Fix: Structure the token history entry correctly
+            token_history_entry = {
+                'amount': 5,
+                'type': 'purchase',
+                'timestamp': firestore.SERVER_TIMESTAMP
+            }
+            
+            update_data = {
+                'tokens': firestore.Increment(5),
                 'one_time_purchase': True,
                 'has_access': True,
-                'token_history': firestore.ArrayUnion([{
-                    'amount': 5,
-                    'type': 'purchase',
-                    'timestamp': firestore.SERVER_TIMESTAMP
-                }]),
+                'token_history': firestore.ArrayUnion([token_history_entry]),
                 'last_updated': firestore.SERVER_TIMESTAMP
-            })
+            }
+            
+            user_ref.update(update_data)
             logger.info(f"Added 5 tokens for user {user_id}")
             
         elif session['mode'] == 'subscription':
@@ -154,18 +158,20 @@ async def update_subscription_status(invoice):
         user_id = invoice['metadata']['user_id']
         user_ref = db.collection('users').document(user_id)
         
-        # Modern approach: Direct atomic update instead of transaction
         subscription = stripe.Subscription.retrieve(invoice['subscription'])
         current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
         
-        # Single atomic update
-        user_ref.update({
+        # Fix: Use proper timestamp format
+        update_data = {
             'subscription_status': 'active',
             'last_payment_date': firestore.SERVER_TIMESTAMP,
-            'subscription_end_date': current_period_end,
+            'subscription_end_date': current_period_end.isoformat(),
             'has_access': True,
             'last_updated': firestore.SERVER_TIMESTAMP
-        })
+        }
+        
+        # Single atomic update
+        user_ref.update(update_data)
         
         logger.info(f"Subscription updated for user {user_id}")
     except Exception as e:
