@@ -155,37 +155,61 @@ async def handle_stripe_webhook(event: Dict[str, Any]) -> JSONResponse:
     """
     Main webhook handler with proper idempotency and error handling
     """
-    logger.info(f"Processing Stripe webhook event: {event['type']}")
-    
-    # Initialize handlers
-    payment_processor = PaymentProcessor(db)
-    subscription_manager = UserSubscriptionManager(db)
-    
-    handlers = {
-        'checkout.session.completed': handle_checkout_session,
-        'customer.subscription.updated': handle_subscription_updated,
-        'customer.subscription.deleted': handle_subscription_deleted,
-        'invoice.paid': handle_invoice_paid,
-        'invoice.payment_failed': handle_invoice_payment_failed
-    }
-    
     try:
-        handler = handlers.get(event['type'])
+        event_type = event.get('type')
+        if not event_type:
+            logger.error("Missing event type in webhook payload")
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "message": "Missing event type"}
+            )
+
+        logger.info(f"Processing Stripe webhook event: {event_type}")
+        
+        # Initialize handlers
+        payment_processor = PaymentProcessor(db)
+        subscription_manager = UserSubscriptionManager(db)
+        
+        handlers = {
+            'checkout.session.completed': handle_checkout_session,
+            'customer.subscription.updated': handle_subscription_updated,
+            'customer.subscription.deleted': handle_subscription_deleted,
+            'invoice.paid': handle_invoice_paid,
+            'invoice.payment_failed': handle_invoice_payment_failed
+        }
+        
+        handler = handlers.get(event_type)
         if handler:
+            # Safely get event data
+            event_data = event.get('data', {}).get('object')
+            if not event_data:
+                raise ValueError("Missing event data object")
+                
             result = await handler(
-                event['data']['object'],
+                event_data,
                 payment_processor,
                 subscription_manager
             )
             return JSONResponse(content={"status": "success", "result": result})
         else:
-            logger.info(f'Unhandled event type {event["type"]}')
+            # Log unhandled event types but don't treat as error
+            logger.info(f'Unhandled event type {event_type}')
             return JSONResponse(
                 content={"status": "ignored", "reason": "unhandled_event_type"}
             )
+            
+    except ValueError as ve:
+        logger.error(f"Validation error in webhook: {str(ve)}")
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": str(ve)}
+        )
     except Exception as e:
         logger.error(f"Error processing webhook: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": "Internal server error"}
+        )
 
 async def handle_checkout_session(
     session: Dict[str, Any],
