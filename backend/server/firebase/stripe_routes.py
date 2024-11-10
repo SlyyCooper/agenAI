@@ -65,25 +65,10 @@ async def stripe_webhook(request: Request):
                 sig_header,
                 os.getenv('STRIPE_WEBHOOK_SECRET')
             )
-        except Exception as e:
-            logger.error(f"⚠️ Webhook signature verification failed: {str(e)}")
-            raise HTTPException(status_code=400, detail=str(e))
+            return await handle_stripe_webhook(event)
+        except stripe.error.SignatureVerificationError as e:
+            raise HTTPException(status_code=400, detail="Invalid signature")
 
-        # Check for duplicate events
-        if await check_processed_event(event.id):
-            logger.info(f"🔄 Skipping duplicate event: {event.id}")
-            return JSONResponse(content={"status": "skipped", "reason": "duplicate"})
-
-        # Pass the entire event object, not just the data
-        try:
-            result = await handle_stripe_webhook(event)
-            logger.info(f"✅ Successfully processed {event.type}")
-            return result
-            
-        except Exception as e:
-            logger.error(f"❌ Error processing webhook: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
-            
     except Exception as e:
         logger.error(f"❌ Webhook error: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))

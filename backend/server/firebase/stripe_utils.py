@@ -175,8 +175,6 @@ async def handle_stripe_webhook(event: Dict[str, Any]) -> JSONResponse:
                 content={"status": "error", "message": "Missing event type"}
             )
 
-        logger.info(f"Processing Stripe webhook event: {event_type}")
-        
         # Initialize handlers
         payment_processor = PaymentProcessor(db)
         subscription_manager = UserSubscriptionManager(db)
@@ -186,12 +184,15 @@ async def handle_stripe_webhook(event: Dict[str, Any]) -> JSONResponse:
             'customer.subscription.updated': handle_subscription_updated,
             'customer.subscription.deleted': handle_subscription_deleted,
             'invoice.paid': handle_invoice_paid,
-            'invoice.payment_failed': handle_invoice_payment_failed
+            'invoice.payment_failed': handle_invoice_payment_failed,
+            # Add these new handlers if needed
+            'payment_intent.created': None,  # Ignore or handle
+            'mandate.updated': None,         # Ignore or handle
+            'charge.succeeded': None         # Ignore or handle
         }
         
         handler = handlers.get(event_type)
         if handler:
-            # Safely get event data
             event_data = event.get('data', {}).get('object')
             if not event_data:
                 raise ValueError("Missing event data object")
@@ -201,13 +202,17 @@ async def handle_stripe_webhook(event: Dict[str, Any]) -> JSONResponse:
                 payment_processor,
                 subscription_manager
             )
+            logger.info(f"✅ Successfully handled {event_type}")
             return JSONResponse(content={"status": "success", "result": result})
         else:
-            # Log unhandled event types but don't treat as error
-            logger.info(f'Unhandled event type {event_type}')
-            return JSONResponse(
-                content={"status": "ignored", "reason": "unhandled_event_type"}
-            )
+            # For explicitly ignored events (handler is None)
+            if event_type in handlers:
+                logger.info(f"Ignoring known event type: {event_type}")
+                return JSONResponse(content={"status": "ignored", "type": "known_ignored_event"})
+            # For unknown events
+            else:
+                logger.info(f"Skipping unhandled event type: {event_type}")
+                return JSONResponse(content={"status": "ignored", "type": "unknown_event"})
             
     except ValueError as ve:
         logger.error(f"Validation error in webhook: {str(ve)}")
