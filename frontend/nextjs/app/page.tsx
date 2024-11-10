@@ -8,46 +8,13 @@ import { useRouter } from 'next/navigation'
 import { auth } from '@/config/firebase/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import Image from 'next/image'
+import NavBar from '@/components/ui/NavBar';
 
 export default function Home() {
-  const [scrollY, setScrollY] = useState(0)
-
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY)
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-90 backdrop-blur-md">
-        <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-          <Link href="/" className="flex items-center">
-            <Image
-              src="/TAN.png"
-              alt="TANgent Logo"
-              width={40}
-              height={40}
-              priority
-            />
-          </Link>
-          <div className="space-x-6">
-            <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">Features</a>
-            <Link href="/plans" className="text-gray-600 hover:text-gray-900 transition-colors">Pricing</Link>
-            <a href="#about" className="text-gray-600 hover:text-gray-900 transition-colors">About</a>
-          </div>
-          <div className="space-x-4">
-            <Link href="/login" className="text-gray-600 hover:text-gray-900 transition-colors">
-              Login
-            </Link>
-            <Link href="/signup" className="bg-black text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-800 transition-colors">
-              Sign Up
-            </Link>
-          </div>
-        </nav>
-      </header>
-
-      <main>
+    <main className="min-h-screen">
+      <NavBar />
+      <div className="container mx-auto px-4 pt-20">
         <section className="pt-32 pb-20 px-6">
           <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center">
             <div>
@@ -203,8 +170,8 @@ export default function Home() {
             </Link>
           </div>
         </section>
-      </main>
-    </div>
+      </div>
+    </main>
   )
 }
 

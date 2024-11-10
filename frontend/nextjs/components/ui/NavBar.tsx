@@ -5,11 +5,19 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Home, Search, LayoutDashboard, ChevronDown } from 'lucide-react';
+import { Menu, X, Home, Search, LayoutDashboard } from 'lucide-react';
 import UserProfileButton from '@/components/dashboard/UserProfileButton';
 import { clsx } from 'clsx';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getUserProfile } from '@/api/userprofileAPI';
+import type { UserProfileData } from '@/api/types/models';
 
-const navItems = [
+// Define different nav items for authenticated and non-authenticated users
+const publicNavItems = [
+  { name: 'Home', href: '/', icon: Home },
+];
+
+const authenticatedNavItems = [
   { name: 'Home', href: '/', icon: Home },
   { name: 'Research', href: '/research', icon: Search },
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -18,7 +26,28 @@ const navItems = [
 export default function NavBar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const pathname = usePathname();
+
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setIsAuthenticated(!!user);
+      if (user) {
+        try {
+          const profile = await getUserProfile();
+          setUserProfile(profile);
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+        }
+      } else {
+        setUserProfile(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -27,6 +56,8 @@ export default function NavBar() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const navItems = isAuthenticated ? authenticatedNavItems : publicNavItems;
 
   return (
     <motion.header
@@ -62,51 +93,52 @@ export default function NavBar() {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-1">
+          <div className="hidden md:flex items-center space-x-4">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
               
               return (
-                <motion.div key={item.name} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Link
-                    href={item.href}
-                    className={clsx(
-                      'flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200',
-                      isActive
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    )}
-                  >
-                    <Icon className="w-4 h-4 mr-2" />
-                    {item.name}
-                    {isActive && (
-                      <motion.div
-                        className="absolute bottom-0 left-0 h-0.5 w-full bg-blue-600"
-                        layoutId="navbar-indicator"
-                      />
-                    )}
-                  </Link>
-                </motion.div>
-              );
-            })}
-            <div className="ml-4">
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={clsx(
+                    'flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200',
+                    isActive
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  )}
+                >
+                  <Icon className="w-4 h-4 mr-2" />
+                  {item.name}
+                </Link>
+              )}
+            )}
+            {isAuthenticated ? (
               <UserProfileButton />
-            </div>
+            ) : (
+              <Link
+                href="/login"
+                className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                Sign In
+              </Link>
+            )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            {isMobileMenuOpen ? (
-              <X className="h-6 w-6 text-gray-600" />
-            ) : (
-              <Menu className="h-6 w-6 text-gray-600" />
-            )}
-          </motion.button>
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              {isMobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Navigation */}
@@ -146,7 +178,16 @@ export default function NavBar() {
                   );
                 })}
                 <div className="pt-4">
-                  <UserProfileButton />
+                  {isAuthenticated ? (
+                    <UserProfileButton />
+                  ) : (
+                    <Link
+                      href="/login"
+                      className="w-full flex items-center justify-center px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                    >
+                      Sign In
+                    </Link>
+                  )}
                 </div>
               </div>
             </motion.div>
