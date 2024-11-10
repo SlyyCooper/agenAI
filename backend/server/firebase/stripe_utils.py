@@ -118,15 +118,25 @@ class PaymentProcessor:
         """Updates payment status with optional metadata"""
         payment_ref = self.db.collection('payments').document(payment_id)
         
-        update_data = {
-            'status': status.value,
-            'updated_at': firestore.SERVER_TIMESTAMP
-        }
-        
-        if metadata:
-            update_data['metadata'] = metadata
-            
-        payment_ref.update(update_data)
+        # Check if document exists
+        doc = payment_ref.get()
+        if not doc.exists:
+            # Create it if it doesn't exist
+            payment_ref.set({
+                'payment_id': payment_id,
+                'status': status.value,
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'updated_at': firestore.SERVER_TIMESTAMP
+            })
+        else:
+            # Update if it exists
+            update_data = {
+                'status': status.value,
+                'updated_at': firestore.SERVER_TIMESTAMP
+            }
+            if metadata:
+                update_data['metadata'] = metadata
+            payment_ref.update(update_data)
 
 class UserSubscriptionManager:
     """Manages user subscription states and updates"""
@@ -236,31 +246,11 @@ async def handle_checkout_session(
             if not payment_created:
                 logger.info(f"Payment {session['payment_intent']} already processed")
                 return {"status": "already_processed"}
-                
-            # Update user benefits
-            user_ref = db.collection('users').document(user_id)
             
-            @firestore.transactional
-            def update_user_benefits(transaction, user_ref):
-                user_doc = transaction.get(user_ref)
-                if not user_doc.exists:
-                    raise ValueError("User not found")
-                    
-                current_tokens = user_doc.get('tokens') or 0
-                
-                transaction.update(user_ref, {
-                    'tokens': current_tokens + 5,
-                    'has_access': True,
-                    'one_time_purchase': True,
-                    'token_history': firestore.ArrayUnion([{
-                        'amount': 5,
-                        'type': 'purchase',
-                        'timestamp': firestore.SERVER_TIMESTAMP
-                    }]),
-                    'last_updated': firestore.SERVER_TIMESTAMP
-                })
+            # Add 5 tokens for one-time purchase
+            from .firestore_utils import update_user_tokens
+            await update_user_tokens(user_id, 5, "one_time_purchase")
             
-            await update_user_benefits(db.transaction(), user_ref)
             await payment_processor.update_payment_status(
                 session['payment_intent'],
                 PaymentStatus.COMPLETED
@@ -270,6 +260,10 @@ async def handle_checkout_session(
             # Handle subscription payment
             subscription = stripe.Subscription.retrieve(session['subscription'])
             await subscription_manager.update_subscription(user_id, subscription)
+            
+            # Add 20 tokens for subscription
+            from .firestore_utils import update_user_tokens
+            await update_user_tokens(user_id, 20, "subscription_purchase")
             
         return {"status": "success", "mode": session['mode']}
         
