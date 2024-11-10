@@ -95,10 +95,8 @@ async def handle_customer_created(customer):
 
 async def fulfill_order(session):
     """
-    @purpose: Processes completed checkout sessions and grants appropriate access
-    @prereq: Valid session with user_id in metadata and successful payment
-    @invariant: Access granted matches payment type (subscription vs one-time)
-    @performance: Single atomic Firestore transaction
+    @purpose: Processes completed checkout sessions and grants tokens for one-time purchases
+    @prereq: Valid session with user_id in metadata
     """
     user_id = session.get('metadata', {}).get('user_id')
     if not user_id:
@@ -107,59 +105,41 @@ async def fulfill_order(session):
         
     user_ref = db.collection('users').document(user_id)
     
-    @db.transactional
-    def update_in_transaction(transaction, user_ref, session):
-        """
-        @purpose: Atomic update of user access and payment state
-        @invariant: All or nothing update of user state
-        """
-        user_doc = user_ref.get(transaction=transaction)
-        if not user_doc.exists:
-            raise ValueError(f"User {user_id} not found")
-            
-        if session.get('payment_status') != 'paid':
-            raise ValueError("Payment was not successful")
-
-        update_data = {
-            'has_access': True,
-            'last_updated': firestore.SERVER_TIMESTAMP
-        }
-            
-        # @purpose: Handle subscription vs one-time purchase differently
-        if session['mode'] == 'subscription':
-            subscription_id = session['subscription']
-            subscription = stripe.Subscription.retrieve(subscription_id)
-            current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
-            
-            update_data.update({
-                'subscription_status': 'active',
-                'subscription_id': subscription_id,
-                'subscription_end_date': current_period_end,
-                'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
-                'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID")
-            })
-        elif session['mode'] == 'payment':
-            update_data.update({
+    try:
+        if session['mode'] == 'payment':
+            # Modern atomic token update for one-time purchase
+            user_ref.update({
+                'tokens': firestore.Increment(5),  # Add 5 tokens
                 'one_time_purchase': True,
-                'purchase_date': firestore.SERVER_TIMESTAMP,
-                'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
-                'price_id': os.getenv("STRIPE_ONETIME_PRICE_ID"),
-                'tokens': firestore.Increment(5),
+                'has_access': True,
                 'token_history': firestore.ArrayUnion([{
                     'amount': 5,
                     'type': 'purchase',
                     'timestamp': firestore.SERVER_TIMESTAMP
-                }])
+                }]),
+                'last_updated': firestore.SERVER_TIMESTAMP
             })
+            logger.info(f"Added 5 tokens for user {user_id}")
+            
+        elif session['mode'] == 'subscription':
+            # Subscription purchase
+            subscription_id = session['subscription']
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            
+            user_ref.update({
+                'has_access': True,
+                'subscription_status': 'active',
+                'subscription_id': subscription_id,
+                'subscription_end_date': datetime.fromtimestamp(subscription['current_period_end']),
+                'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
+                'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID"),
+                'last_updated': firestore.SERVER_TIMESTAMP
+            })
+            logger.info(f"Activated subscription for user {user_id}")
+            
         else:
             raise ValueError(f"Unexpected session mode: {session['mode']}")
-        
-        transaction.update(user_ref, update_data)
-    
-    try:
-        transaction = db.transaction()
-        update_in_transaction(transaction, user_ref, session)
-        logger.info(f"Order fulfilled for user {user_id}")
+            
     except Exception as e:
         logger.error(f"Error fulfilling order: {str(e)}")
         raise
@@ -168,28 +148,25 @@ async def update_subscription_status(invoice):
     """
     @purpose: Updates user subscription status on successful invoice payment
     @prereq: Invoice must contain user_id in metadata
-    @performance: Single atomic Firestore transaction
+    @performance: Single atomic Firestore write
     """
-    user_id = invoice['metadata']['user_id']
-    user_ref = db.collection('users').document(user_id)
-    
-    transaction = db.transaction()
-    
-    @transaction.transactional
-    def update_in_transaction(transaction):
+    try:
+        user_id = invoice['metadata']['user_id']
+        user_ref = db.collection('users').document(user_id)
+        
+        # Modern approach: Direct atomic update instead of transaction
         subscription = stripe.Subscription.retrieve(invoice['subscription'])
         current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
         
-        transaction.update(user_ref, {
+        # Single atomic update
+        user_ref.update({
             'subscription_status': 'active',
             'last_payment_date': firestore.SERVER_TIMESTAMP,
             'subscription_end_date': current_period_end,
             'has_access': True,
             'last_updated': firestore.SERVER_TIMESTAMP
         })
-    
-    try:
-        update_in_transaction(transaction)
+        
         logger.info(f"Subscription updated for user {user_id}")
     except Exception as e:
         logger.error(f"Error updating subscription: {str(e)}")

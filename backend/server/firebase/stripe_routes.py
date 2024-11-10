@@ -188,7 +188,8 @@ async def get_subscription_status(current_user: dict = Depends(get_current_user)
             "subscription_status": user_data.get('subscription_status'),
             "subscription_end_date": user_data.get('subscription_end_date'),
             "subscription_id": user_data.get('subscription_id'),
-            "one_time_purchase": user_data.get('one_time_purchase', False)
+            "one_time_purchase": user_data.get('one_time_purchase', False),
+            "tokens": user_data.get('tokens', 0)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

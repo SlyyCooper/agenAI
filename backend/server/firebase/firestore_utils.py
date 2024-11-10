@@ -6,6 +6,7 @@
 """
 
 from .firebase import db, SERVER_TIMESTAMP, ArrayUnion
+from google.cloud import firestore
 import logging
 import stripe
 from datetime import datetime
@@ -46,12 +47,12 @@ async def create_user_profile(user_id: str, email: str, name: str = None):
         current_time = datetime.now().isoformat()
         user_data = {
             'email': email,
-            'created_at': current_time,
-            'last_login': current_time,
+            'name': name,
             'stripe_customer_id': customer.id,
             'has_access': False,
             'one_time_purchase': False,
-            'tokens': 0
+            'tokens': 0,
+            'token_history': []
         }
         if name:
             user_data['name'] = name
@@ -150,4 +151,28 @@ async def create_report_document(user_id: str, report_data: dict):
         return report_ref.id
     except Exception as e:
         logger.error(f"Error creating report document: {str(e)}")
+        raise
+
+async def update_user_tokens(user_id: str, amount: int, reason: str):
+    """
+    @purpose: Atomically updates user token balance
+    @prereq: User profile must exist
+    @performance: Single atomic Firestore write
+    """
+    try:
+        user_ref = db.collection('users').document(user_id)
+        
+        # Now using properly imported firestore
+        user_ref.update({
+            'tokens': firestore.Increment(amount),
+            'token_history': firestore.ArrayUnion([{
+                'amount': amount,
+                'type': reason,
+                'timestamp': firestore.SERVER_TIMESTAMP
+            }])
+        })
+        
+        logger.info(f"Updated tokens for user {user_id}: {amount} ({reason})")
+    except Exception as e:
+        logger.error(f"Error updating tokens: {str(e)}")
         raise

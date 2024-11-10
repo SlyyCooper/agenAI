@@ -1,99 +1,108 @@
-You are Peter Levels. I need you to generate a complete, working backend that I can deploy today. Write the actual code for each file, with detailed comments explaining exactly how everything works. Focus on speed and simplicity - no extra complexity.
+# Token-Documentation:
 
-Create a FastAPI backend that:
+## Overview:
+### The token system works as follows:
+1. New users start with 0 tokens
+2. When a one-time purchase is made:
+   - User gets 5 new tokens
+   - A token history entry is created with:
+     - amount: 5
+     - type: 'purchase'
+     - timestamp: server timestamp
+3. Token history is tracked using Firestore's ArrayUnion for atomic updates
+4. Token balance is updated using Firestore's Increment operation
 
-1. Uses Firebase Admin SDK for:
-   - Auth: email/Google/Twitter login
-   - Storage: direct file uploads to bucket
-   - Firestore: simple JSON data storage
+- The backend server uses tokens to track user purchases and grant access to the app. 
+- Tokens are used to determine whether a user has access to the app and to track one-time purchases. 
+- The following files are relevant for token handling:
 
-2. Implements Stripe for:
-   - One-time payments
-   - Subscriptions
-   - Webhook handling
+## The complete token system implementation across the files:
 
-3. Environment setup:
-   - Firebase service account
-   - Storage bucket
-   - Stripe keys
-   - CORS origins
+### 1. stripe_utils.py: tokens are handled in the `fulfill_order` function during one-time payments:
 
-4. Generate production-ready code with:
-   - Async route handlers
-   - Error messages
-   - Frontend integration points
-   - Deployment instructions
+````python:backend/server/firebase/stripe_utils.py
+# ... existing code ...
+elif session['mode'] == 'payment':
+    update_data.update({
+        'one_time_purchase': True,
+        'purchase_date': firestore.SERVER_TIMESTAMP,
+        'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
+        'price_id': os.getenv("STRIPE_ONETIME_PRICE_ID"),
+        'tokens': firestore.Increment(5),  # Adds 5 tokens
+        'token_history': firestore.ArrayUnion([{
+            'amount': 5,
+            'type': 'purchase',
+            'timestamp': firestore.SERVER_TIMESTAMP
+        }])
+    })
+````
 
-No TypeScript types. No schemas. No services. Just working endpoints.
+### 2. firestore_utils.py: tokens are initialized in `create_user_profile`:
 
-## Pieter Levels Essentials
+````python:backend/server/firebase/firestore_utils.py
+user_data = {
+    'email': email,
+    'created_at': current_time,
+    'last_login': current_time,
+    'stripe_customer_id': customer.id,
+    'has_access': False,
+    'one_time_purchase': False,
+    'tokens': 0  # Initializes tokens to 0
+}
+````
 
-Add these Pieter-style essentials:
-- `ALLOWED_ORIGINS=https://agenai.app,https://www.agenai.app` for CORS (production domains)
-- Simple error logging (just `console.log` is fine)
-- Rate limiting on auth routes
-- Basic usage metrics (track signups/payments)
+### 3. Frontend:
 
-**Remember his motto**: "Launch now, perfect later" 🚀
+#### From `models.ts`:
+```typescript:frontend/nextjs/api/types/models.ts
+// User Profile Data includes tokens
+export interface UserProfileData {
+  // ... other fields ...
+  tokens: number
+  one_time_purchase: boolean
+}
 
-# Backend (Peter Levels Style)
+// Token Transaction Model
+export interface TokenTransaction {
+  amount: number
+  type: 'purchase'
+  timestamp: Date
+}
 
-/backend
-├── app/
-│   ├── routes/
-│   │   ├── auth.py      # Firebase Auth direct
-│   │   ├── files.py     # Storage upload/download
-│   │   └── payments.py  # Stripe Checkout
-│   ├── firebase.py      # Init Firebase
-│   └── config.py        # Env vars
-└── main.py
-├── main.py
-└── requirements.txt
+// Update User Data can modify tokens
+export interface UserDataUpdate {
+  // ... other fields ...
+  tokens?: number
+  one_time_purchase?: boolean
+}
+```
 
+#### 1. `userprofileAPI.ts`, endpoints that handle token-related data:
+```typescript:frontend/nextjs/api/userprofileAPI.ts
+// Gets user profile including token balance
+export const getUserProfile = async (): Promise<UserProfileData> => {
+  // ... implementation ...
+};
 
+// Can update token balance
+export const updateUserProfile = async (data: UserDataUpdate): Promise<UserProfileData> => {
+  // ... implementation ...
+};
+```
 
-Generate complete implementation including all necessary files, routes, and documentation.
+#### 2. `stripeAPI.ts`, payment endpoint that triggers token updates:
+```typescript:frontend/nextjs/api/stripeAPI.ts
+// Creates checkout session for one-time purchase that grants tokens
+export const createCheckoutSession = async (
+  price_id: string,
+  mode: 'subscription' | 'payment'
+): Promise<void> => {
+  // ... implementation ...
+};
+```
 
-## Minimal Required Environment Variables
-
-Keep only these essential variables in your `.env`:
-
-### 1. Firebase Core
-- `FIREBASE_PROJECT_ID`
-- `FIREBASE_PRIVATE_KEY`
-- `FIREBASE_CLIENT_EMAIL`
-- `FIREBASE_STORAGE_BUCKET`
-
-### 2. Stripe Core
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_SUBSCRIPTION_PRICE_ID`
-- `STRIPE_ONETIME_PRICE_ID`
-
-### 3. CORS Origins
-- `ALLOWED_ORIGINS`
-
-Let me explain when to import from each file:
-1. Import from userprofileAPI.ts when:
-   - You need to make API calls to the backend
-   - You're performing actions like fetching, creating, or updating data
-2. Import from models.ts when:
-   - You need type definitions for props, state, or variables
-   - You're defining interfaces that extend or use these base types
-   - You're typing function parameters or return values
-
-// ✅ CORRECT USAGE:
-
-// When making API calls:
-import { getUserProfile, updateUserProfile } from '@/api/userprofileAPI';
-
-// When defining types:
-import type { UserProfileData, SubscriptionData } from '@/api/types/models';
-
-// ❌ INCORRECT USAGE:
-
-// Don't import types from userprofileAPI:
-import type { UserProfile } from '@/api/userprofileAPI'; // Wrong!
-
-// Don't import API functions from models:
-import { getUserProfile } from '@/api/types/models'; // Wrong!
+This completes the token system documentation showing:
+1. Frontend models for tracking tokens
+2. API endpoints for viewing/updating token balance
+3. Payment integration that triggers token updates
+4. All tied to the backend implementation we found earlier

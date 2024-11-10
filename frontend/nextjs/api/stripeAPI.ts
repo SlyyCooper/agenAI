@@ -119,7 +119,11 @@ export const getSubscriptionStatus = async (): Promise<SubscriptionStatusRespons
       throw new Error(error.detail || 'Failed to fetch subscription status');
     }
     
-    return await response.json();
+    const data = await response.json();
+    return {
+      ...data,
+      tokens: data.tokens || 0
+    };
   } catch (error) {
     console.error('Error fetching subscription status:', error);
     throw error;

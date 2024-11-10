@@ -8,6 +8,7 @@ import {
   TokenTransaction,
   PaymentHistory,
   AccessStatus,
+  TokenBalanceResponse,
 } from './types/models';
 
 const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
@@ -147,6 +148,29 @@ export const getAccessStatus = async (): Promise<AccessStatus> => {
     return await response.json();
   } catch (error) {
     console.error('Error fetching access status:', error);
+    throw error;
+  }
+};
+
+export const getTokenBalance = async (): Promise<TokenBalanceResponse> => {
+  try {
+    const firebaseToken = await getFirebaseToken();
+    const response = await fetch(`${BASE_URL}/api/user/tokens`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${firebaseToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch token balance');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching token balance:', error);
     throw error;
   }
 };

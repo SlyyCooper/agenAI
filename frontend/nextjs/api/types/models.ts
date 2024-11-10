@@ -110,8 +110,8 @@ export interface SubscriptionData {
 
 export interface TokenTransaction {
   amount: number
-  type: 'purchase'
-  timestamp: Date
+  type: 'purchase' | 'subscription' | 'usage' | 'bonus'
+  timestamp: Date | ServerTimestamp
 }
 
 export interface Product {
@@ -133,6 +133,7 @@ export interface SubscriptionStatusResponse {
   subscription_end_date?: string
   subscription_id?: string
   one_time_purchase: boolean
+  tokens: number
 }
 
 export interface ProductsResponse {
@@ -183,4 +184,13 @@ export interface CancelSubscriptionResponse {
     current_period_end: number;
     // ... other relevant fields
   };
+}
+
+export interface TokenBalanceResponse {
+  tokens: number
+  token_history: Array<{
+    amount: number
+    type: string
+    timestamp: ServerTimestamp
+  }>
 }

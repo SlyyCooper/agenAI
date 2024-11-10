@@ -193,3 +193,18 @@ async def get_access_status(current_user: dict = Depends(get_current_user)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/tokens")
+async def get_token_balance(current_user: dict = Depends(get_current_user)):
+    """
+    @purpose: Retrieves user's current token balance and history
+    @prereq: User must exist in Firestore
+    """
+    try:
+        user_data = await get_user_data(current_user['uid'])
+        return {
+            "tokens": user_data.get('tokens', 0),
+            "token_history": user_data.get('token_history', [])
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
