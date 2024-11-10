@@ -15,6 +15,8 @@ from .firebase import db, firestore
 import stripe
 import logging
 from functools import wraps
+from google.cloud.firestore_v1.base_client import DocumentSnapshot
+from google.api_core import exceptions
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -51,7 +53,7 @@ def ensure_idempotency(func):
                 'processed_at': firestore.SERVER_TIMESTAMP,
                 'processing_status': 'started'
             })
-        except firestore.AlreadyExists:
+        except exceptions.AlreadyExists:
             logger.info(f"Event {event_id} already processed")
             return JSONResponse(content={"status": "success", "reason": "already_processed"})
 
