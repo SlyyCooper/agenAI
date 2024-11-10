@@ -7,6 +7,7 @@
 
 from .firebase import db, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud import firestore
+from google.cloud.exceptions import Conflict
 import logging
 import stripe
 from datetime import datetime, timedelta
@@ -197,13 +198,17 @@ async def mark_event_processed(event_id: str, event_type: str):
     """
     try:
         event_ref = db.collection('processed_events').document(event_id)
-        event_ref.set({
+        event_ref.create({  # Use create instead of set for proper idempotency
             'event_id': event_id,
             'event_type': event_type,
             'processed_at': SERVER_TIMESTAMP,
             # TTL field for auto-cleanup after 30 days
             'expires_at': datetime.now() + timedelta(days=30)
         })
+    except Conflict:
+        # Event was already processed, which is fine for idempotency
+        logger.info(f"Event {event_id} already processed")
+        return
     except Exception as e:
         logger.error(f"Error marking event as processed: {str(e)}")
         raise
