@@ -95,8 +95,7 @@ async def handle_customer_created(customer):
 
 async def fulfill_order(session):
     """
-    @purpose: Processes completed checkout sessions and grants tokens for one-time purchases
-    @prereq: Valid session with user_id in metadata
+    @purpose: Single source of truth for updating user data on successful payment
     """
     user_id = session.get('metadata', {}).get('user_id')
     if not user_id:
@@ -107,23 +106,51 @@ async def fulfill_order(session):
     
     try:
         if session['mode'] == 'payment':
-            # Fix: Structure the token history entry correctly
-            token_history_entry = {
-                'amount': 5,
-                'type': 'purchase',
-                'timestamp': firestore.SERVER_TIMESTAMP
+            # Add payment record with unique payment ID to prevent duplicates
+            payment_record = {
+                'payment_id': session['payment_intent'],
+                'amount': session['amount_total'] / 100,
+                'type': 'payment',
+                'status': 'succeeded',
+                'created_at': datetime.now().isoformat()
             }
             
-            update_data = {
-                'tokens': firestore.Increment(5),
-                'one_time_purchase': True,
-                'has_access': True,
-                'token_history': firestore.ArrayUnion([token_history_entry]),
-                'last_updated': firestore.SERVER_TIMESTAMP
-            }
+            # Use transaction to check for existing payment
+            transaction = db.transaction()
             
-            user_ref.update(update_data)
-            logger.info(f"Added 5 tokens for user {user_id}")
+            @firestore.transactional
+            def update_in_transaction(transaction, user_ref):
+                user_doc = user_ref.get(transaction=transaction)
+                if not user_doc.exists:
+                    raise ValueError("User not found")
+                
+                payment_history = user_doc.get('payment_history', [])
+                
+                # Check if payment already processed
+                if any(p.get('payment_id') == session['payment_intent'] for p in payment_history):
+                    logger.warning(f"Payment {session['payment_intent']} already processed")
+                    return False
+                
+                # Update user data atomically
+                transaction.update(user_ref, {
+                    'tokens': firestore.Increment(5),
+                    'one_time_purchase': True,
+                    'has_access': True,
+                    'token_history': firestore.ArrayUnion([{
+                        'amount': 5,
+                        'type': 'purchase',
+                        'timestamp': firestore.SERVER_TIMESTAMP
+                    }]),
+                    'payment_history': firestore.ArrayUnion([payment_record]),
+                    'last_updated': firestore.SERVER_TIMESTAMP
+                })
+                return True
+                
+            success = update_in_transaction(transaction, user_ref)
+            if success:
+                logger.info(f"Successfully processed payment for user {user_id}")
+            else:
+                logger.info(f"Payment already processed for user {user_id}")
             
         elif session['mode'] == 'subscription':
             # Subscription purchase
@@ -197,19 +224,10 @@ async def handle_subscription_cancellation(subscription):
 
 async def handle_payment_success(payment_intent):
     """
-    @purpose: Updates user payment history on successful payment
-    @prereq: Payment intent must contain user_id in metadata
-    @performance: Single Firestore write operation
+    @purpose: Only log the payment success, don't modify user data
     """
-    if 'metadata' in payment_intent and 'user_id' in payment_intent['metadata']:
-        user_id = payment_intent['metadata']['user_id']
-        user_ref = db.collection('users').document(user_id)
-        
-        user_ref.update({
-            'last_payment_date': firestore.SERVER_TIMESTAMP,
-            'last_payment_amount': payment_intent['amount'] / 100,
-            'payment_status': 'succeeded'
-        })
+    logger.info(f"Payment success: {payment_intent['id']}")
+    return JSONResponse(content={"status": "success"})
 
 async def handle_charge_succeeded(charge):
     """
