@@ -3,9 +3,7 @@ import { Inter } from 'next/font/google'
 import { Metadata } from 'next'
 import PlausibleProvider from "next-plausible"
 import { AuthProvider } from '@/config/firebase/AuthContext'
-import UserProfileButton from '@/components/dashboard/UserProfileButton'
-import Link from 'next/link'
-import Image from 'next/image'
+import NavBar from '@/components/ui/NavBar'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -51,36 +49,10 @@ export default function RootLayout({
       <AuthProvider>
         <body className={`${inter.className} min-h-screen flex flex-col bg-white text-gray-900`}>
           <div className="flex flex-col min-h-screen">
-            <header className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-90 backdrop-blur-md shadow-sm">
-              <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-                <Link href="/" className="flex items-center">
-                  <Image
-                    src="/TAN.png"
-                    alt="TANgent Logo"
-                    width={40}
-                    height={40}
-                    priority
-                  />
-                </Link>
-                <div className="space-x-6 flex items-center">
-                  <Link href="/" className="text-gray-600 hover:text-gray-900 transition-colors">
-                    Home
-                  </Link>
-                  <Link href="/research" className="text-gray-600 hover:text-gray-900 transition-colors">
-                    Research
-                  </Link>
-                  <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 transition-colors">
-                    Dashboard
-                  </Link>
-                  <UserProfileButton />
-                </div>
-              </nav>
-            </header>
-
+            <NavBar />
             <main className="flex-grow mt-16 pt-8">
               {children}
             </main>
-
             <footer className="bg-gray-100 py-8 px-6">
               <div className="container mx-auto text-center text-gray-600">
                 <p>&copy; {new Date().getFullYear()} TANgent. All rights reserved.</p>
