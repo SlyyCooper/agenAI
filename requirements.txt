@@ -30,7 +30,7 @@ json_repair
 json5
 loguru
 browser_cookie3
-firebase-admin
+firebase-admin>=6.6.0  # Added version specification here
 stripe
 
 # uncomment for testing
