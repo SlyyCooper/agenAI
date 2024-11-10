@@ -43,13 +43,12 @@ export const createCheckoutSession = async (
       throw new Error(error.detail || 'Failed to create checkout session');
     }
     
-    const { sessionId } = await response.json();
+    const { url } = await response.json();
     const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
     
     if (!stripe) throw new Error('Stripe failed to load');
     
-    const { error } = await stripe.redirectToCheckout({ sessionId });
-    if (error) throw error;
+    window.location.href = url;
   } catch (error) {
     console.error('Error creating checkout session:', error);
     throw error;

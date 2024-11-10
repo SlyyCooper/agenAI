@@ -74,21 +74,11 @@ async def stripe_webhook(request: Request):
             logger.info(f"🔄 Skipping duplicate event: {event.id}")
             return JSONResponse(content={"status": "skipped", "reason": "duplicate"})
 
-        # Process the event
+        # Pass the entire event object, not just the data
         try:
-            if event.type == 'checkout.session.completed':
-                session = event.data.object
-                await handle_stripe_webhook(session)
-            elif event.type == 'invoice.paid':
-                invoice = event.data.object
-                await handle_stripe_webhook(invoice)
-            # Add other event types as needed
-            
-            # Mark event as processed
-            await mark_event_processed(event.id, event.type)
-            
+            result = await handle_stripe_webhook(event)
             logger.info(f"✅ Successfully processed {event.type}")
-            return JSONResponse(content={"status": "success"})
+            return result
             
         except Exception as e:
             logger.error(f"❌ Error processing webhook: {str(e)}")
