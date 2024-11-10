@@ -1,254 +1,335 @@
 """
-@purpose: Manages Stripe webhook event processing and user subscription/payment state
+@module: stripe_webhook_handler.py
+@purpose: Manages Stripe webhook event processing with proper idempotency and payment state management
 @prereq: Requires configured Stripe API, Firebase Admin SDK, and environment variables
-@reference: Used with stripe_routes.py for payment flow integration
-@maintenance: Monitor Stripe API version compatibility and webhook signature verification
+@maintainer: Your Team Name
 """
 
 import os
 from datetime import datetime
+from enum import Enum
+from typing import Optional, Dict, Any
+from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from .firebase import db, firestore
 import stripe
 import logging
+from functools import wraps
 
+# Configure logging
 logger = logging.getLogger(__name__)
 
-async def handle_stripe_webhook(event):
+class PaymentStatus(str, Enum):
+    """Payment status enumeration for consistent state management"""
+    PENDING = 'pending'
+    PROCESSING = 'processing'
+    COMPLETED = 'completed'
+    FAILED = 'failed'
+    REFUNDED = 'refunded'
+
+class SubscriptionStatus(str, Enum):
+    """Subscription status enumeration"""
+    ACTIVE = 'active'
+    CANCELED = 'canceled'
+    PAST_DUE = 'past_due'
+    INCOMPLETE = 'incomplete'
+
+def ensure_idempotency(func):
     """
-    @purpose: Routes and processes incoming Stripe webhook events
-    @prereq: Valid Stripe event with signature verification
-    @performance: O(1) lookup of handler, variable processing time per event type
-    @example: await handle_stripe_webhook(stripe_event)
+    Decorator to ensure webhook idempotency using Firestore
+    """
+    @wraps(func)
+    async def wrapper(event: Dict[str, Any], *args, **kwargs):
+        event_id = event['id']
+        processed_events_ref = db.collection('processed_events').document(event_id)
+
+        try:
+            # Try to create the event document - will fail if already exists
+            processed_events_ref.create({
+                'event_id': event_id,
+                'event_type': event['type'],
+                'processed_at': firestore.SERVER_TIMESTAMP,
+                'processing_status': 'started'
+            })
+        except firestore.AlreadyExists:
+            logger.info(f"Event {event_id} already processed")
+            return JSONResponse(content={"status": "success", "reason": "already_processed"})
+
+        try:
+            # Process the event
+            result = await func(event, *args, **kwargs)
+            
+            # Mark event as successfully processed
+            processed_events_ref.update({
+                'processing_status': 'completed',
+                'completed_at': firestore.SERVER_TIMESTAMP
+            })
+            
+            return result
+        except Exception as e:
+            # Mark event as failed
+            processed_events_ref.update({
+                'processing_status': 'failed',
+                'error': str(e),
+                'failed_at': firestore.SERVER_TIMESTAMP
+            })
+            raise
+
+    return wrapper
+
+class PaymentProcessor:
+    """Handles all payment-related state transitions and database updates"""
+    
+    def __init__(self, db_client):
+        self.db = db_client
+        
+    async def create_payment_record(self, payment_id: str, user_id: str, amount: int,
+                                  payment_type: str) -> bool:
+        """
+        Creates a new payment record with proper locking
+        Returns: bool indicating if payment record was created
+        """
+        payment_ref = self.db.collection('payments').document(payment_id)
+        
+        @firestore.transactional
+        def create_in_transaction(transaction, payment_ref):
+            payment_doc = payment_ref.get(transaction=transaction)
+            if payment_doc.exists:
+                return False
+                
+            transaction.set(payment_ref, {
+                'payment_id': payment_id,
+                'user_id': user_id,
+                'amount': amount,
+                'payment_type': payment_type,
+                'status': PaymentStatus.PENDING.value,
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'updated_at': firestore.SERVER_TIMESTAMP
+            })
+            return True
+            
+        return create_in_transaction(self.db.transaction(), payment_ref)
+        
+    async def update_payment_status(self, payment_id: str, 
+                                  status: PaymentStatus,
+                                  metadata: Optional[Dict] = None) -> None:
+        """Updates payment status with optional metadata"""
+        payment_ref = self.db.collection('payments').document(payment_id)
+        
+        update_data = {
+            'status': status.value,
+            'updated_at': firestore.SERVER_TIMESTAMP
+        }
+        
+        if metadata:
+            update_data['metadata'] = metadata
+            
+        payment_ref.update(update_data)
+
+class UserSubscriptionManager:
+    """Manages user subscription states and updates"""
+    
+    def __init__(self, db_client):
+        self.db = db_client
+        
+    async def update_subscription(self, user_id: str, subscription: Dict[str, Any]) -> None:
+        """Updates user subscription status and details"""
+        user_ref = self.db.collection('users').document(user_id)
+        
+        update_data = {
+            'subscription_status': subscription['status'],
+            'subscription_id': subscription['id'],
+            'subscription_end_date': datetime.fromtimestamp(
+                subscription['current_period_end']
+            ).isoformat(),
+            'has_access': subscription['status'] == SubscriptionStatus.ACTIVE.value,
+            'last_updated': firestore.SERVER_TIMESTAMP
+        }
+        
+        user_ref.update(update_data)
+
+@ensure_idempotency
+async def handle_stripe_webhook(event: Dict[str, Any]) -> JSONResponse:
+    """
+    Main webhook handler with proper idempotency and error handling
     """
     logger.info(f"Processing Stripe webhook event: {event['type']}")
     
-    # @purpose: Map event types to their handlers
-    # @maintenance: Update when adding new event types
+    # Initialize handlers
+    payment_processor = PaymentProcessor(db)
+    subscription_manager = UserSubscriptionManager(db)
+    
     handlers = {
-        'customer.created': handle_customer_created,
-        'checkout.session.completed': fulfill_order,
-        'invoice.paid': update_subscription_status,
-        'customer.subscription.deleted': handle_subscription_cancellation,
-        'payment_intent.succeeded': handle_payment_success,
-        'payment_intent.created': handle_payment_intent_created,
-        'charge.succeeded': lambda x: handle_charge_succeeded(x),
-        'charge.updated': lambda x: handle_charge_updated(x)
+        'checkout.session.completed': handle_checkout_session,
+        'customer.subscription.updated': handle_subscription_updated,
+        'customer.subscription.deleted': handle_subscription_deleted,
+        'invoice.paid': handle_invoice_paid,
+        'invoice.payment_failed': handle_invoice_payment_failed
     }
     
     try:
         handler = handlers.get(event['type'])
         if handler:
-            await handler(event['data']['object'])
-            return JSONResponse(content={"status": "success"})
+            result = await handler(
+                event['data']['object'],
+                payment_processor,
+                subscription_manager
+            )
+            return JSONResponse(content={"status": "success", "result": result})
         else:
-            logger.warning(f'Unhandled event type {event["type"]}')
-            return JSONResponse(content={"status": "ignored", "reason": "unhandled_event_type"})
+            logger.info(f'Unhandled event type {event["type"]}')
+            return JSONResponse(
+                content={"status": "ignored", "reason": "unhandled_event_type"}
+            )
     except Exception as e:
         logger.error(f"Error processing webhook: {str(e)}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
-async def handle_customer_created(customer):
+async def handle_checkout_session(
+    session: Dict[str, Any],
+    payment_processor: PaymentProcessor,
+    subscription_manager: UserSubscriptionManager
+) -> Dict[str, Any]:
     """
-    @purpose: Processes new Stripe customer creation and links to Firebase user
-    @prereq: Customer object must contain user_id in metadata
-    @invariant: One-to-one mapping between Stripe customer and Firebase user
-    @performance: Single Firestore read + single write transaction
-    """
-    try:
-        user_id = customer['metadata'].get('user_id')
-        if not user_id:
-            logger.warning("No user_id in customer metadata")
-            return
-            
-        user_ref = db.collection('users').document(user_id)
-        user_doc = user_ref.get()
-        
-        # @purpose: Update existing user or create new one
-        if user_doc.exists:
-            user_ref.update({
-                'stripe_customer_id': customer['id'],
-                'stripe_created_at': firestore.SERVER_TIMESTAMP,
-                'customer_email': customer['email'],
-                'last_updated': firestore.SERVER_TIMESTAMP
-            })
-            logger.info(f"Successfully processed customer.created for user {user_id}")
-        else:
-            # @purpose: Initialize new user with default state
-            user_ref.set({
-                'stripe_customer_id': customer['id'],
-                'stripe_created_at': firestore.SERVER_TIMESTAMP,
-                'customer_email': customer['email'],
-                'created_at': firestore.SERVER_TIMESTAMP,
-                'last_updated': firestore.SERVER_TIMESTAMP,
-                'has_access': False,
-                'one_time_purchase': False
-            })
-            logger.info(f"Created new user document for {user_id}")
-            
-    except Exception as e:
-        logger.error(f"Error handling customer.created: {str(e)}")
-        raise
-
-async def fulfill_order(session):
-    """
-    @purpose: Single source of truth for updating user data on successful payment
+    Handles successful checkout sessions with proper error handling and idempotency
     """
     user_id = session.get('metadata', {}).get('user_id')
     if not user_id:
-        logger.error("No user_id found in session metadata")
         raise ValueError("Missing user_id in session metadata")
         
-    user_ref = db.collection('users').document(user_id)
-    
     try:
         if session['mode'] == 'payment':
-            # Add payment record with unique payment ID to prevent duplicates
-            payment_record = {
-                'payment_id': session['payment_intent'],
-                'amount': session['amount_total'] / 100,
-                'type': 'payment',
-                'status': 'succeeded',
-                'created_at': datetime.now().isoformat()
-            }
+            # Handle one-time payment
+            payment_created = await payment_processor.create_payment_record(
+                payment_id=session['payment_intent'],
+                user_id=user_id,
+                amount=session['amount_total'],
+                payment_type='one_time'
+            )
             
-            # Use transaction to check for existing payment
-            transaction = db.transaction()
+            if not payment_created:
+                logger.info(f"Payment {session['payment_intent']} already processed")
+                return {"status": "already_processed"}
+                
+            # Update user benefits
+            user_ref = db.collection('users').document(user_id)
             
             @firestore.transactional
-            def update_in_transaction(transaction, user_ref):
+            def update_user_benefits(transaction, user_ref):
                 user_doc = user_ref.get(transaction=transaction)
                 if not user_doc.exists:
                     raise ValueError("User not found")
+                    
+                current_tokens = user_doc.get('tokens', 0)
                 
-                payment_history = user_doc.get('payment_history', [])
-                
-                # Check if payment already processed
-                if any(p.get('payment_id') == session['payment_intent'] for p in payment_history):
-                    logger.warning(f"Payment {session['payment_intent']} already processed")
-                    return False
-                
-                # Update user data atomically
                 transaction.update(user_ref, {
-                    'tokens': firestore.Increment(5),
-                    'one_time_purchase': True,
+                    'tokens': current_tokens + 5,
                     'has_access': True,
+                    'one_time_purchase': True,
                     'token_history': firestore.ArrayUnion([{
                         'amount': 5,
                         'type': 'purchase',
                         'timestamp': firestore.SERVER_TIMESTAMP
                     }]),
-                    'payment_history': firestore.ArrayUnion([payment_record]),
                     'last_updated': firestore.SERVER_TIMESTAMP
                 })
-                return True
-                
-            success = update_in_transaction(transaction, user_ref)
-            if success:
-                logger.info(f"Successfully processed payment for user {user_id}")
-            else:
-                logger.info(f"Payment already processed for user {user_id}")
+            
+            await update_user_benefits(db.transaction(), user_ref)
+            await payment_processor.update_payment_status(
+                session['payment_intent'],
+                PaymentStatus.COMPLETED
+            )
             
         elif session['mode'] == 'subscription':
-            # Subscription purchase
-            subscription_id = session['subscription']
-            subscription = stripe.Subscription.retrieve(subscription_id)
+            # Handle subscription payment
+            subscription = stripe.Subscription.retrieve(session['subscription'])
+            await subscription_manager.update_subscription(user_id, subscription)
             
-            user_ref.update({
-                'has_access': True,
-                'subscription_status': 'active',
-                'subscription_id': subscription_id,
-                'subscription_end_date': datetime.fromtimestamp(subscription['current_period_end']),
-                'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
-                'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID"),
-                'last_updated': firestore.SERVER_TIMESTAMP
-            })
-            logger.info(f"Activated subscription for user {user_id}")
-            
-        else:
-            raise ValueError(f"Unexpected session mode: {session['mode']}")
-            
+        return {"status": "success", "mode": session['mode']}
+        
     except Exception as e:
-        logger.error(f"Error fulfilling order: {str(e)}")
+        logger.error(f"Error handling checkout session: {str(e)}")
+        # Update payment status to failed if applicable
+        if session['mode'] == 'payment':
+            await payment_processor.update_payment_status(
+                session['payment_intent'],
+                PaymentStatus.FAILED,
+                {'error': str(e)}
+            )
         raise
 
-async def update_subscription_status(invoice):
-    """
-    @purpose: Updates user subscription status on successful invoice payment
-    @prereq: Invoice must contain user_id in metadata
-    @performance: Single atomic Firestore write
-    """
-    try:
-        user_id = invoice['metadata']['user_id']
-        user_ref = db.collection('users').document(user_id)
+async def handle_subscription_updated(
+    subscription: Dict[str, Any],
+    payment_processor: PaymentProcessor,
+    subscription_manager: UserSubscriptionManager
+) -> Dict[str, Any]:
+    """Handles subscription update events"""
+    user_id = subscription['metadata'].get('user_id')
+    if not user_id:
+        raise ValueError("Missing user_id in subscription metadata")
         
-        subscription = stripe.Subscription.retrieve(invoice['subscription'])
-        current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
-        
-        # Fix: Use proper timestamp format
-        update_data = {
-            'subscription_status': 'active',
-            'last_payment_date': firestore.SERVER_TIMESTAMP,
-            'subscription_end_date': current_period_end.isoformat(),
-            'has_access': True,
-            'last_updated': firestore.SERVER_TIMESTAMP
-        }
-        
-        # Single atomic update
-        user_ref.update(update_data)
-        
-        logger.info(f"Subscription updated for user {user_id}")
-    except Exception as e:
-        logger.error(f"Error updating subscription: {str(e)}")
-        raise
+    await subscription_manager.update_subscription(user_id, subscription)
+    return {"status": "success"}
 
-async def handle_subscription_cancellation(subscription):
-    """
-    @purpose: Processes subscription cancellation and revokes access
-    @prereq: Subscription must contain user_id in metadata
-    @performance: Single Firestore write operation
-    """
-    user_id = subscription['metadata']['user_id']
+async def handle_subscription_deleted(
+    subscription: Dict[str, Any],
+    payment_processor: PaymentProcessor,
+    subscription_manager: UserSubscriptionManager
+) -> Dict[str, Any]:
+    """Handles subscription cancellation events"""
+    user_id = subscription['metadata'].get('user_id')
+    if not user_id:
+        raise ValueError("Missing user_id in subscription metadata")
+        
     user_ref = db.collection('users').document(user_id)
-    
     user_ref.update({
-        'subscription_status': 'cancelled',
-        'subscription_end_date': datetime.fromtimestamp(subscription['current_period_end']),
-        'has_access': False
+        'subscription_status': SubscriptionStatus.CANCELED.value,
+        'has_access': False,
+        'subscription_end_date': datetime.fromtimestamp(
+            subscription['current_period_end']
+        ).isoformat(),
+        'last_updated': firestore.SERVER_TIMESTAMP
     })
     
-    print(f"Subscription cancelled for user {user_id}")
+    return {"status": "success"}
 
-async def handle_payment_success(payment_intent):
-    """
-    @purpose: Only log the payment success, don't modify user data
-    """
-    logger.info(f"Payment success: {payment_intent['id']}")
-    return JSONResponse(content={"status": "success"})
+async def handle_invoice_paid(
+    invoice: Dict[str, Any],
+    payment_processor: PaymentProcessor,
+    subscription_manager: UserSubscriptionManager
+) -> Dict[str, Any]:
+    """Handles successful invoice payments"""
+    user_id = invoice['metadata'].get('user_id')
+    if not user_id:
+        raise ValueError("Missing user_id in invoice metadata")
+        
+    subscription = stripe.Subscription.retrieve(invoice['subscription'])
+    await subscription_manager.update_subscription(user_id, subscription)
+    
+    # Create payment record
+    await payment_processor.create_payment_record(
+        payment_id=invoice['payment_intent'],
+        user_id=user_id,
+        amount=invoice['amount_paid'],
+        payment_type='subscription'
+    )
+    
+    return {"status": "success"}
 
-async def handle_charge_succeeded(charge):
-    """
-    @purpose: Logs successful charge events
-    @performance: O(1) logging operation
-    """
-    logger.info("Received charge.succeeded event")
-    return JSONResponse(content={"status": "success"})
-
-async def handle_charge_updated(charge):
-    """
-    @purpose: Logs charge update events
-    @performance: O(1) logging operation
-    """
-    logger.info("Received charge.updated event")
-    return JSONResponse(content={"status": "success"})
-
-async def handle_payment_intent_created(payment_intent):
-    """
-    @purpose: Logs payment intent creation events
-    @performance: O(1) logging operation
-    """
-    logger.info("Received payment_intent.created event")
-    return JSONResponse(content={"status": "success"})
+async def handle_invoice_payment_failed(
+    invoice: Dict[str, Any],
+    payment_processor: PaymentProcessor,
+    subscription_manager: UserSubscriptionManager
+) -> Dict[str, Any]:
+    """Handles failed invoice payments"""
+    user_id = invoice['metadata'].get('user_id')
+    if not user_id:
+        raise ValueError("Missing user_id in invoice metadata")
+        
+    user_ref = db.collection('users').document(user_id)
+    user_ref.update({
+        'subscription_status': SubscriptionStatus.PAST_DUE.value,
+        'last_updated': firestore.SERVER_TIMESTAMP
+    })
+    
+    return {"status": "success"}

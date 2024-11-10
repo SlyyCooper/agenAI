@@ -12,8 +12,9 @@ import stripe
 import os
 from .stripe_utils import handle_stripe_webhook
 from .firebase import verify_firebase_token
-from .firestore_utils import get_user_data
+from .firestore_utils import get_user_data, check_processed_event, mark_event_processed
 from pydantic import BaseModel
+from fastapi.responses import JSONResponse
 
 # @purpose: Configure module-level logging
 logger = logging.getLogger(__name__)
@@ -49,37 +50,53 @@ class CheckoutSessionRequest(BaseModel):
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
     """
-    @purpose: Handles incoming Stripe webhook events
-    @prereq: Valid Stripe signature header and webhook secret
-    @limitation: Must be configured with correct webhook signing secret
+    @purpose: Handles Stripe webhook events with deduplication
+    @prereq: Valid Stripe signature
+    @performance: Multiple Firestore operations
     """
     try:
-        # @purpose: Enhanced webhook request logging for debugging
-        logger.info(f"""
-        Webhook Request Details:
-        - Full URL: {request.url}
-        - Base URL: {request.base_url}
-        - Headers: {request.headers}
-        - Client: {request.client.host if request.client else 'Unknown'}
-        - Stripe-Signature: {request.headers.get('Stripe-Signature', 'Not Found')}
-        """)
-        
+        # Verify webhook signature
         payload = await request.body()
-        sig_header = request.headers.get("Stripe-Signature")
+        sig_header = request.headers.get('stripe-signature')
         
-        if not sig_header:
-            logger.warning("No Stripe signature found in headers")
-            raise HTTPException(status_code=400, detail="No Stripe signature found")
+        try:
+            event = stripe.Webhook.construct_event(
+                payload,
+                sig_header,
+                os.getenv('STRIPE_WEBHOOK_SECRET')
+            )
+        except Exception as e:
+            logger.error(f"⚠️ Webhook signature verification failed: {str(e)}")
+            raise HTTPException(status_code=400, detail=str(e))
+
+        # Check for duplicate events
+        if await check_processed_event(event.id):
+            logger.info(f"🔄 Skipping duplicate event: {event.id}")
+            return JSONResponse(content={"status": "skipped", "reason": "duplicate"})
+
+        # Process the event
+        try:
+            if event.type == 'checkout.session.completed':
+                session = event.data.object
+                await handle_stripe_webhook(session)
+            elif event.type == 'invoice.paid':
+                invoice = event.data.object
+                await handle_stripe_webhook(invoice)
+            # Add other event types as needed
             
-        # @purpose: Verify webhook authenticity using Stripe signature
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, os.getenv("STRIPE_WEBHOOK_SECRET")
-        )
-        logger.info(f"Successfully constructed Stripe event: {event.type}")
-        return await handle_stripe_webhook(event)
+            # Mark event as processed
+            await mark_event_processed(event.id, event.type)
+            
+            logger.info(f"✅ Successfully processed {event.type}")
+            return JSONResponse(content={"status": "success"})
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing webhook: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
+            
     except Exception as e:
-        logger.error(f"Webhook error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Webhook error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/create-checkout-session")
 async def create_checkout_session(

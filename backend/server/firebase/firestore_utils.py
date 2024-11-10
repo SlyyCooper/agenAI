@@ -9,7 +9,7 @@ from .firebase import db, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud import firestore
 import logging
 import stripe
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -175,4 +175,35 @@ async def update_user_tokens(user_id: str, amount: int, reason: str):
         logger.info(f"Updated tokens for user {user_id}: {amount} ({reason})")
     except Exception as e:
         logger.error(f"Error updating tokens: {str(e)}")
+        raise
+
+async def check_processed_event(event_id: str) -> bool:
+    """
+    @purpose: Check if Stripe webhook event was already processed
+    @performance: Single Firestore read
+    """
+    try:
+        event_ref = db.collection('processed_events').document(event_id)
+        doc = event_ref.get()
+        return doc.exists
+    except Exception as e:
+        logger.error(f"Error checking processed event: {str(e)}")
+        raise
+
+async def mark_event_processed(event_id: str, event_type: str):
+    """
+    @purpose: Mark Stripe webhook event as processed
+    @performance: Single Firestore write with TTL
+    """
+    try:
+        event_ref = db.collection('processed_events').document(event_id)
+        event_ref.set({
+            'event_id': event_id,
+            'event_type': event_type,
+            'processed_at': SERVER_TIMESTAMP,
+            # TTL field for auto-cleanup after 30 days
+            'expires_at': datetime.now() + timedelta(days=30)
+        })
+    except Exception as e:
+        logger.error(f"Error marking event as processed: {str(e)}")
         raise
