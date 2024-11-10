@@ -17,6 +17,7 @@ import logging
 from functools import wraps
 from google.cloud.firestore_v1.base_client import DocumentSnapshot
 from google.api_core import exceptions
+from google.cloud.firestore import ArrayUnion
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -235,7 +236,6 @@ async def handle_checkout_session(
         
     try:
         if session['mode'] == 'payment':
-            # Handle one-time payment
             payment_created = await payment_processor.create_payment_record(
                 payment_id=session['payment_intent'],
                 user_id=user_id,
@@ -247,23 +247,55 @@ async def handle_checkout_session(
                 logger.info(f"Payment {session['payment_intent']} already processed")
                 return {"status": "already_processed"}
             
-            # Add 5 tokens for one-time purchase
-            from .firestore_utils import update_user_tokens
-            await update_user_tokens(user_id, 5, "one_time_purchase")
+            # Add 5 tokens and update access status
+            user_ref = db.collection('users').document(user_id)
             
-            await payment_processor.update_payment_status(
-                session['payment_intent'],
-                PaymentStatus.COMPLETED
-            )
+            def update_user_transaction(transaction):
+                user_doc = user_ref.get(transaction=transaction)
+                user_data = user_doc.to_dict()
+                new_token_balance = (user_data.get('tokens', 0) + 5)
+                
+                update_data = {
+                    'tokens': new_token_balance,
+                    'has_access': True,
+                    'one_time_purchase': (new_token_balance > 0 and user_data.get('subscription_status') != 'active'),
+                    'token_history': ArrayUnion([{
+                        'amount': 5,
+                        'type': 'one_time_purchase',
+                        'timestamp': firestore.SERVER_TIMESTAMP
+                    }]),
+                    'last_updated': firestore.SERVER_TIMESTAMP
+                }
+                transaction.update(user_ref, update_data)
+            
+            db.transaction().transaction(update_user_transaction)
             
         elif session['mode'] == 'subscription':
-            # Handle subscription payment
             subscription = stripe.Subscription.retrieve(session['subscription'])
             await subscription_manager.update_subscription(user_id, subscription)
             
-            # Add 20 tokens for subscription
-            from .firestore_utils import update_user_tokens
-            await update_user_tokens(user_id, 20, "subscription_purchase")
+            user_ref = db.collection('users').document(user_id)
+            
+            def update_subscription_transaction(transaction):
+                user_doc = user_ref.get(transaction=transaction)
+                user_data = user_doc.to_dict()
+                new_token_balance = (user_data.get('tokens', 0) + 20)
+                
+                update_data = {
+                    'tokens': new_token_balance,
+                    'has_access': True,
+                    'subscription_status': 'active',
+                    'one_time_purchase': False,
+                    'token_history': ArrayUnion([{
+                        'amount': 20,
+                        'type': 'subscription_purchase',
+                        'timestamp': firestore.SERVER_TIMESTAMP
+                    }]),
+                    'last_updated': firestore.SERVER_TIMESTAMP
+                }
+                transaction.update(user_ref, update_data)
+            
+            db.transaction().transaction(update_subscription_transaction)
             
         return {"status": "success", "mode": session['mode']}
         
@@ -302,14 +334,24 @@ async def handle_subscription_deleted(
         raise ValueError("Missing user_id in subscription metadata")
         
     user_ref = db.collection('users').document(user_id)
-    user_ref.update({
-        'subscription_status': SubscriptionStatus.CANCELED.value,
-        'has_access': False,
-        'subscription_end_date': datetime.fromtimestamp(
-            subscription['current_period_end']
-        ).isoformat(),
-        'last_updated': firestore.SERVER_TIMESTAMP
-    })
+    
+    def update_subscription_status(transaction):
+        user_doc = user_ref.get(transaction=transaction)
+        user_data = user_doc.to_dict()
+        token_balance = user_data.get('tokens', 0)
+        
+        update_data = {
+            'subscription_status': SubscriptionStatus.CANCELED.value,
+            'has_access': token_balance > 0,
+            'one_time_purchase': token_balance > 0,
+            'subscription_end_date': datetime.fromtimestamp(
+                subscription['current_period_end']
+            ).isoformat(),
+            'last_updated': firestore.SERVER_TIMESTAMP
+        }
+        transaction.update(user_ref, update_data)
+    
+    db.transaction().transaction(update_subscription_status)
     
     return {"status": "success"}
 
