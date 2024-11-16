@@ -31,7 +31,7 @@ class Config:
         self.smart_llm_model = os.getenv("SMART_LLM_MODEL", "gpt-4o-2024-08-06")
         self.fast_token_limit = int(os.getenv("FAST_TOKEN_LIMIT", 4000))
         self.smart_token_limit = int(os.getenv("SMART_TOKEN_LIMIT", 6000))
-        self.browse_chunk_max_length = int(os.getenv("BROWSE_CHUNK_MAX_LENGTH", 10000))
+        self.browse_chunk_max_length = int(os.getenv("BROWSE_CHUNK_MAX_LENGTH", 8192))
         self.summary_token_limit = int(os.getenv("SUMMARY_TOKEN_LIMIT", 1200))
         self.temperature = float(os.getenv("TEMPERATURE", 0.4))
         self.llm_temperature = float(os.getenv("LLM_TEMPERATURE", 0.55))
