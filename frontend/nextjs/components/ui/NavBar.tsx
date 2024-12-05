@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Home, Search, LayoutDashboard } from 'lucide-react';
+import { Menu, X, Home, Search, LayoutDashboard, CreditCard, Zap } from 'lucide-react';
 import UserProfileButton from '@/components/profile/UserProfileButton';
 import { clsx } from 'clsx';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
@@ -15,12 +15,14 @@ import type { UserProfileData } from '@/types/interfaces/api.types';
 // Define different nav items for authenticated and non-authenticated users
 const publicNavItems = [
   { name: 'Home', href: '/', icon: Home },
+  { name: 'Pricing', href: '/plans', icon: CreditCard },
 ];
 
 const authenticatedNavItems = [
   { name: 'Home', href: '/', icon: Home },
   { name: 'Research', href: '/research', icon: Search },
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Pricing', href: '/plans', icon: CreditCard },
 ];
 
 export default function NavBar() {
@@ -58,6 +60,28 @@ export default function NavBar() {
   }, []);
 
   const navItems = isAuthenticated ? authenticatedNavItems : publicNavItems;
+
+  const UpgradeButton = () => {
+    if (!isAuthenticated || !userProfile) return null;
+    
+    // Show upgrade button for free users
+    const needsUpgrade = !userProfile.has_access && !userProfile.one_time_purchase;
+    if (!needsUpgrade) return null;
+
+    return (
+      <Link
+        href="/plans"
+        className={clsx(
+          'flex items-center px-4 py-2 rounded-md font-medium transition-colors duration-200',
+          'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700',
+          'shadow-md hover:shadow-lg'
+        )}
+      >
+        <Zap className="w-4 h-4 mr-2" />
+        Upgrade
+      </Link>
+    );
+  };
 
   return (
     <motion.header
@@ -114,6 +138,7 @@ export default function NavBar() {
                 </Link>
               )}
             )}
+            <UpgradeButton />
             {isAuthenticated ? (
               <UserProfileButton />
             ) : (
@@ -177,7 +202,8 @@ export default function NavBar() {
                     </motion.div>
                   );
                 })}
-                <div className="pt-4">
+                <div className="pt-4 space-y-2">
+                  <UpgradeButton />
                   {isAuthenticated ? (
                     <UserProfileButton />
                   ) : (

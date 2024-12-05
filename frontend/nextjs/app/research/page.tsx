@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/config/firebase/AuthContext";
 
@@ -11,7 +11,7 @@ import InputArea from "@/components/research/input/InputArea";
 import Sources from "@/components/research/output/Sources";
 import Question from "@/components/research/input/Question";
 import SubQuestions from "@/components/research/output/SubQuestions";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import AccessReport from '@/components/research/output/AccessReport';
 import LogMessage from '@/components/research/output/LogMessage';
 
@@ -22,15 +22,117 @@ import Image from 'next/image';
 import { saveResearchReport } from '@/api/storageAPI';
 import { toast } from 'react-hot-toast';
 
+// Access control constants
+const TIER_LIMITS = {
+  FREE: {
+    reportsPerMonth: 5,
+    tokensPerReport: 1000,
+    modelAccess: ['gpt-3.5-turbo']
+  },
+  PRO: {
+    reportsPerMonth: -1, // unlimited
+    tokensPerReport: 4000,
+    modelAccess: ['gpt-4', 'gpt-3.5-turbo']
+  },
+  ENTERPRISE: {
+    reportsPerMonth: -1,
+    tokensPerReport: 8000,
+    modelAccess: ['gpt-4', 'gpt-3.5-turbo', 'claude-3']
+  }
+};
+
 export default function ResearchPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const [userTier, setUserTier] = useState<'FREE' | 'PRO' | 'ENTERPRISE'>('FREE');
+  const [monthlyUsage, setMonthlyUsage] = useState(0);
 
+  // Check user's subscription status and usage
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
+    const checkAccess = async () => {
+      if (!user) {
+        router.push('/login?redirect=research');
+        return;
+      }
+
+      try {
+        // Get subscription status
+        const subscriptionRes = await fetch('/api/subscription/status');
+        const subscriptionData = await subscriptionRes.json();
+
+        // Determine user tier
+        let tier: 'FREE' | 'PRO' | 'ENTERPRISE' = 'FREE';
+        if (subscriptionData.subscription_status === 'active') {
+          tier = subscriptionData.subscription_id.includes('enterprise') 
+            ? 'ENTERPRISE' 
+            : 'PRO';
+        }
+        setUserTier(tier);
+
+        // Get monthly usage
+        const usageRes = await fetch('/api/usage/monthly');
+        const usageData = await usageRes.json();
+        setMonthlyUsage(usageData.reports_count || 0);
+
+      } catch (error) {
+        console.error('Error checking access:', error);
+        toast.error('Error checking access status');
+      }
+    };
+
+    if (!authLoading) {
+      checkAccess();
     }
   }, [user, authLoading, router]);
+
+  // Check if user can create new report
+  const canCreateReport = () => {
+    const tierLimit = TIER_LIMITS[userTier].reportsPerMonth;
+    if (tierLimit === -1) return true; // unlimited
+    return monthlyUsage < tierLimit;
+  };
+
+  // Handle upgrade prompt
+  const handleUpgradePrompt = () => {
+    const remaining = TIER_LIMITS[userTier].reportsPerMonth - monthlyUsage;
+    
+    if (remaining <= 0) {
+      toast((t) => (
+        <div>
+          <p>You've reached your monthly report limit.</p>
+          <button
+            className="mt-2 bg-blue-500 text-white px-4 py-2 rounded"
+            onClick={() => {
+              toast.dismiss(t.id);
+              router.push('/plans');
+            }}
+          >
+            Upgrade Now
+          </button>
+        </div>
+      ), { duration: 5000 });
+      return false;
+    }
+    
+    if (remaining <= 2) {
+      toast((t) => (
+        <div>
+          <p>You have {remaining} report{remaining === 1 ? '' : 's'} remaining this month.</p>
+          <button
+            className="mt-2 bg-blue-500 text-white px-4 py-2 rounded"
+            onClick={() => {
+              toast.dismiss(t.id);
+              router.push('/plans');
+            }}
+          >
+            Upgrade for Unlimited Reports
+          </button>
+        </div>
+      ), { duration: 5000 });
+    }
+    
+    return true;
+  };
 
   const [promptValue, setPromptValue] = useState("");
   const [showResult, setShowResult] = useState(false);
@@ -168,6 +270,11 @@ export default function ResearchPage() {
   };
 
   const handleDisplayResult = async (newQuestion?: string) => {
+    if (!canCreateReport()) {
+      handleUpgradePrompt();
+      return;
+    }
+
     setIsTransitioning(true);
     newQuestion = newQuestion || promptValue;
 
@@ -453,6 +560,23 @@ export default function ResearchPage() {
     }
   }, [socket, question, chatBoxSettings.report_type]);
 
+  // Add tier indicator
+  const TierIndicator = () => (
+    <div className="absolute top-4 right-4 flex items-center space-x-2">
+      <span className={`px-3 py-1 rounded-full text-sm font-medium
+        ${userTier === 'ENTERPRISE' ? 'bg-purple-100 text-purple-800' :
+          userTier === 'PRO' ? 'bg-blue-100 text-blue-800' :
+          'bg-green-100 text-green-800'}`}>
+        {userTier} Plan
+      </span>
+      {userTier === 'FREE' && (
+        <span className="text-sm text-gray-500">
+          {TIER_LIMITS.FREE.reportsPerMonth - monthlyUsage} reports remaining
+        </span>
+      )}
+    </div>
+  );
+
   if (authLoading) {
     return <div>Loading...</div>;
   }
@@ -462,99 +586,102 @@ export default function ResearchPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <main className="flex-grow flex flex-col overflow-hidden relative">
-        {/* Top container for Hero, InputArea, and Settings */}
-        <div className="w-full relative p-4 bg-gray-50 shadow-sm">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex-grow flex justify-center">
-                <Image 
-                  src="/TAN.png" 
-                  alt="TAN Logo" 
-                  width={showResult ? 40 : 80}
-                  height={showResult ? 40 : 80}
-                  className="transition-all duration-500 ease-in-out"
-                />
+    <div className="relative min-h-screen bg-gray-50">
+      <TierIndicator />
+      <div className="flex flex-col min-h-screen">
+        <main className="flex-grow flex flex-col overflow-hidden relative">
+          {/* Top container for Hero, InputArea, and Settings */}
+          <div className="w-full relative p-4 bg-gray-50 shadow-sm">
+            <div className="max-w-7xl mx-auto">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex-grow flex justify-center">
+                  <Image 
+                    src="/TAN.png" 
+                    alt="TAN Logo" 
+                    width={showResult ? 40 : 80}
+                    height={showResult ? 40 : 80}
+                    className="transition-all duration-500 ease-in-out"
+                  />
+                </div>
               </div>
-            </div>
-            
-            <div className={`transition-all duration-500 ease-in-out ${
-              showResult ? 'translate-y-0 opacity-100' : 'translate-y-1/2 opacity-0'
-            }`}>
-              <InputArea
-                promptValue={promptValue}
-                setPromptValue={setPromptValue}
-                handleDisplayResult={handleDisplayResult}
-                disabled={loading}
-                reset={reset}
-                chatBoxSettings={chatBoxSettings}
-                onSettingsChange={setChatBoxSettings}
-              />
-            </div>
-            
-            {!showResult && !isTransitioning && (
-              <div className="mt-2">
-                <Hero
+              
+              <div className={`transition-all duration-500 ease-in-out ${
+                showResult ? 'translate-y-0 opacity-100' : 'translate-y-1/2 opacity-0'
+              }`}>
+                <InputArea
                   promptValue={promptValue}
                   setPromptValue={setPromptValue}
                   handleDisplayResult={handleDisplayResult}
+                  disabled={loading}
+                  reset={reset}
                   chatBoxSettings={chatBoxSettings}
                   onSettingsChange={setChatBoxSettings}
                 />
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Container for left and right content */}
-        <div className="flex-grow flex overflow-hidden">
-          {/* Left side - Sources and other components */}
-          <div
-            className={`flex flex-col transition-all duration-500 ${
-              showResult ? 'w-1/3 min-w-[300px]' : 'w-full'
-            } bg-white border-r border-gray-200`}
-          >
-            {/* Scrollable container for left components */}
-            <div className="flex-grow overflow-y-auto p-4 space-y-4">
-              {renderComponentsInOrder().leftComponents.map((component, index) => (
-                <div key={index} className="bg-gray-50 rounded-lg shadow-sm p-4">
-                  {component}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Right side - Output components */}
-          <div
-            className={`flex flex-col transition-all duration-500 ${
-              showResult ? 'flex-1 opacity-100' : 'w-0 opacity-0 overflow-hidden'
-            }`}
-          >
-            {/* Scrollable container for right components */}
-            <div className="flex-grow overflow-y-auto bg-gray-100 rounded-lg shadow-inner p-4">
-              {showResult && (
-                <div className="space-y-4">
-                  {renderComponentsInOrder().rightComponents.map((component, index) => (
-                    <div key={index} className="bg-white rounded-lg shadow-sm p-6">
-                      {component}
-                    </div>
-                  ))}
+              
+              {!showResult && !isTransitioning && (
+                <div className="mt-2">
+                  <Hero
+                    promptValue={promptValue}
+                    setPromptValue={setPromptValue}
+                    handleDisplayResult={handleDisplayResult}
+                    chatBoxSettings={chatBoxSettings}
+                    onSettingsChange={setChatBoxSettings}
+                  />
                 </div>
               )}
             </div>
-            {showHumanFeedback && (
-              <div className="mt-4 bg-white rounded-lg shadow-sm p-4">
-                <HumanFeedback
-                  questionForHuman={questionForHuman}
-                  websocket={socket}
-                  onFeedbackSubmit={handleFeedbackSubmit}
-                />
-              </div>
-            )}
           </div>
-        </div>
-      </main>
+
+          {/* Container for left and right content */}
+          <div className="flex-grow flex overflow-hidden">
+            {/* Left side - Sources and other components */}
+            <div
+              className={`flex flex-col transition-all duration-500 ${
+                showResult ? 'w-1/3 min-w-[300px]' : 'w-full'
+              } bg-white border-r border-gray-200`}
+            >
+              {/* Scrollable container for left components */}
+              <div className="flex-grow overflow-y-auto p-4 space-y-4">
+                {renderComponentsInOrder().leftComponents.map((component, index) => (
+                  <div key={index} className="bg-gray-50 rounded-lg shadow-sm p-4">
+                    {component}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right side - Output components */}
+            <div
+              className={`flex flex-col transition-all duration-500 ${
+                showResult ? 'flex-1 opacity-100' : 'w-0 opacity-0 overflow-hidden'
+              }`}
+            >
+              {/* Scrollable container for right components */}
+              <div className="flex-grow overflow-y-auto bg-gray-100 rounded-lg shadow-inner p-4">
+                {showResult && (
+                  <div className="space-y-4">
+                    {renderComponentsInOrder().rightComponents.map((component, index) => (
+                      <div key={index} className="bg-white rounded-lg shadow-sm p-6">
+                        {component}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {showHumanFeedback && (
+                <div className="mt-4 bg-white rounded-lg shadow-sm p-4">
+                  <HumanFeedback
+                    questionForHuman={questionForHuman}
+                    websocket={socket}
+                    onFeedbackSubmit={handleFeedbackSubmit}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
