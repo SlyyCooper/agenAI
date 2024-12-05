@@ -19,6 +19,8 @@ import { startLanggraphResearch } from '@/components/Langgraph/Langgraph';
 import findDifferences from '@/helpers/findDifferences';
 import HumanFeedback from "@/components/research/input/HumanFeedback";
 import Image from 'next/image';
+import { saveResearchReport } from '@/api/storageAPI';
+import { toast } from 'react-hot-toast';
 
 export default function ResearchPage() {
   const { user, loading: authLoading } = useAuth();
@@ -48,6 +50,7 @@ export default function ResearchPage() {
   const [questionForHuman, setQuestionForHuman] = useState(false);
   const [hasOutput, setHasOutput] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -394,6 +397,61 @@ export default function ResearchPage() {
 
     return { leftComponents, rightComponents };
   };
+
+  // Add function to save report
+  const saveReport = async (reportContent: string) => {
+    try {
+      setIsSaving(true);
+      const url = await saveResearchReport(
+        reportContent,
+        question,
+        chatBoxSettings.report_type
+      );
+      toast.success('Report saved successfully');
+      return url;
+    } catch (error) {
+      console.error('Error saving report:', error);
+      toast.error('Failed to save report');
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Modify WebSocket message handler
+  useEffect(() => {
+    if (socket) {
+      socket.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        console.log('websocket data caught in frontend: ', data);
+
+        if (data.type === 'human_feedback' && data.content === 'request') {
+          console.log('triggered human feedback condition')
+          setQuestionForHuman(data.output)
+          setShowHumanFeedback(true);
+        } else {
+          const contentAndType = `${data.content}-${data.type}`;
+          setOrderedData((prevOrder) => [...prevOrder, { ...data, contentAndType }]);
+
+          if (data.type === 'report') {
+            setAnswer((prev) => prev + data.output);
+            // Save report when it's complete
+            if (data.content === 'complete') {
+              try {
+                await saveReport(data.output);
+              } catch (error) {
+                console.error('Failed to save report:', error);
+              }
+            }
+          } else if (data.type === 'path') {
+            setLoading(false);
+            socket.close();
+            setSocket(null);
+          }
+        }
+      };
+    }
+  }, [socket, question, chatBoxSettings.report_type]);
 
   if (authLoading) {
     return <div>Loading...</div>;

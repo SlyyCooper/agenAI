@@ -76,7 +76,7 @@ export default function UserProfile() {
       case 'profile':
         return <ProfileSettings user={customUser} />;
       case 'papers':
-        return <ResearchPapers papers={papers} />;
+        return <ResearchPapers />;
       case 'billing':
         return <BillingSection user={customUser} />;
       case 'settings':

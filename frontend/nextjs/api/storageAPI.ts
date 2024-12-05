@@ -245,3 +245,52 @@ export const storageAPI = {
     return response.json();
   },
 };
+
+export async function saveResearchReport(report: string, title: string, reportType: string): Promise<string> {
+  try {
+    // Convert report to Blob
+    const reportBlob = new Blob([report], { type: 'text/markdown' });
+    const filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${Date.now()}.md`;
+
+    // Create form data
+    const formData = new FormData();
+    formData.append('file', reportBlob, filename);
+    formData.append('content_type', 'text/markdown');
+    formData.append('make_public', 'false');
+
+    // Upload file
+    const response = await fetch(`${BASE_URL}/api/storage/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload report');
+    }
+
+    const { url } = await response.json();
+
+    // Create report document
+    const createReportResponse = await fetch(`${BASE_URL}/api/reports`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title,
+        file_urls: [url],
+        query: title,
+        report_type: reportType,
+      } as CreateReportRequest),
+    });
+
+    if (!createReportResponse.ok) {
+      throw new Error('Failed to create report document');
+    }
+
+    return url;
+  } catch (error) {
+    console.error('Error saving research report:', error);
+    throw error;
+  }
+}
