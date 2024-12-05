@@ -1,5 +1,5 @@
 import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
-import { ReportDocument } from './types/models';
+import { ReportDocument } from '@/types/interfaces/api.types';
 
 export async function handleSourcesAndAnswer(question: string) {
   let sourcesResponse = await fetch("/api/getSources", {

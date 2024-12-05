@@ -3,10 +3,9 @@ import { getAuth } from 'firebase/auth';
 import {
   CheckoutSessionRequest,
   SubscriptionStatusResponse,
-  Product,
   ProductsResponse,
   CancelSubscriptionResponse
-} from './types/models';
+} from '@/types/interfaces/api.types';
 
 const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
 

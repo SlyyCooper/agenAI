@@ -6,11 +6,11 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { Menu, X, Home, Search, LayoutDashboard } from 'lucide-react';
-import UserProfileButton from '@/components/dashboard/UserProfileButton';
+import UserProfileButton from '@/components/profile/UserProfileButton';
 import { clsx } from 'clsx';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { getUserProfile } from '@/api/userprofileAPI';
-import type { UserProfileData } from '@/api/types/models';
+import type { UserProfileData } from '@/types/interfaces/api.types';
 
 // Define different nav items for authenticated and non-authenticated users
 const publicNavItems = [

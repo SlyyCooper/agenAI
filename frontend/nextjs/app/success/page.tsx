@@ -11,7 +11,7 @@ import { getSubscriptionStatus } from '@/api/stripeAPI';
 import { getAccessStatus } from '@/api/userprofileAPI';
 
 // Import types
-import type { SubscriptionStatusResponse, AccessStatus } from '@/api/types/models';
+import type { SubscriptionStatusResponse, AccessStatus } from '@/types/interfaces/api.types';
 
 export default function SuccessPage() {
   const router = useRouter();

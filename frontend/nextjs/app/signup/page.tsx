@@ -12,7 +12,7 @@ import XSignInButton from '@/components/auth/XAuthButton'
 import { useAuth } from '@/config/firebase/AuthContext'
 import Image from 'next/image'
 import { createUserProfile } from '@/api/userprofileAPI'
-import type { UserProfileCreate } from '@/api/types/models';
+import type { UserProfileCreate } from '@/types/interfaces/api.types';
 
 export default function SignupPage() {
   const [name, setName] = useState('')

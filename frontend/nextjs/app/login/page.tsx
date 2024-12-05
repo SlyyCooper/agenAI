@@ -18,7 +18,7 @@ import XSignInButton from '@/components/auth/XAuthButton'
 import { createUserProfile, getUserProfile, updateUserProfile } from '@/api/userprofileAPI'
 
 // Import types from models
-import type { UserProfileCreate, UserProfileData, UserDataUpdate } from '@/api/types/models'
+import type { UserProfileCreate, UserProfileData, UserDataUpdate } from '@/types/interfaces/api.types'
 
 interface AuthError {
   code?: string;

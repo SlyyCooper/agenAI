@@ -19,14 +19,14 @@ import type {
   PaymentHistory,
   AccessStatus,
   CancelSubscriptionResponse
-} from '@/api/types/models';
+} from '@/types/interfaces/api.types';
 
 // Import components
 import TokenDisplay from '@/components/dashboard/TokenDisplay';
 
 // Define local interface for component state
 interface DashboardState {
-  profile: UserProfileData | null;
+  profile: any;
   subscription: SubscriptionData | null;
   payments: PaymentHistory['payments'];
   accessStatus: AccessStatus | null;

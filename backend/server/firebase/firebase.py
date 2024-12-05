@@ -34,6 +34,9 @@ load_dotenv()
 """
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
+# Firebase configuration
+STORAGE_BUCKET = "tangents-94.appspot.com"
+
 async def verify_firebase_token(token: str):
     """
     @purpose: Validates Firebase authentication tokens for protected routes
@@ -82,7 +85,9 @@ def initialize_firebase():
                 "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
                 "universe_domain": os.getenv("FIREBASE_UNIVERSE_DOMAIN")
             })
-            app = initialize_app(cred)
+            app = initialize_app(cred, {
+                'storageBucket': STORAGE_BUCKET
+            })
         except Exception as e:
             print(f"Failed to initialize Firebase: {str(e)}")
             raise
@@ -105,14 +110,15 @@ firestore_client = db
 def initialize_storage():
     """
     @purpose: Initialize Firebase Storage bucket
-    @prereq: FIREBASE_STORAGE_BUCKET must be set in environment
+    @prereq: Firebase app must be initialized with storage bucket
     @limitation: Requires Firebase Storage to be enabled in project
     """
     try:
-        bucket = storage.bucket(os.getenv("FIREBASE_STORAGE_BUCKET"))
+        bucket = storage.bucket(name=STORAGE_BUCKET)
+        logger.info(f"Successfully initialized storage bucket: {bucket.name}")
         return bucket
     except Exception as e:
-        print(f"Failed to initialize Firebase Storage: {str(e)}")
+        logger.error(f"Failed to initialize Firebase Storage: {str(e)}")
         raise
 
 # @purpose: Export initialized storage bucket for file operations

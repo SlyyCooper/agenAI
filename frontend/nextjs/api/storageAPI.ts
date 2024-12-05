@@ -9,9 +9,10 @@ import { getAuth } from 'firebase/auth';
 import {
   FileUpload,
   UserReport,
+  ReportDocument,
   FileMetadata,
   CreateReportRequest,
-} from './types/models';
+} from '@/types/interfaces/api.types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 

@@ -3,46 +3,75 @@ import {
   UserProfileData,
   UserProfileCreate,
   UserDataUpdate,
-  SubscriptionData,
-  PaymentRecord,
-  TokenTransaction,
+  PaymentHistoryResponse,
   PaymentHistory,
-  AccessStatus,
+  PaymentRecord,
   TokenBalanceResponse,
-} from './types/models';
+  WebhookEvent,
+  SubscriptionData,
+  AccessStatus
+} from '@/types/interfaces/api.types';
+import { handleAPIError, APIError } from '../utils/errorUtils';
+import { normalizeTimestamp } from '../utils/dateUtils';
 
-const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dolphin-app-49eto.ondigitalocean.app/backend';
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
 
 // Helper function to get Firebase token
 const getFirebaseToken = async (): Promise<string> => {
   const auth = getAuth();
   const currentUser = auth.currentUser;
   if (!currentUser) {
-    throw new Error('No user logged in');
+    throw new APIError('No user logged in', 401);
   }
   return await currentUser.getIdToken();
 };
 
-// API Functions
-export const getUserProfile = async (): Promise<UserProfileData> => {
+// Helper function for retrying failed requests
+const retryRequest = async <T>(
+  requestFn: () => Promise<T>,
+  retries: number = MAX_RETRIES
+): Promise<T> => {
   try {
-    const firebaseToken = await getFirebaseToken();
-    const response = await fetch(`${BASE_URL}/api/user/profile`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${firebaseToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to get user profile');
-    }
-    return await response.json();
+    return await requestFn();
   } catch (error) {
-    console.error('Error getting user profile:', error);
+    if (retries > 0 && error instanceof APIError && typeof error.statusCode === 'number' && error.statusCode >= 500) {
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      return retryRequest(requestFn, retries - 1);
+    }
     throw error;
   }
+};
+
+// API Functions
+export const getUserProfile = async (): Promise<UserProfileData> => {
+  return retryRequest(async () => {
+    try {
+      const firebaseToken = await getFirebaseToken();
+      const response = await fetch(`${BASE_URL}/api/user/profile`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${firebaseToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        return handleAPIError(response);
+      }
+      
+      const data = await response.json();
+      return {
+        ...data,
+        created_at: normalizeTimestamp(data.created_at),
+        last_login: normalizeTimestamp(data.last_login)
+      };
+    } catch (error) {
+      console.error('Error getting user profile:', error);
+      throw error;
+    }
+  });
 };
 
 export const createUserProfile = async (data: UserProfileCreate): Promise<UserProfileData> => {
@@ -173,4 +202,53 @@ export const getTokenBalance = async (): Promise<TokenBalanceResponse> => {
     console.error('Error fetching token balance:', error);
     throw error;
   }
+};
+
+export const processWebhookEvent = async (event: WebhookEvent): Promise<void> => {
+  return retryRequest(async () => {
+    try {
+      const firebaseToken = await getFirebaseToken();
+      const response = await fetch(`${BASE_URL}/api/webhook/process`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${firebaseToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event),
+      });
+
+      if (!response.ok) {
+        return handleAPIError(response);
+      }
+    } catch (error) {
+      console.error('Error processing webhook event:', error);
+      throw error;
+    }
+  });
+};
+
+export const updateTokenBalance = async (
+  amount: number,
+  type: string
+): Promise<void> => {
+  return retryRequest(async () => {
+    try {
+      const firebaseToken = await getFirebaseToken();
+      const response = await fetch(`${BASE_URL}/api/user/tokens/update`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${firebaseToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ amount, type }),
+      });
+
+      if (!response.ok) {
+        return handleAPIError(response);
+      }
+    } catch (error) {
+      console.error('Error updating token balance:', error);
+      throw error;
+    }
+  });
 };

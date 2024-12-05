@@ -3,13 +3,14 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/config/firebase/AuthContext';
+import { useFirebase } from '@/hooks/useFirebase';
 import { User, LogIn, LogOut } from 'lucide-react';
-import { auth } from '@/config/firebase/firebase';
-import { signOut } from 'firebase/auth';
 import Image from 'next/image';
+import { toast } from 'react-hot-toast';
 
 const UserProfileButton: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, userProfile } = useAuth();
+  const { logout } = useFirebase();
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -19,10 +20,12 @@ const UserProfileButton: React.FC = () => {
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      await logout();
       router.push('/');
+      toast.success('Signed out successfully');
     } catch (error) {
       console.error('Error signing out:', error);
+      toast.error('Failed to sign out');
     }
   };
 
@@ -61,7 +64,7 @@ const UserProfileButton: React.FC = () => {
         ) : (
           <User className="w-5 h-5 mr-1" />
         )}
-        {user.displayName || 'Profile'}
+        {userProfile?.name || user.displayName || 'Profile'}
       </button>
       {isMenuOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
@@ -71,6 +74,9 @@ const UserProfileButton: React.FC = () => {
           >
             Profile
           </button>
+          <div className="px-4 py-2 text-sm text-gray-500">
+            {userProfile?.tokens || 0} tokens
+          </div>
           <button
             onClick={() => {
               setIsMenuOpen(false);

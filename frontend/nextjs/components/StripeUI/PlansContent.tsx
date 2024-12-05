@@ -8,12 +8,12 @@ import {
 } from '@/api/stripeAPI';
 import { getAccessStatus } from '@/api/userprofileAPI';
 
-import type { 
+import {
   Product,
   ProductsResponse,
   SubscriptionStatusResponse,
   AccessStatus 
-} from '@/api/types/models';
+} from '@/types/interfaces/api.types';
 
 import { useAuth } from '@/config/firebase/AuthContext';
 

@@ -4,14 +4,17 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/config/firebase/AuthContext';
 import { User, Settings, FileText, CreditCard, Trash2 } from 'lucide-react';
-import ProfileHeader from '@/components/dashboard/ProfileHeader';
-import ProfileSettings from '@/components/dashboard/ProfileSettings';
-import ResearchPapers from '@/components/dashboard/ResearchPapers';
-import BillingSection from '@/components/dashboard/BillingSection';
-import DeleteAccount from '@/components/dashboard/DeleteAccount';
+import ProfileHeader from '@/components/profile/ProfileHeader';
+import ProfileSettings from '@/components/profile/ProfileSettings';
+import ResearchPapers from '@/components/profile/ResearchPapers';
+import BillingSection from '@/components/profile/BillingSection';
+import DeleteAccount from '@/components/profile/DeleteAccount';
 import { Toaster, toast } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import styles from './UserProfile.module.css';
+import { Metadata } from 'next';
+import { auth } from '@/config/firebase/firebase';
+import { redirect } from 'next/navigation';
 
 interface CustomUser {
   id: string;
@@ -80,7 +83,7 @@ export default function UserProfile() {
         return (
           <div className="space-y-8">
             <ProfileSettings user={customUser} />
-            <DeleteAccount user={customUser} />
+            <DeleteAccount />
           </div>
         );
       default:
@@ -99,7 +102,7 @@ export default function UserProfile() {
       >
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
           <div className={styles.profileSidebar}>
-            <ProfileHeader user={customUser} />
+            <ProfileHeader />
             <nav className="mt-8">
               <ul className="space-y-2">
                 {tabs.map((tab) => (

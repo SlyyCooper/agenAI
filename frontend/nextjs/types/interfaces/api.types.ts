@@ -51,8 +51,10 @@ export interface UserProfileData {
   has_access: boolean
   one_time_purchase: boolean
   tokens: number
-  name?: string
+  name: string | null
   payment_history?: PaymentRecord[]
+  notifications?: boolean
+  token_history: any[]  // TODO: Define proper token history type
 }
 
 export interface ReportDocument {
@@ -193,4 +195,13 @@ export interface TokenBalanceResponse {
     type: string
     timestamp: ServerTimestamp
   }>
+}
+
+/**
+ * @purpose: Webhook event type for handling server events
+ */
+export interface WebhookEvent {
+  type: string;
+  data: any;
+  timestamp: string;
 }
