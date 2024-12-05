@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings as SettingsIcon, Upload, Globe, PenTool } from 'lucide-react';
+import { Settings as SettingsIcon, Upload, Globe, PenTool, FileText, Clock, BookOpen } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -47,7 +47,15 @@ export function ResearchSettings({ chatBoxSettings, onSettingsChange }: Research
       </PopoverTrigger>
       <PopoverContent className="w-[600px] p-4" align="start">
         <Tabs defaultValue="source" className="w-full">
-          <TabsList className="grid grid-cols-3 gap-4 mb-4">
+          <TabsList className="grid grid-cols-4 gap-4 mb-4">
+            <TabsTrigger 
+              value="report_type" 
+              onClick={() => handleTabChange('report_type')}
+              className="flex items-center justify-center"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Report Type
+            </TabsTrigger>
             <TabsTrigger 
               value="source" 
               onClick={() => handleTabChange('source')}
@@ -73,6 +81,34 @@ export function ResearchSettings({ chatBoxSettings, onSettingsChange }: Research
               Tone
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="report_type" className="mt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <motion.div 
+                className={`flex flex-col items-center p-4 rounded-lg cursor-pointer border-2 ${
+                  chatBoxSettings.report_type === 'research_report' ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-gray-100'
+                }`}
+                onClick={() => onSettingsChange({ ...chatBoxSettings, report_type: 'research_report' })}
+                whileHover={{ scale: 1.02 }}
+              >
+                <Clock className="h-8 w-8 mb-2" />
+                <div className="font-medium">Summary Report</div>
+                <div className="text-sm text-gray-500 text-center">Short and fast (~2 min)</div>
+              </motion.div>
+
+              <motion.div 
+                className={`flex flex-col items-center p-4 rounded-lg cursor-pointer border-2 ${
+                  chatBoxSettings.report_type === 'detailed_report' ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-gray-100'
+                }`}
+                onClick={() => onSettingsChange({ ...chatBoxSettings, report_type: 'detailed_report' })}
+                whileHover={{ scale: 1.02 }}
+              >
+                <BookOpen className="h-8 w-8 mb-2" />
+                <div className="font-medium">Detailed Report</div>
+                <div className="text-sm text-gray-500 text-center">In depth and longer (~5 min)</div>
+              </motion.div>
+            </div>
+          </TabsContent>
 
           <TabsContent value="source" className="mt-4">
             <div className="grid grid-cols-3 gap-4">
