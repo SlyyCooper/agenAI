@@ -69,6 +69,17 @@ const Search = () => {
     }
   };
 
+  const handleSaveReport = async () => {
+    try {
+      // Implement your save logic here
+      // For example, you could save to local storage or make an API call
+      console.log('Saving report...');
+      // You can add your actual save implementation here
+    } catch (error) {
+      console.error('Error saving report:', error);
+    }
+  };
+
   return (
     <div>
       <ResearchForm
@@ -77,7 +88,7 @@ const Search = () => {
       />
       <AgentLogs agentLogs={agentLogs} />
       <Report report={report} />
-      <AccessReport accessData={accessData} report={report} />
+      <AccessReport accessData={accessData} report={report} onSave={handleSaveReport} />
     </div>
   );
 };
