@@ -198,8 +198,8 @@ async def get_products():
         # @purpose: Define product offerings and features
         products = {
             'subscription': {
-                'product_id': os.getenv("STRIPE_SUBSCRIPTION_PRODUCT_ID"),
-                'price_id': os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID"),
+                'product_id': os.getenv("STRIPE_REPORT_SUBSCRIPTION_PRODUCT_ID"),
+                'price_id': os.getenv("STRIPE_REPORT_SUBSCRIPTION_PRICE_ID"),
                 'name': 'Monthly Subscription',
                 'features': [
                     'Unlimited Research Reports',
@@ -209,8 +209,8 @@ async def get_products():
                 ],
             },
             'one_time': {
-                'product_id': os.getenv("STRIPE_ONETIME_PRODUCT_ID"),
-                'price_id': os.getenv("STRIPE_ONETIME_PRICE_ID"),
+                'product_id': os.getenv("STRIPE_REPORT_PACK_PRODUCT_ID"),
+                'price_id': os.getenv("STRIPE_REPORT_PACK_PRICE_ID"),
                 'name': 'One-Time Purchase',
                 'features': [
                     '10 Research Reports',
@@ -222,8 +222,8 @@ async def get_products():
         }
 
         # @purpose: Fetch current prices from Stripe
-        subscription_price = stripe.Price.retrieve(os.getenv("STRIPE_SUBSCRIPTION_PRICE_ID"))
-        onetime_price = stripe.Price.retrieve(os.getenv("STRIPE_ONETIME_PRICE_ID"))
+        subscription_price = stripe.Price.retrieve(os.getenv("STRIPE_REPORT_SUBSCRIPTION_PRICE_ID"))
+        onetime_price = stripe.Price.retrieve(os.getenv("STRIPE_REPORT_PACK_PRICE_ID"))
 
         # @purpose: Convert prices from cents to dollars
         products['subscription']['price'] = subscription_price.unit_amount / 100

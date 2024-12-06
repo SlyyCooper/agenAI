@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Upload, Globe, PenTool, FileText, Clock, BookOpen } from 'lucide-react';
 import {
   Popover,
@@ -20,11 +20,29 @@ interface ResearchSettingsProps {
     tone: string;
   };
   onSettingsChange: (settings: any) => void;
+  onWebSocketData?: (data: any) => void;
 }
 
-export function ResearchSettings({ chatBoxSettings, onSettingsChange }: ResearchSettingsProps) {
+interface WebSocketData {
+  type: string;
+  content?: string;
+  output?: string;
+  metadata?: any;
+}
+
+export function ResearchSettings({ 
+  chatBoxSettings, 
+  onSettingsChange,
+  onWebSocketData 
+}: ResearchSettingsProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('source');
+  
+  // WebSocket States
+  const [socket, setSocket] = useState<WebSocket | null>(null);
+  const [agentLogs, setAgentLogs] = useState<WebSocketData[]>([]);
+  const [report, setReport] = useState("");
+  const [accessData, setAccessData] = useState<any>({});
 
   const handleToneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onSettingsChange({ ...chatBoxSettings, tone: e.target.value });
@@ -32,6 +50,62 @@ export function ResearchSettings({ chatBoxSettings, onSettingsChange }: Research
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
+  };
+
+  // WebSocket Setup
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const { protocol, pathname } = window.location;
+      let { host } = window.location;
+      host = host.includes('localhost') ? 'localhost:8000' : host;
+      const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}${pathname}ws`;
+      
+      const newSocket = new WebSocket(ws_uri);
+      setSocket(newSocket);
+
+      newSocket.onmessage = (event) => {
+        const data: WebSocketData = JSON.parse(event.data);
+        
+        // Handle different types of messages
+        switch (data.type) {
+          case 'logs':
+            setAgentLogs(prevLogs => [...prevLogs, data]);
+            break;
+          case 'report':
+            if (data.output) {
+              setReport(prevReport => prevReport + data.output);
+            }
+            break;
+          case 'path':
+            setAccessData(data);
+            break;
+        }
+
+        // Notify parent component if callback exists
+        if (onWebSocketData) {
+          onWebSocketData(data);
+        }
+      };
+
+      newSocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+
+      return () => {
+        if (newSocket.readyState === WebSocket.OPEN) {
+          newSocket.close();
+        }
+      };
+    }
+  }, [onWebSocketData]);
+
+  // Function to send WebSocket message
+  const sendWebSocketMessage = (message: any) => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(message));
+    } else {
+      console.error('WebSocket is not connected');
+    }
   };
 
   return (

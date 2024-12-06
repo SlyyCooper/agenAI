@@ -2,10 +2,11 @@
 @purpose: Provides core Firestore database operations for user management and reporting
 @prereq: Requires configured Firebase Admin SDK and Stripe integration
 @reference: Used by firestore_routes.py for API endpoints
-@maintenance: Monitor Firebase SDK and Stripe API version compatibility
 """
 
 from .firebase import db, SERVER_TIMESTAMP, ArrayUnion
+from .models import UserProfile, ProcessedEvent
+from ..middleware.validation import validate_request
 from google.cloud import firestore
 from google.cloud.exceptions import Conflict
 import logging
@@ -15,65 +16,55 @@ from datetime import datetime, timedelta
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def create_user_profile(user_id: str, email: str, name: str = None):
-    """
-    @purpose: Creates new user profile with Stripe customer integration
-    @prereq: Valid user_id and email required
-    @invariant: User profiles must be unique per user_id
-    @performance: Requires 1 Firestore read, 1 write, and 1 Stripe API call
-    @example:
-        profile = await create_user_profile(
-            user_id="123",
-            email="user@example.com",
-            name="John Doe"
-        )
-    """
-    if not user_id or not email:
+@validate_request(response_model=UserProfile)
+async def create_user_profile(user_id: str, data: dict):
+    """Creates new user profile with Stripe customer integration"""
+    if not user_id or not data.get('email'):
         raise ValueError("user_id and email are required")
     
     try:
-        # @purpose: Check for existing profile to maintain uniqueness
+        # Check for existing profile
         existing_user = await get_user_data(user_id)
         if existing_user:
             return existing_user
             
-        # @purpose: Create linked Stripe customer for payments
+        # Create Stripe customer
         customer = stripe.Customer.create(
-            email=email,
+            email=data['email'],
             metadata={'user_id': user_id}
         )
         
-        # @purpose: Prepare user data structure
-        # @limitation: Uses local timestamp for return value consistency
-        current_time = datetime.now().isoformat()
+        # Prepare and validate user data
+        current_time = datetime.now()
         user_data = {
-            'email': email,
-            'name': name,
+            'email': data['email'],
+            'created_at': current_time,
+            'last_login': current_time,
             'stripe_customer_id': customer.id,
+            'tokens': 0,
             'has_access': False,
             'one_time_purchase': False,
-            'tokens': 0,
-            'token_history': []
+            'token_history': [],
+            'name': data.get('name')
         }
-        if name:
-            user_data['name'] = name
-            
-        # @purpose: Create Firestore document with server timestamp
-        user_ref = db.collection('users').document(user_id)
-        firestore_data = {
-            **user_data,
-            'created_at': SERVER_TIMESTAMP,
-            'last_login': SERVER_TIMESTAMP
-        }
-        user_ref.set(firestore_data)
         
+        # Store data (validation happens through decorator)
+        await db.collection('users').document(user_id).set(user_data)
         return user_data
         
-    except stripe.error.StripeError as e:
-        logger.error(f"Stripe error creating customer: {str(e)}")
-        raise
     except Exception as e:
         logger.error(f"Error creating user profile: {str(e)}")
+        raise
+
+@validate_request(response_model=ProcessedEvent)
+async def create_processed_event(event_data: dict):
+    """Creates a new processed event record"""
+    try:
+        # Validation happens through decorator
+        await db.collection('processed_events').document(event_data['event_id']).set(event_data)
+        return event_data
+    except Exception as e:
+        logger.error(f"Error creating processed event: {str(e)}")
         raise
 
 async def update_user_data(user_id: str, data: dict):

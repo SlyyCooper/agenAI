@@ -246,51 +246,48 @@ export const storageAPI = {
   },
 };
 
-export async function saveResearchReport(report: string, title: string, reportType: string): Promise<string> {
+export const saveResearchReport = async ({
+  file,
+  userId,
+  title,
+  content,
+  timestamp
+}: {
+  file: File;
+  userId: string;
+  title: string;
+  content: string;
+  timestamp: string;
+}): Promise<FileMetadata> => {
   try {
-    // Convert report to Blob
-    const reportBlob = new Blob([report], { type: 'text/markdown' });
-    const filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${Date.now()}.md`;
-
-    // Create form data
+    const token = await getFirebaseToken();
+    
     const formData = new FormData();
-    formData.append('file', reportBlob, filename);
-    formData.append('content_type', 'text/markdown');
-    formData.append('make_public', 'false');
+    formData.append('file', file);
+    formData.append('metadata', JSON.stringify({
+      userId,
+      title,
+      timestamp,
+      type: 'research_report'
+    }));
+    formData.append('content', content);
 
-    // Upload file
-    const response = await fetch(`${BASE_URL}/api/storage/upload`, {
+    const response = await fetch(`${BASE_URL}/api/storage/save-report`, {
       method: 'POST',
-      body: formData,
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
     });
 
     if (!response.ok) {
-      throw new Error('Failed to upload report');
+      throw new Error('Failed to save research report');
     }
 
-    const { url } = await response.json();
-
-    // Create report document
-    const createReportResponse = await fetch(`${BASE_URL}/api/reports`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        title,
-        file_urls: [url],
-        query: title,
-        report_type: reportType,
-      } as CreateReportRequest),
-    });
-
-    if (!createReportResponse.ok) {
-      throw new Error('Failed to create report document');
-    }
-
-    return url;
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error('Error saving research report:', error);
     throw error;
   }
-}
+};

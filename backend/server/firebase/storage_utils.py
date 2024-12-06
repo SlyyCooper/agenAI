@@ -6,10 +6,12 @@
 """
 
 import os
+import json
 import logging
-from .firebase import storage_bucket
-from typing import Optional, BinaryIO, Union
+from .firebase import storage_bucket, db
+from typing import Optional, BinaryIO, Union, Dict, Any
 from io import BytesIO
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -204,4 +206,58 @@ async def generate_signed_url(filename, expiration=3600):
         return url
     except Exception as e:
         logger.error(f"Error generating signed URL: {str(e)}")
+        raise 
+
+async def save_research_report(
+    file_stream: Union[BinaryIO, BytesIO],
+    metadata: Dict[str, Any],
+    content: str,
+) -> Dict[str, Any]:
+    """
+    @purpose: Saves research report to Firebase Storage and creates Firestore document
+    @prereq: Valid file stream, metadata, and content required
+    @invariant: Reports are saved in user-specific paths with metadata in Firestore
+    """
+    try:
+        user_id = metadata.get('userId')
+        if not user_id:
+            raise ValueError("User ID is required")
+
+        # Save file to Storage
+        timestamp = datetime.now().isoformat()
+        filename = f"research-{timestamp}.md"
+        file_path = f"users/{user_id}/research/{filename}"
+        
+        blob = storage_bucket.blob(file_path)
+        blob.upload_from_file(file_stream, content_type='text/markdown')
+        
+        # Generate signed URL
+        url = await generate_signed_url(file_path)
+        
+        # Create Firestore document
+        doc_ref = db.collection('users').document(user_id).collection('research').document()
+        doc_data = {
+            'title': metadata.get('title', 'Untitled Research'),
+            'content': content,
+            'file_path': file_path,
+            'url': url,
+            'created_at': timestamp,
+            'updated_at': timestamp,
+            'type': 'research_report'
+        }
+        await doc_ref.set(doc_data)
+        
+        return {
+            'id': doc_ref.id,
+            'url': url,
+            'metadata': {
+                'path': file_path,
+                'created': timestamp,
+                'updated': timestamp,
+                'title': metadata.get('title')
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error saving research report: {str(e)}")
         raise 

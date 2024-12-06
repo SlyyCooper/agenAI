@@ -455,7 +455,22 @@ export default function ResearchPage() {
     // First, find the AccessReport component
     groupedData.forEach((data) => {
       if (data.type === 'path') {
-        accessReportComponent = <AccessReport key="accessReport" accessData={data.output} report={answer} />;
+        accessReportComponent = (
+          <AccessReport 
+            key="accessReport" 
+            accessData={data.output} 
+            report={answer}
+            onSave={async () => {
+              try {
+                await saveReport(answer);
+                toast.success('Report saved successfully');
+              } catch (error) {
+                console.error('Error saving report:', error);
+                toast.error('Failed to save report');
+              }
+            }}
+          />
+        );
       }
     });
 
@@ -508,12 +523,26 @@ export default function ResearchPage() {
   // Add function to save report
   const saveReport = async (reportContent: string) => {
     try {
+      if (!user) {
+        toast.error('You must be logged in to save reports');
+        return;
+      }
+
       setIsSaving(true);
-      const url = await saveResearchReport(
-        reportContent,
-        question,
-        chatBoxSettings.report_type
-      );
+      // Convert string content to a File object
+      const blob = new Blob([reportContent], { type: 'text/markdown' });
+      const file = new File([blob], `research-${Date.now()}.md`, { type: 'text/markdown' });
+      
+      const timestamp = new Date().toISOString();
+      const title = `Research: ${question.substring(0, 50)}${question.length > 50 ? '...' : ''}`;
+      
+      const url = await saveResearchReport({
+        file,
+        userId: user.uid,
+        title,
+        content: reportContent,
+        timestamp
+      });
       toast.success('Report saved successfully');
       return url;
     } catch (error) {

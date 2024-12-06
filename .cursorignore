@@ -1,2 +1,10 @@
-# Ignore the 'notes' directory
-@notes/
+my-stuff/
+node_modules/
+.next/
+__pycache__/
+LICENSE
+multi_agents/
+gpt_researcher/
+setup.py
+README.md
+tree_gen.py
