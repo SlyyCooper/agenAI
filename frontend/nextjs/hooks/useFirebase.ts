@@ -21,7 +21,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase/firebase';
 import { useAuth } from '../config/firebase/AuthContext';
-import { UserProfileData, UseFirebaseReturn } from '../types';
+import { Profile, UseFirebaseReturn } from '../types';
 
 interface UpdateProfileData {
   name: string;
@@ -36,7 +36,7 @@ export const useFirebase = (): UseFirebaseReturn => {
     name?: string,
     stripeCustomerId?: string
   ): Promise<void> => {
-    const userProfile: UserProfileData = {
+    const userProfile: Profile = {
       email: user.email!,
       name: name || user.displayName || null,
       stripe_customer_id: stripeCustomerId || '',
@@ -144,7 +144,7 @@ export const useFirebase = (): UseFirebaseReturn => {
     try {
       const docRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(docRef);
-      return docSnap.exists() ? (docSnap.data() as UserProfileData) : null;
+      return docSnap.exists() ? (docSnap.data() as Profile) : null;
     } catch (error: any) {
       throw new Error(error.message);
     }

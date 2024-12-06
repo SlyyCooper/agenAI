@@ -4,21 +4,25 @@
  */
 
 // Import types for re-export
-import { FirebaseUser, FirestoreTimestamp, UseStorageReturn } from './interfaces/firebase.types';
-import { UserProfileData, ReportDocument } from './interfaces/api.types';
-import { UseFirebaseReturn, UseAPIErrorReturn } from './interfaces/hooks.types';
+import type { 
+    FirebaseUser,
+    UserProfile,
+    Payment,
+    ProcessedEvent,
+    StorageFile,
+    FileMetadata as FirebaseFileMetadata,
+    FirestoreTimestamp,
+    FirestoreDocument,
+    UseStorageReturn 
+} from './interfaces/firebase.types';
+import type { 
+    UserProfileData, 
+    ReportDocument,
+    FileMetadata as APIFileMetadata 
+} from './interfaces/api.types';
+import type { UseFirebaseReturn, UseAPIErrorReturn } from './interfaces/hooks.types';
 
-// Export all types
-export * from './interfaces/api.types';
-export * from './interfaces/firebase.types';
-export * from './interfaces/hooks.types';
-
-// Common utility types
-export type DateString = string;
-export type Nullable<T> = T | null;
-export type AsyncReturnType<T extends (...args: any) => Promise<any>> = T extends (...args: any) => Promise<infer R> ? R : any;
-
-// Re-export common types with better names
+// Export renamed types to avoid conflicts
 export type {
     FirebaseUser as User,
     FirestoreTimestamp as Timestamp,
@@ -26,5 +30,20 @@ export type {
     ReportDocument as Report,
     UseStorageReturn as StorageHook,
     UseFirebaseReturn as FirebaseHook,
-    UseAPIErrorReturn as APIErrorHook
-}; 
+    UseAPIErrorReturn as APIErrorHook,
+    FirebaseFileMetadata,
+    APIFileMetadata,
+    UserProfile,
+    Payment,
+    ProcessedEvent,
+    StorageFile,
+    FirestoreDocument
+};
+
+// Export other types from hooks
+export type * from './interfaces/hooks.types';
+
+// Common utility types
+export type DateString = string;
+export type Nullable<T> = T | null;
+export type AsyncReturnType<T extends (...args: any) => Promise<any>> = T extends (...args: any) => Promise<infer R> ? R : any;

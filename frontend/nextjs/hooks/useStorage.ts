@@ -2,9 +2,9 @@ import { useCallback } from 'react';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll, getMetadata } from 'firebase/storage';
 import { useAuth } from '../config/firebase/AuthContext';
 import { useAPIError } from './useAPIError';
-import type { StorageFile, UseStorageReturn } from '../types';
+import type { StorageFile, StorageHook } from '../types';
 
-export const useStorage = (): UseStorageReturn => {
+export const useStorage = (): StorageHook => {
     const { user } = useAuth();
     const { handleError } = useAPIError();
     const storage = getStorage();
