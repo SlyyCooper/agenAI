@@ -6,7 +6,7 @@
 import pytest
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
-from ..middleware.validation import validate_request
+from ..backend.server.middleware.validation import validate_request
 
 # Test Models
 class TestRequestModel(BaseModel):
