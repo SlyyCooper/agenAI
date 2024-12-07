@@ -21,6 +21,8 @@ import HumanFeedback from "@/components/research/input/HumanFeedback";
 import Image from 'next/image';
 import { saveResearchReport } from '@/api/storageAPI';
 import { toast } from 'react-hot-toast';
+import { storageAPI } from '@/api/storageAPI';
+import { CreateReportRequest, FileMetadata } from '@/types/interfaces/api.types';
 
 // Access control constants
 const TIER_LIMITS = {
@@ -605,6 +607,49 @@ export default function ResearchPage() {
       )}
     </div>
   );
+
+  const handleSaveReport = async () => {
+    if (!answer || isSaving) return;
+    
+    setIsSaving(true);
+    try {
+      // Create a Blob from the answer
+      const reportBlob = new Blob([answer], { type: 'text/plain' });
+      const reportFile = new File([reportBlob], `research-${Date.now()}.txt`, { type: 'text/plain' });
+      
+      // Upload file first
+      const uploadResponse = await storageAPI.uploadFile(reportFile);
+      
+      // Create report document
+      const reportData: CreateReportRequest = {
+        title: promptValue.slice(0, 100), // Use first 100 chars as title
+        file_urls: [uploadResponse.public_url || ''], // Use public_url from FileMetadata
+        query: promptValue,
+        report_type: chatBoxSettings.report_type
+      };
+      
+      // Save report
+      const response = await fetch('/api/reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(reportData)
+      });
+      
+      if (!response.ok) throw new Error('Failed to save report');
+      
+      toast.success('Report saved successfully!');
+      
+      // Optional: Redirect to profile page to view saved reports
+      router.push('/userprofile?tab=papers');
+    } catch (error) {
+      console.error('Error saving report:', error);
+      toast.error('Failed to save report');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (authLoading) {
     return <div>Loading...</div>;

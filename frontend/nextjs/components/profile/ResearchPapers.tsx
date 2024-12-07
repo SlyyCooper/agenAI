@@ -6,12 +6,16 @@ import { useStorage } from '@/hooks/useStorage';
 import { ReportDocument } from '@/types/interfaces/api.types';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
+import { FileText, Download, Trash2, ExternalLink, Filter } from 'lucide-react';
 
 export default function ResearchPapers() {
   const { user } = useAuth();
-  const { listFiles, getFileUrl } = useStorage();
+  const { listFiles, getFileUrl, deleteFile } = useStorage();
   const [reports, setReports] = useState<ReportDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -70,6 +74,42 @@ export default function ResearchPapers() {
     }
   }, [user, listFiles, getFileUrl]);
 
+  const handleDelete = async (report: ReportDocument) => {
+    if (!confirm('Are you sure you want to delete this report?')) return;
+
+    try {
+      // Delete from storage
+      await Promise.all(report.file_urls.map(url => {
+        const filename = url.split('/').pop();
+        return filename ? deleteFile(`research/${filename}`) : Promise.resolve();
+      }));
+
+      // Delete from database
+      const response = await fetch(`/api/reports/${report.id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) throw new Error('Failed to delete report');
+
+      // Update UI
+      setReports(prev => prev.filter(r => r.id !== report.id));
+      toast.success('Report deleted successfully');
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      toast.error('Failed to delete report');
+    }
+  };
+
+  const filteredAndSortedReports = reports
+    .filter(report => filter === 'all' || report.report_type === filter)
+    .sort((a, b) => {
+      const aValue = sortBy === 'date' ? new Date(a.created_at).getTime() : a.title;
+      const bValue = sortBy === 'date' ? new Date(b.created_at).getTime() : b.title;
+      return sortOrder === 'asc' 
+        ? aValue > bValue ? 1 : -1
+        : aValue < bValue ? 1 : -1;
+    });
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -78,47 +118,101 @@ export default function ResearchPapers() {
     );
   }
 
-  if (!reports.length) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-500">No research reports found.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold mb-4">Research Reports</h2>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {reports.map((report) => (
-          <div
-            key={report.id}
-            className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Research Reports</h2>
+        <div className="flex gap-4">
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="px-3 py-2 border rounded-md text-sm"
+            aria-label="Filter reports by type"
+            title="Filter reports by type"
           >
-            <div className="p-6">
-              <h3 className="text-lg font-semibold mb-2 truncate">{report.title}</h3>
-              <div className="text-sm text-gray-500 space-y-1">
-                <p>Type: {report.report_type}</p>
-                <p>Created: {format(new Date(report.created_at), 'MMM d, yyyy')}</p>
-                <p>Files: {report.file_urls.length}</p>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {report.file_urls.map((url, index) => (
-                  <a
-                    key={index}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-3 py-1 border border-blue-500 text-blue-500 rounded-md hover:bg-blue-50 text-sm"
+            <option value="all">All Types</option>
+            <option value="research_report">Summary Report</option>
+            <option value="detailed_report">Detailed Report</option>
+            <option value="multi_agents">Multi Agents Report</option>
+          </select>
+          <select
+            value={`${sortBy}-${sortOrder}`}
+            onChange={(e) => {
+              const [by, order] = e.target.value.split('-');
+              setSortBy(by as 'date' | 'title');
+              setSortOrder(order as 'asc' | 'desc');
+            }}
+            className="px-3 py-2 border rounded-md text-sm"
+            aria-label="Sort reports"
+            title="Sort reports"
+          >
+            <option value="date-desc">Newest First</option>
+            <option value="date-asc">Oldest First</option>
+            <option value="title-asc">Title A-Z</option>
+            <option value="title-desc">Title Z-A</option>
+          </select>
+        </div>
+      </div>
+
+      {!filteredAndSortedReports.length ? (
+        <div className="text-center py-8">
+          <FileText className="mx-auto h-12 w-12 text-gray-400" />
+          <p className="mt-2 text-gray-500">No research reports found.</p>
+          <a
+            href="/research"
+            className="mt-4 inline-block px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            Create New Report
+          </a>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredAndSortedReports.map((report) => (
+            <div
+              key={report.id}
+              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+            >
+              <div className="p-6">
+                <h3 className="text-lg font-semibold mb-2 truncate">{report.title}</h3>
+                <div className="text-sm text-gray-500 space-y-1">
+                  <p className="flex items-center gap-1">
+                    <Filter className="h-4 w-4" />
+                    Type: {report.report_type.replace(/_/g, ' ')}
+                  </p>
+                  <p className="flex items-center gap-1">
+                    <FileText className="h-4 w-4" />
+                    Files: {report.file_urls.length}
+                  </p>
+                  <p className="flex items-center gap-1">
+                    Created: {format(new Date(report.created_at), 'MMM d, yyyy')}
+                  </p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {report.file_urls.map((url, index) => (
+                    <a
+                      key={index}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-1 border border-blue-500 text-blue-500 rounded-md hover:bg-blue-50 text-sm gap-1"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      View {report.file_urls.length > 1 ? `#${index + 1}` : ''}
+                    </a>
+                  ))}
+                  <button
+                    onClick={() => handleDelete(report)}
+                    className="inline-flex items-center px-3 py-1 border border-red-500 text-red-500 rounded-md hover:bg-red-50 text-sm gap-1"
                   >
-                    View Report {report.file_urls.length > 1 ? `#${index + 1}` : ''}
-                  </a>
-                ))}
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
