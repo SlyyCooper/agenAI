@@ -205,3 +205,36 @@ export interface WebhookEvent {
   data: any;
   timestamp: string;
 }
+
+export interface StorageFile {
+  path: string;
+  url: string;
+  metadata: {
+    contentType: string;
+    size: number;
+    created: Date;
+    updated: Date;
+    customMetadata?: Record<string, string>;
+  };
+}
+
+export interface UploadProgress {
+  [path: string]: number;
+}
+
+export interface StorageHook {
+  uploadFile: (file: File, path: string) => Promise<string>;
+  downloadFile: (path: string) => Promise<Blob>;
+  deleteFile: (path: string) => Promise<void>;
+  getFileUrl: (path: string) => Promise<string>;
+  listFiles: (prefix: string) => Promise<StorageFile[]>;
+  uploadProgress: UploadProgress;
+}
+
+export interface StorageError extends Error {
+  code: string;
+  name: string;
+  customData?: {
+    serverResponse: string;
+  };
+}

@@ -183,4 +183,9 @@ export interface UseStorageReturn {
     deleteFile: (path: string) => Promise<void>;
     getFileUrl: (path: string) => Promise<string>;
     listFiles: (prefix: string) => Promise<StorageFile[]>;
+    uploadProgress: Record<string, {
+        bytesTransferred: number;
+        totalBytes: number;
+        progress: number;
+    }>;
 } 

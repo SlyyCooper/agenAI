@@ -1,96 +1,188 @@
-import { useCallback } from 'react';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll, getMetadata } from 'firebase/storage';
+import { useCallback, useState } from 'react';
+import { 
+  getStorage, 
+  ref, 
+  uploadBytes, 
+  uploadBytesResumable,
+  getDownloadURL, 
+  deleteObject, 
+  listAll, 
+  getMetadata,
+  StorageError 
+} from 'firebase/storage';
 import { useAuth } from '../config/firebase/AuthContext';
 import { useAPIError } from './useAPIError';
 import type { StorageFile, StorageHook } from '../types';
 
+interface UploadProgressItem {
+  bytesTransferred: number;
+  totalBytes: number;
+  progress: number;
+}
+
+type UploadProgress = Record<string, UploadProgressItem>;
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
 export const useStorage = (): StorageHook => {
-    const { user } = useAuth();
-    const { handleError } = useAPIError();
-    const storage = getStorage();
+  const { user } = useAuth();
+  const { handleError } = useAPIError();
+  const storage = getStorage();
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({});
 
-    const uploadFile = useCallback(async (file: File, path: string): Promise<string> => {
-        if (!user) throw new Error('Must be logged in to upload files');
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-        return handleError(async () => {
-            // Create storage reference
-            const storageRef = ref(storage, `users/${user.uid}/${path}`);
+  const handleStorageError = (error: StorageError) => {
+    switch (error.code) {
+      case 'storage/unauthorized':
+        throw new Error('User not authorized to access storage');
+      case 'storage/canceled':
+        throw new Error('Upload canceled by user');
+      case 'storage/unknown':
+      default:
+        throw new Error(`Storage error: ${error.message}`);
+    }
+  };
+
+  const retryOperation = async <T>(
+    operation: () => Promise<T>,
+    retries = MAX_RETRIES
+  ): Promise<T> => {
+    try {
+      return await operation();
+    } catch (error) {
+      if (retries > 0 && error instanceof StorageError) {
+        await sleep(RETRY_DELAY);
+        return retryOperation(operation, retries - 1);
+      }
+      throw error;
+    }
+  };
+
+  const uploadFile = useCallback(async (file: File, path: string): Promise<string> => {
+    if (!user) throw new Error('Must be logged in to upload files');
+
+    return handleError(async () => {
+      const storageRef = ref(storage, `users/${user.uid}/${path}`);
+      
+      // Use resumable upload for tracking progress
+      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(prev => ({
+              ...prev,
+              [path]: {
+                bytesTransferred: snapshot.bytesTransferred,
+                totalBytes: snapshot.totalBytes,
+                progress: progress
+              }
+            }));
+          },
+          (error) => {
+            handleStorageError(error);
+            reject(error);
+          },
+          async () => {
+            try {
+              const url = await getDownloadURL(uploadTask.snapshot.ref);
+              setUploadProgress(prev => {
+                const newProgress = { ...prev };
+                delete newProgress[path];
+                return newProgress;
+              });
+              resolve(url);
+            } catch (error) {
+              reject(error);
+            }
+          }
+        );
+      });
+    });
+  }, [user, storage, handleError]);
+
+  const downloadFile = useCallback(async (path: string): Promise<Blob> => {
+    if (!user) throw new Error('Must be logged in to download files');
+
+    return handleError(async () => {
+      return retryOperation(async () => {
+        const storageRef = ref(storage, `users/${user.uid}/${path}`);
+        const url = await getDownloadURL(storageRef);
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.blob();
+      });
+    });
+  }, [user, storage, handleError]);
+
+  const deleteFile = useCallback(async (path: string): Promise<void> => {
+    if (!user) throw new Error('Must be logged in to delete files');
+
+    return handleError(async () => {
+      return retryOperation(async () => {
+        const storageRef = ref(storage, `users/${user.uid}/${path}`);
+        await deleteObject(storageRef);
+      });
+    });
+  }, [user, storage, handleError]);
+
+  const getFileUrl = useCallback(async (path: string): Promise<string> => {
+    if (!user) throw new Error('Must be logged in to access files');
+
+    return handleError(async () => {
+      return retryOperation(async () => {
+        const storageRef = ref(storage, `users/${user.uid}/${path}`);
+        return getDownloadURL(storageRef);
+      });
+    });
+  }, [user, storage, handleError]);
+
+  const listFiles = useCallback(async (prefix: string): Promise<StorageFile[]> => {
+    if (!user) throw new Error('Must be logged in to list files');
+
+    return handleError(async () => {
+      return retryOperation(async () => {
+        const storageRef = ref(storage, `users/${user.uid}/${prefix}`);
+        const res = await listAll(storageRef);
+        
+        const files = await Promise.all(
+          res.items.map(async (item) => {
+            const [url, metadata] = await Promise.all([
+              getDownloadURL(item),
+              getMetadata(item)
+            ]);
             
-            // Upload file
-            await uploadBytes(storageRef, file);
-            
-            // Get download URL
-            const url = await getDownloadURL(storageRef);
-            return url;
-        });
-    }, [user, storage, handleError]);
+            return {
+              path: item.fullPath,
+              url,
+              metadata: {
+                contentType: metadata.contentType,
+                size: metadata.size,
+                created: new Date(metadata.timeCreated),
+                updated: new Date(metadata.updated),
+                customMetadata: metadata.customMetadata || {}
+              }
+            };
+          })
+        );
+        
+        return files;
+      });
+    });
+  }, [user, storage, handleError]);
 
-    const downloadFile = useCallback(async (path: string): Promise<Blob> => {
-        if (!user) throw new Error('Must be logged in to download files');
-
-        return handleError(async () => {
-            const storageRef = ref(storage, `users/${user.uid}/${path}`);
-            const url = await getDownloadURL(storageRef);
-            
-            // Download file
-            const response = await fetch(url);
-            const blob = await response.blob();
-            return blob;
-        });
-    }, [user, storage, handleError]);
-
-    const deleteFile = useCallback(async (path: string): Promise<void> => {
-        if (!user) throw new Error('Must be logged in to delete files');
-
-        return handleError(async () => {
-            const storageRef = ref(storage, `users/${user.uid}/${path}`);
-            await deleteObject(storageRef);
-        });
-    }, [user, storage, handleError]);
-
-    const getFileUrl = useCallback(async (path: string): Promise<string> => {
-        if (!user) throw new Error('Must be logged in to access files');
-
-        return handleError(async () => {
-            const storageRef = ref(storage, `users/${user.uid}/${path}`);
-            return getDownloadURL(storageRef);
-        });
-    }, [user, storage, handleError]);
-
-    const listFiles = useCallback(async (prefix: string): Promise<StorageFile[]> => {
-        if (!user) throw new Error('Must be logged in to list files');
-
-        return handleError(async () => {
-            const storageRef = ref(storage, `users/${user.uid}/${prefix}`);
-            const res = await listAll(storageRef);
-            
-            const files = await Promise.all(
-                res.items.map(async (item) => {
-                    const url = await getDownloadURL(item);
-                    const metadata = await getMetadata(item);
-                    
-                    return {
-                        path: item.fullPath,
-                        url,
-                        metadata: {
-                            contentType: metadata.contentType,
-                            size: metadata.size,
-                            created: new Date(metadata.timeCreated),
-                            updated: new Date(metadata.updated)
-                        }
-                    };
-                })
-            );
-            
-            return files;
-        });
-    }, [user, storage, handleError]);
-
-    return {
-        uploadFile,
-        downloadFile,
-        deleteFile,
-        getFileUrl,
-        listFiles
-    };
+  return {
+    uploadFile,
+    downloadFile,
+    deleteFile,
+    getFileUrl,
+    listFiles,
+    uploadProgress
+  };
 }; 

@@ -7,6 +7,13 @@ import { StorageFile, UseStorageReturn } from './firebase.types';
 import { UserProfileData, PaymentRecord } from './api.types';
 import { User } from 'firebase/auth';
 
+// Upload Progress Type
+export interface UploadProgress {
+    bytesTransferred: number;
+    totalBytes: number;
+    progress: number;
+}
+
 // Firebase Hook Types
 export interface UseFirebaseReturn {
     signIn: (email: string, password: string) => Promise<User>;
