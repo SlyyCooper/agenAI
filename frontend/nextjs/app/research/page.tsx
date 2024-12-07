@@ -759,3 +759,8 @@ export default function ResearchPage() {
     </div>
   );
 }
+
+
+
+
+
