@@ -8,6 +8,23 @@ import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { FileText, Download, Trash2, ExternalLink, Filter } from 'lucide-react';
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
+
+const getFileTypeIcon = (url: string) => {
+  if (url.endsWith('.pdf')) return '📄';
+  if (url.endsWith('.docx')) return '📝';
+  if (url.endsWith('.md')) return '📋';
+  return '📄';
+};
+
+const getFileTypeName = (url: string) => {
+  if (url.endsWith('.pdf')) return 'PDF';
+  if (url.endsWith('.docx')) return 'Word';
+  if (url.endsWith('.md')) return 'Markdown';
+  return 'Document';
+};
+
 export default function ResearchPapers() {
   const { user } = useAuth();
   const { listFiles, getFileUrl, deleteFile } = useStorage();
@@ -17,24 +34,37 @@ export default function ResearchPapers() {
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  const retryOperation = async <T,>(operation: () => Promise<T>, retries = MAX_RETRIES): Promise<T> => {
+    try {
+      return await operation();
+    } catch (error) {
+      if (retries > 0) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        return retryOperation(operation, retries - 1);
+      }
+      throw error;
+    }
+  };
+
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        // Fetch reports from API
-        const response = await fetch('/api/reports');
-        if (!response.ok) {
-          throw new Error('Failed to fetch reports');
-        }
+        setLoading(true);
+        
+        // Fetch reports with retry
+        const response = await retryOperation(async () => {
+          const res = await fetch('/api/reports');
+          if (!res.ok) throw new Error('Failed to fetch reports');
+          return res;
+        });
+        
         const data = await response.json();
-
-        // Fetch storage files
         const storageFiles = await listFiles('research');
         
-        // Map storage files to reports
+        // Map storage files to reports with retry
         const updatedReports = await Promise.all(
           data.map(async (report: ReportDocument) => {
             try {
-              // Get updated URLs for each file
               const fileUrls = await Promise.all(
                 report.file_urls.map(async (url) => {
                   const urlParts = url.split('/');
@@ -43,7 +73,7 @@ export default function ResearchPapers() {
                   
                   const storageFile = storageFiles.find(f => f.path.includes(filename));
                   if (storageFile) {
-                    return await getFileUrl(storageFile.path);
+                    return await retryOperation(() => getFileUrl(storageFile.path));
                   }
                   return url;
                 })
@@ -195,14 +225,16 @@ export default function ResearchPapers() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center px-3 py-1 border border-blue-500 text-blue-500 rounded-md hover:bg-blue-50 text-sm gap-1"
+                      title={`View ${getFileTypeName(url)} version`}
                     >
-                      <ExternalLink className="h-4 w-4" />
-                      View {report.file_urls.length > 1 ? `#${index + 1}` : ''}
+                      <span className="mr-1">{getFileTypeIcon(url)}</span>
+                      {getFileTypeName(url)}
                     </a>
                   ))}
                   <button
                     onClick={() => handleDelete(report)}
                     className="inline-flex items-center px-3 py-1 border border-red-500 text-red-500 rounded-md hover:bg-red-50 text-sm gap-1"
+                    title="Delete report"
                   >
                     <Trash2 className="h-4 w-4" />
                     Delete

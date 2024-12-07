@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/config/firebase/AuthContext';
 import { User, Settings, FileText, CreditCard, Trash2 } from 'lucide-react';
@@ -10,31 +10,22 @@ import ResearchPapers from '@/components/profile/ResearchPapers';
 import BillingSection from '@/components/profile/BillingSection';
 import DeleteAccount from '@/components/profile/DeleteAccount';
 import { Toaster, toast } from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './UserProfile.module.css';
-import { Metadata } from 'next';
-import { auth } from '@/config/firebase/firebase';
-import { redirect } from 'next/navigation';
 
-interface CustomUser {
-  id: string;
-  name: string;
-  email: string;
-  avatar: string;
-}
+// Loading component
+const LoadingSpinner = () => (
+  <div className="flex justify-center items-center h-64">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+  </div>
+);
 
-const tabs = [
-  { id: 'profile', label: 'Profile', icon: User },
-  { id: 'papers', label: 'Research Papers', icon: FileText },
-  { id: 'billing', label: 'Billing', icon: CreditCard },
-  { id: 'settings', label: 'Settings', icon: Settings },
-];
-
-export default function UserProfile() {
+// Profile Content Component
+const ProfileContent = () => {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('profile');
-  const [papers, setPapers] = useState<Array<{ id: string; title: string; date: string }>>([]);
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams?.get('tab') || 'profile');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -43,28 +34,29 @@ export default function UserProfile() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user) {
-      // Fetch user's research papers (placeholder data)
-      setPapers([
-        { id: '1', title: 'AI in Healthcare', date: '2023-05-15' },
-        { id: '2', title: 'Machine Learning Trends', date: '2023-07-22' },
-      ]);
+    const tab = searchParams?.get('tab');
+    if (tab && tabs.some(t => t.id === tab)) {
+      setActiveTab(tab);
     }
-  }, [user]);
+  }, [searchParams]);
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    // Update URL without reload
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tabId);
+    window.history.pushState({}, '', url);
+  };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!user) {
-    return null; // The useEffect hook will redirect to login page
+    return null;
   }
 
-  const customUser: CustomUser = {
+  const customUser = {
     id: user.uid,
     name: user.displayName || 'User',
     email: user.email || '',
@@ -108,10 +100,12 @@ export default function UserProfile() {
                 {tabs.map((tab) => (
                   <li key={tab.id}>
                     <button
-                      onClick={() => setActiveTab(tab.id)}
+                      onClick={() => handleTabChange(tab.id)}
                       className={`${styles.tabButton} ${
                         activeTab === tab.id ? styles.activeTab : ''
                       }`}
+                      aria-selected={activeTab === tab.id}
+                      role="tab"
                     >
                       <tab.icon className="h-5 w-5" />
                       <span>{tab.label}</span>
@@ -127,6 +121,7 @@ export default function UserProfile() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.3 }}
+              role="tabpanel"
             >
               {renderTabContent()}
             </motion.div>
@@ -134,5 +129,22 @@ export default function UserProfile() {
         </div>
       </motion.div>
     </div>
+  );
+};
+
+// Tabs configuration
+const tabs = [
+  { id: 'profile', label: 'Profile', icon: User },
+  { id: 'papers', label: 'Research Papers', icon: FileText },
+  { id: 'billing', label: 'Billing', icon: CreditCard },
+  { id: 'settings', label: 'Settings', icon: Settings },
+];
+
+// Main component with Suspense
+export default function UserProfile() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <ProfileContent />
+    </Suspense>
   );
 }
