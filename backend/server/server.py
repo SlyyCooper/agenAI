@@ -30,6 +30,7 @@ from backend.server.server_utils import (
     extract_command_data
 )
 import logging
+from .tasks.storage_maintenance import init_maintenance_schedule
 
 # Configure logging
 logging.basicConfig(
@@ -79,7 +80,12 @@ class ConfigUpdateRequest(BaseModel):
 # App initialization
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize Firebase
     initialize_firebase()
+    
+    # Initialize storage maintenance
+    init_maintenance_schedule()
+    
     yield
 
 app = FastAPI(lifespan=lifespan)

@@ -20,6 +20,16 @@ from backend.server.firebase.storage_utils import (
 from firebase_admin import auth, firestore
 from dotenv import load_dotenv
 from urllib.parse import urlparse
+from .firebase.report_storage import (
+    generate_report_files,
+    cleanup_orphaned_files,
+    monitor_storage_metrics,
+    ReportStorageError
+)
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 def sanitize_filename(filename: str) -> str:
     """
@@ -45,37 +55,65 @@ def sanitize_filename(filename: str) -> str:
     return sanitized
 
 async def handle_start_command(websocket, data: str, manager):
-    json_data = json.loads(data[6:])
-    task, report_type, source_urls, tone, headers, report_source = extract_command_data(json_data)
-    
-    user_id = getattr(websocket, 'user_id', None)
-    if not user_id:
-        await websocket.send_json({"type": "error", "output": "No user ID found"})
-        return
+    try:
+        json_data = json.loads(data[6:])
+        task, report_type, source_urls, tone, headers, report_source = extract_command_data(json_data)
+        
+        user_id = getattr(websocket, 'user_id', None)
+        if not user_id:
+            await websocket.send_json({"type": "error", "output": "No user ID found"})
+            return
 
-    report_data = await manager.start_streaming(
-        task, report_type, report_source, source_urls, tone, websocket, headers
-    )
-    
-    # Generate files with user-specific paths
-    sanitized_filename = sanitize_filename(task)
-    file_paths = await generate_report_files(
-        report_data["report"], 
-        sanitized_filename,
-        user_id
-    )
-    
-    # Store report metadata in Firestore
-    report_ref = db.collection('users').document(user_id).collection('reports').document()
-    await report_ref.set({
-        'task': task,
-        'report_type': report_type,
-        'created_at': firestore.SERVER_TIMESTAMP,
-        'file_paths': file_paths,
-        'status': 'completed'
-    })
-
-    await send_file_paths(websocket, file_paths)
+        # Get report data
+        report_data = await manager.start_streaming(
+            task, report_type, report_source, source_urls, tone, websocket, headers
+        )
+        
+        # Generate files with improved error handling
+        try:
+            sanitized_filename = sanitize_filename(task)
+            metadata = {
+                'task': task,
+                'report_type': report_type,
+                'source_urls': source_urls,
+                'tone': tone,
+            }
+            
+            file_paths = await generate_report_files(
+                report_data["report"],
+                sanitized_filename,
+                user_id,
+                metadata
+            )
+            
+            # Send file paths to client
+            await send_file_paths(websocket, file_paths)
+            
+            # Schedule cleanup of any orphaned files
+            asyncio.create_task(cleanup_orphaned_files(user_id))
+            
+            # Collect storage metrics
+            asyncio.create_task(monitor_storage_metrics(user_id))
+            
+        except ReportStorageError as e:
+            logger.error(f"Report storage error: {str(e)}")
+            await websocket.send_json({
+                "type": "error",
+                "output": f"Error storing report: {str(e)}"
+            })
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            await websocket.send_json({
+                "type": "error",
+                "output": "An unexpected error occurred while storing the report"
+            })
+            
+    except Exception as e:
+        logger.error(f"Error in handle_start_command: {str(e)}")
+        await websocket.send_json({
+            "type": "error",
+            "output": "An error occurred while processing your request"
+        })
 
 async def handle_human_feedback(data: str):
     feedback_data = json.loads(data[14:])  # Remove "human_feedback" prefix

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/config/firebase/AuthContext";
 
@@ -155,6 +155,38 @@ export default function ResearchPage() {
   const [hasOutput, setHasOutput] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const saveReport = useCallback(async () => {
+    if (!user) {
+      toast.error('Please log in to save reports');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const reportContent = answer;
+      const title = promptValue;
+
+      const url = await saveResearchReport({
+        content: reportContent,
+        userId: user.uid,
+        metadata: {
+          title,
+          report_type: chatBoxSettings.report_type,
+          source: chatBoxSettings.report_source,
+          userId: user.uid
+        }
+      });
+      toast.success('Report saved successfully');
+      return url;
+    } catch (error) {
+      console.error('Error saving report:', error);
+      toast.error('Failed to save report');
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [user, answer, promptValue, chatBoxSettings]);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -464,7 +496,7 @@ export default function ResearchPage() {
             report={answer}
             onSave={async () => {
               try {
-                await saveReport(answer);
+                await saveReport();
                 toast.success('Report saved successfully');
               } catch (error) {
                 console.error('Error saving report:', error);
@@ -521,75 +553,6 @@ export default function ResearchPage() {
 
     return { leftComponents, rightComponents };
   };
-
-  // Add function to save report
-  const saveReport = async (reportContent: string) => {
-    try {
-      if (!user) {
-        toast.error('You must be logged in to save reports');
-        return;
-      }
-
-      setIsSaving(true);
-      // Convert string content to a File object
-      const blob = new Blob([reportContent], { type: 'text/markdown' });
-      const file = new File([blob], `research-${Date.now()}.md`, { type: 'text/markdown' });
-      
-      const timestamp = new Date().toISOString();
-      const title = `Research: ${question.substring(0, 50)}${question.length > 50 ? '...' : ''}`;
-      
-      const url = await saveResearchReport({
-        file,
-        userId: user.uid,
-        title,
-        content: reportContent,
-        timestamp
-      });
-      toast.success('Report saved successfully');
-      return url;
-    } catch (error) {
-      console.error('Error saving report:', error);
-      toast.error('Failed to save report');
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Modify WebSocket message handler
-  useEffect(() => {
-    if (socket) {
-      socket.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-        console.log('websocket data caught in frontend: ', data);
-
-        if (data.type === 'human_feedback' && data.content === 'request') {
-          console.log('triggered human feedback condition')
-          setQuestionForHuman(data.output)
-          setShowHumanFeedback(true);
-        } else {
-          const contentAndType = `${data.content}-${data.type}`;
-          setOrderedData((prevOrder) => [...prevOrder, { ...data, contentAndType }]);
-
-          if (data.type === 'report') {
-            setAnswer((prev) => prev + data.output);
-            // Save report when it's complete
-            if (data.content === 'complete') {
-              try {
-                await saveReport(data.output);
-              } catch (error) {
-                console.error('Failed to save report:', error);
-              }
-            }
-          } else if (data.type === 'path') {
-            setLoading(false);
-            socket.close();
-            setSocket(null);
-          }
-        }
-      };
-    }
-  }, [socket, question, chatBoxSettings.report_type]);
 
   // Add tier indicator
   const TierIndicator = () => (
@@ -650,6 +613,41 @@ export default function ResearchPage() {
       setIsSaving(false);
     }
   };
+
+  // Modify WebSocket message handler
+  useEffect(() => {
+    if (socket) {
+      socket.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        console.log('websocket data caught in frontend: ', data);
+
+        if (data.type === 'human_feedback' && data.content === 'request') {
+          console.log('triggered human feedback condition')
+          setQuestionForHuman(data.output)
+          setShowHumanFeedback(true);
+        } else {
+          const contentAndType = `${data.content}-${data.type}`;
+          setOrderedData((prevOrder) => [...prevOrder, { ...data, contentAndType }]);
+
+          if (data.type === 'report') {
+            setAnswer((prev) => prev + data.output);
+            // Save report when it's complete
+            if (data.content === 'complete') {
+              try {
+                await saveReport();
+              } catch (error) {
+                console.error('Failed to save report:', error);
+              }
+            }
+          } else if (data.type === 'path') {
+            setLoading(false);
+            socket.close();
+            setSocket(null);
+          }
+        }
+      };
+    }
+  }, [socket, question, chatBoxSettings.report_type, saveReport]);
 
   if (authLoading) {
     return <div>Loading...</div>;

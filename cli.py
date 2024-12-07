@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 from gpt_researcher import GPTResearcher
 from gpt_researcher.utils.enum import ReportType
 from backend.report_type import DetailedReport
+from backend.server.firebase.storage_utils import save_research_report
+from io import BytesIO
 
 # =============================================================================
 # CLI
@@ -70,8 +72,8 @@ cli.add_argument(
 
 async def main(args):
     """ 
-    Conduct research on the given query, generate the report, and write
-    it as a markdown file to the output directory.
+    Conduct research on the given query, generate the report, and save
+    it to Firebase Storage.
     """
     if args.report_type == 'detailed_report':
         detailed_report = DetailedReport(
@@ -87,15 +89,23 @@ async def main(args):
             report_type=args.report_type)
 
         await researcher.conduct_research()
-
         report = await researcher.write_report()
 
-    # Write the report to a file
-    artifact_filepath = f"outputs/{uuid4()}.md"
-    with open(artifact_filepath, "w") as f:
-        f.write(report)
-
-    print(f"Report written to '{artifact_filepath}'")
+    # Save to Firebase Storage
+    file_stream = BytesIO(report.encode('utf-8'))
+    metadata = {
+        'title': args.query,
+        'report_type': args.report_type,
+        'source': 'cli'
+    }
+    
+    result = await save_research_report(
+        file_stream=file_stream,
+        metadata=metadata,
+        content=report
+    )
+    
+    print(f"Report saved to Firebase Storage. URL: {result['url']}")
 
 if __name__ == "__main__":
     load_dotenv()

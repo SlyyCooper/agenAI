@@ -12,15 +12,8 @@ import {
 } from 'firebase/storage';
 import { useAuth } from '../config/firebase/AuthContext';
 import { useAPIError } from './useAPIError';
-import type { StorageFile, StorageHook } from '../types';
-
-interface UploadProgressItem {
-  bytesTransferred: number;
-  totalBytes: number;
-  progress: number;
-}
-
-type UploadProgress = Record<string, UploadProgressItem>;
+import type { StorageFile, StorageHook, ResearchReportUrls, UploadProgress } from '../types/interfaces/api.types';
+import { saveResearchReport } from '../api/storageAPI';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
@@ -177,12 +170,37 @@ export const useStorage = (): StorageHook => {
     });
   }, [user, storage, handleError]);
 
+  const saveReport = useCallback(async (
+    content: string,
+    title: string,
+    reportType: string,
+    source?: string
+  ): Promise<ResearchReportUrls> => {
+    if (!user) throw new Error('Must be logged in to save reports');
+
+    return handleError(async () => {
+      const metadata = {
+        title,
+        report_type: reportType,
+        source: source || 'web',
+        userId: user.uid
+      };
+
+      return saveResearchReport({
+        content,
+        metadata,
+        userId: user.uid
+      });
+    });
+  }, [user, handleError]);
+
   return {
     uploadFile,
     downloadFile,
     deleteFile,
     getFileUrl,
     listFiles,
-    uploadProgress
+    uploadProgress: uploadProgress as UploadProgress,
+    saveReport
   };
 }; 

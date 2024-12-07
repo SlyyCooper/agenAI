@@ -37,6 +37,16 @@ export interface FileMetadata {
   created: Date
   updated: Date
   public_url?: string
+  type?: string
+  title?: string
+  userId?: string
+  report_type?: string
+  source?: string
+  file_paths?: {
+    pdf?: string
+    docx?: string
+    md?: string
+  }
 }
 
 /**
@@ -218,8 +228,14 @@ export interface StorageFile {
   };
 }
 
+export interface UploadProgressItem {
+  bytesTransferred: number;
+  totalBytes: number;
+  progress: number;
+}
+
 export interface UploadProgress {
-  [path: string]: number;
+  [path: string]: number | UploadProgressItem;
 }
 
 export interface StorageHook {
@@ -229,6 +245,29 @@ export interface StorageHook {
   getFileUrl: (path: string) => Promise<string>;
   listFiles: (prefix: string) => Promise<StorageFile[]>;
   uploadProgress: UploadProgress;
+  saveReport: (
+    content: string,
+    title: string,
+    reportType: string,
+    source?: string
+  ) => Promise<ResearchReportUrls>;
+}
+
+export interface ResearchReportUrls {
+  pdf?: string;
+  docx?: string;
+  md?: string;
+}
+
+export interface ResearchReportMetadata {
+  title: string;
+  report_type: string;
+  source?: string;
+  userId: string;
+  created_at?: string;
+  updated_at?: string;
+  type?: string;
+  [key: string]: any;
 }
 
 export interface StorageError extends Error {

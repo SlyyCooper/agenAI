@@ -6,7 +6,7 @@ import { useAuth } from '@/config/firebase/AuthContext';
 import { User, Settings, FileText, CreditCard, Trash2 } from 'lucide-react';
 import ProfileHeader from '@/components/profile/ProfileHeader';
 import ProfileSettings from '@/components/profile/ProfileSettings';
-import ResearchPapers from '@/components/profile/ResearchPapers';
+import ResearchPapers from '@/components/dashboard/ResearchPapers';
 import BillingSection from '@/components/profile/BillingSection';
 import DeleteAccount from '@/components/profile/DeleteAccount';
 import { Toaster, toast } from 'react-hot-toast';

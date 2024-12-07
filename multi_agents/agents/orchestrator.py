@@ -2,10 +2,11 @@ import os
 import time
 import datetime
 from langgraph.graph import StateGraph, END
-# from langgraph.checkpoint.memory import MemorySaver
 from .utils.views import print_agent_output
 from ..memory.research import ResearchState
 from .utils.utils import sanitize_filename
+from backend.server.firebase.storage_utils import save_research_report
+from io import BytesIO
 
 # Import agent classes
 from . import \
@@ -26,26 +27,18 @@ class ChiefEditorAgent:
         self.headers = headers or {}
         self.tone = tone
         self.task_id = self._generate_task_id()
-        self.output_dir = self._create_output_directory()
+        self.user_id = task.get('user_id', 'default')  # Get user_id from task
 
     def _generate_task_id(self):
         # Currently time based, but can be any unique identifier
         return int(time.time())
-
-    def _create_output_directory(self):
-        output_dir = "./outputs/" + \
-            sanitize_filename(
-                f"run_{self.task_id}_{self.task.get('query')[0:40]}")
-
-        os.makedirs(output_dir, exist_ok=True)
-        return output_dir
 
     def _initialize_agents(self):
         return {
             "writer": WriterAgent(self.websocket, self.stream_output, self.headers),
             "editor": EditorAgent(self.websocket, self.stream_output, self.headers),
             "research": ResearchAgent(self.websocket, self.stream_output, self.tone, self.headers),
-            "publisher": PublisherAgent(self.output_dir, self.websocket, self.stream_output, self.headers),
+            "publisher": PublisherAgent(self.user_id, self.websocket, self.stream_output, self.headers),
             "human": HumanAgent(self.websocket, self.stream_output, self.headers)
         }
 
@@ -115,4 +108,23 @@ class ChiefEditorAgent:
         }
 
         result = await chain.ainvoke({"task": self.task}, config=config)
+        
+        # Save result to Firebase Storage
+        if result.get('report'):
+            file_stream = BytesIO(result['report'].encode('utf-8'))
+            metadata = {
+                'title': self.task.get('query'),
+                'task_id': str(self.task_id),
+                'userId': self.user_id,
+                'type': 'research_report'
+            }
+            
+            storage_result = await save_research_report(
+                file_stream=file_stream,
+                metadata=metadata,
+                content=result['report']
+            )
+            
+            result['storage_url'] = storage_result['url']
+            
         return result

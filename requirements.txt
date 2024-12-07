@@ -30,8 +30,14 @@ json_repair
 json5
 loguru
 browser_cookie3
-firebase-admin>=6.6.0  # Added version specification here
+firebase-admin>=6.6.0
 stripe
+
+# File format conversion
+weasyprint>=60.1
+python-docx>=0.8.11
+Markdown>=3.4.3
+markdown-extra>=0.5.0
 
 # uncomment for testing
 # pytest

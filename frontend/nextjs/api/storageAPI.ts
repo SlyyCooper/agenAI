@@ -254,30 +254,28 @@ interface ResearchReportUrls {
 }
 
 export const saveResearchReport = async ({
-  file,
-  userId,
-  title,
   content,
-  timestamp
+  metadata,
+  userId,
 }: {
-  file: File;
-  userId: string;
-  title: string;
   content: string;
-  timestamp: string;
+  metadata: {
+    title: string;
+    report_type: string;
+    source?: string;
+    userId: string;
+    [key: string]: any;
+  };
+  userId: string;
 }): Promise<ResearchReportUrls> => {
   try {
     const token = await getFirebaseToken();
     
+    // Create file stream from content
+    const file = new Blob([content], { type: 'text/markdown' });
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('metadata', JSON.stringify({
-      userId,
-      title,
-      timestamp,
-      type: 'research_report',
-      formats: ['pdf', 'docx', 'md'] // Request all formats
-    }));
+    formData.append('metadata', JSON.stringify(metadata));
     formData.append('content', content);
 
     const response = await fetch(`${BASE_URL}/api/storage/save-report`, {
@@ -294,9 +292,9 @@ export const saveResearchReport = async ({
 
     const data = await response.json();
     return {
-      pdf: data.urls.pdf,
-      docx: data.urls.docx,
-      md: data.urls.md,
+      pdf: data.file_paths.pdf,
+      docx: data.file_paths.docx,
+      md: data.file_paths.md,
       metadata: data.metadata
     };
   } catch (error) {
@@ -304,5 +302,6 @@ export const saveResearchReport = async ({
     throw error;
   }
 };
+
 
 

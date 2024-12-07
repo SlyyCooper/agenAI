@@ -1,8 +1,10 @@
 import os
 import asyncio
 import pytest
-# Ensure this path is correct
+from unittest.mock import patch, Mock
 from gpt_researcher.orchestrator.agent import GPTResearcher
+from backend.server.firebase.storage_utils import save_research_report
+from io import BytesIO
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -19,17 +21,27 @@ report_types = [
 # Define a common query and sources for testing
 query = "What can you tell me about myself based on my documents?"
 
-# Define the output directory
-output_dir = "./outputs"
+@pytest.fixture
+def mock_firebase_storage():
+    """Mock Firebase storage for testing"""
+    with patch('backend.server.firebase.storage_utils.storage_bucket') as mock_bucket:
+        mock_blob = Mock()
+        mock_blob.generate_signed_url.return_value = "https://storage.example.com/test.pdf"
+        mock_bucket.blob.return_value = mock_blob
+        yield mock_bucket
 
+@pytest.fixture
+def mock_firestore():
+    """Mock Firestore for testing"""
+    with patch('backend.server.firebase.storage_utils.db') as mock_db:
+        mock_doc = Mock()
+        mock_db.collection.return_value.document.return_value.collection.return_value.document.return_value = mock_doc
+        yield mock_db
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("report_type", report_types)
-async def test_gpt_researcher(report_type):
-    # Ensure the output directory exists
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
+async def test_gpt_researcher(report_type, mock_firebase_storage, mock_firestore):
+    """Test report generation and storage"""
     # Create an instance of GPTResearcher with report_source set to "documents"
     researcher = GPTResearcher(
         query=query, report_type=report_type, report_source="documents")
@@ -38,17 +50,25 @@ async def test_gpt_researcher(report_type):
     await researcher.conduct_research()
     report = await researcher.write_report()
 
-    # Define the expected output filenames
-    pdf_filename = os.path.join(output_dir, f"{report_type}.pdf")
-    docx_filename = os.path.join(output_dir, f"{report_type}.docx")
+    # Save to Firebase Storage
+    file_stream = BytesIO(report.encode('utf-8'))
+    metadata = {
+        'title': query,
+        'report_type': report_type,
+        'source': 'documents',
+        'userId': 'test_user'  # Test user ID
+    }
+    
+    result = await save_research_report(
+        file_stream=file_stream,
+        metadata=metadata,
+        content=report
+    )
 
-    # Check if the PDF and DOCX files are created
-    # assert os.path.exists(pdf_filename), f"PDF file not found for report type: {report_type}"
-    # assert os.path.exists(docx_filename), f"DOCX file not found for report type: {report_type}"
-
-    # Clean up the generated files (optional)
-    # os.remove(pdf_filename)
-    # os.remove(docx_filename)
+    # Verify Firebase interactions
+    assert mock_firebase_storage.blob.called
+    assert mock_firestore.collection.called
+    assert result['url'].startswith('https://storage.example.com/')
 
 if __name__ == "__main__":
     pytest.main()

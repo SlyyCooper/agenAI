@@ -6,6 +6,15 @@ import urllib
 import mistune
 from backend.server.firebase.storage_utils import upload_file_to_storage
 import io
+import os
+from io import BytesIO
+from docx import Document
+from docx.shared import Inches
+import markdown
+import tempfile
+import re
+from weasyprint import HTML, CSS
+from weasyprint.text.fonts import FontConfiguration
 
 async def write_to_file(filename: str, text: str) -> None:
     """Asynchronously write text to a file in UTF-8 encoding.
@@ -36,53 +45,153 @@ async def write_text_to_md(text: str, filename: str, user_id: str) -> str:
         user_id
     )
 
-async def write_md_to_pdf(text: str, filename: str, user_id: str) -> str:
-    """Convert to PDF and save to Firebase Storage with user-specific path"""
-    # Convert to PDF in memory
-    from md2pdf.core import md2pdf
-    pdf_buffer = io.BytesIO()
-    md2pdf(pdf_buffer, md_content=text, css_file_path="./frontend/pdf_styles.css")
+async def write_md_to_pdf(markdown_content: str, filename: str) -> BytesIO:
+    """
+    Convert markdown content to PDF format using WeasyPrint
     
-    # Upload PDF with user-specific path
-    file_path = f"reports/{user_id}/{filename}.pdf"
-    return await upload_file_to_storage(pdf_buffer, file_path, 'application/pdf')
-
-async def write_md_to_word(text: str, filename: str, user_id: str) -> str:
-    """Convert and save Word doc with user-specific path"""
-    # Convert Markdown text to a DOCX file and return the file path.
-
-    # This function generates a Word document version of the research report.
-    # It uses mistune to convert Markdown to HTML, then htmldocx to convert HTML to DOCX.
-
-    # Args:
-    #     text (str): Markdown text to convert.
-    #     filename (str): Base name for the file (without extension).
-
-    # Returns:
-    #     str: The URL-encoded file path of the generated DOCX.
-    file_path = f"reports/{user_id}/{filename}.docx"
-
+    Args:
+        markdown_content (str): Markdown content to convert
+        filename (str): Base filename for temporary files
+        
+    Returns:
+        BytesIO: PDF content as bytes stream
+    """
     try:
-        from docx import Document
-        from htmldocx import HtmlToDocx
-        # Convert report markdown to HTML
-        html = mistune.html(text)
-        # Create a document object
-        doc = Document()
-        # Convert the html generated from the report to document format
-        HtmlToDocx().add_html_to_document(html, doc)
-
-        # Saving the docx document to file_path
-        doc.save(file_path)
-
-        print(f"Report written to {file_path}")
-
-        encoded_file_path = urllib.parse.quote(file_path)
-        return encoded_file_path
-
+        # Convert markdown to HTML with extended features
+        html_content = markdown.markdown(
+            markdown_content,
+            extensions=['extra', 'codehilite', 'tables', 'toc']
+        )
+        
+        # Add HTML wrapper with styling
+        html_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>{filename}</title>
+            <style>
+                @page {{
+                    margin: 1in;
+                    size: A4;
+                }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    line-height: 1.6;
+                    padding: 1em;
+                }}
+                h1, h2, h3, h4, h5, h6 {{
+                    color: #2c3e50;
+                    margin-top: 1.5em;
+                    margin-bottom: 0.5em;
+                }}
+                h1 {{ font-size: 2em; }}
+                h2 {{ font-size: 1.5em; }}
+                h3 {{ font-size: 1.2em; }}
+                p {{ margin: 1em 0; }}
+                code {{
+                    background: #f8f9fa;
+                    padding: 0.2em 0.4em;
+                    border-radius: 3px;
+                    font-size: 0.9em;
+                }}
+                pre {{
+                    background: #f8f9fa;
+                    padding: 1em;
+                    border-radius: 5px;
+                    overflow-x: auto;
+                }}
+                blockquote {{
+                    border-left: 4px solid #e9ecef;
+                    margin: 1em 0;
+                    padding-left: 1em;
+                    color: #495057;
+                }}
+                table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin: 1em 0;
+                }}
+                th, td {{
+                    border: 1px solid #dee2e6;
+                    padding: 0.5em;
+                    text-align: left;
+                }}
+                th {{
+                    background: #f8f9fa;
+                }}
+                img {{
+                    max-width: 100%;
+                    height: auto;
+                }}
+            </style>
+        </head>
+        <body>
+            {html_content}
+        </body>
+        </html>
+        """
+        
+        # Configure fonts
+        font_config = FontConfiguration()
+        
+        # Create PDF using WeasyPrint
+        pdf_stream = BytesIO()
+        HTML(string=html_template).write_pdf(
+            pdf_stream,
+            font_config=font_config
+        )
+        
+        pdf_stream.seek(0)
+        return pdf_stream
+        
     except Exception as e:
-        print(f"Error in converting Markdown to DOCX: {e}")
-        return ""
+        raise ValueError(f"Failed to convert markdown to PDF: {str(e)}")
+
+async def write_md_to_word(markdown_content: str, filename: str) -> BytesIO:
+    """
+    Convert markdown content to DOCX format
+    
+    Args:
+        markdown_content (str): Markdown content to convert
+        filename (str): Base filename (used for document title)
+        
+    Returns:
+        BytesIO: DOCX content as bytes stream
+    """
+    try:
+        # Create new document
+        doc = Document()
+        
+        # Add title
+        doc.add_heading(filename, 0)
+        
+        # Convert markdown to HTML for better formatting
+        html_content = markdown.markdown(markdown_content)
+        
+        # Split content into paragraphs
+        paragraphs = html_content.split('\n\n')
+        
+        # Add paragraphs to document
+        for para in paragraphs:
+            if para.startswith('<h'):
+                # Handle headers
+                level = int(para[2])  # Get header level from h1, h2, etc.
+                text = para[para.find('>')+1:para.find('</')]
+                doc.add_heading(text, level)
+            else:
+                # Handle regular paragraphs
+                doc.add_paragraph(para)
+        
+        # Save to stream
+        docx_stream = BytesIO()
+        doc.save(docx_stream)
+        docx_stream.seek(0)
+        
+        return docx_stream
+        
+    except Exception as e:
+        raise ValueError(f"Failed to convert markdown to DOCX: {str(e)}")
 
 async def write_to_firebase_storage(content: str, filename: str, content_type: str, user_id: str):
     """Write content to Firebase Storage with user-specific path"""
@@ -95,6 +204,29 @@ async def write_to_firebase_storage(content: str, filename: str, content_type: s
     file_path = f"reports/{user_id}/{filename}"
     # Upload to Firebase Storage
     return await upload_file_to_storage(buffer, file_path, content_type)
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize a filename to be safe for all operating systems
+    
+    Args:
+        filename (str): The filename to sanitize
+        
+    Returns:
+        str: A sanitized filename safe for all operating systems
+    """
+    # Replace invalid characters with underscores
+    invalid_chars = r'[<>:"/\\|?*\x00-\x1f]'
+    sanitized = re.sub(invalid_chars, '_', filename)
+    
+    # Remove leading/trailing spaces and dots
+    sanitized = sanitized.strip('. ')
+    
+    # Ensure the filename isn't empty after sanitization
+    if not sanitized:
+        sanitized = 'unnamed_file'
+        
+    return sanitized
 
 # These utility functions work together to provide a comprehensive report generation system:
 # 1. The research report is initially generated in Markdown format.
