@@ -43,29 +43,47 @@ class WebSocketManager:
 
     async def connect(self, websocket: WebSocket):
         """Connect a websocket."""
-        await websocket.accept()
         try:
-            auth_message = await websocket.receive_json()
-            if auth_message['type'] == 'auth':
-                token = auth_message['token']
-                decoded_token = await verify_firebase_token(token)
-                if not decoded_token:
-                    await websocket.close(code=1008)
-                    return
-                # Store user_id with the websocket connection
-                websocket.user_id = decoded_token['uid']
-            else:
+            await websocket.accept()
+            
+            # Wait for auth message with timeout
+            try:
+                auth_message = await asyncio.wait_for(
+                    websocket.receive_json(),
+                    timeout=5.0  # 5 second timeout
+                )
+                
+                if auth_message.get('type') == 'auth' and auth_message.get('token'):
+                    token = auth_message['token']
+                    decoded_token = await verify_firebase_token(token)
+                    if decoded_token:
+                        # Store user_id with the websocket connection
+                        websocket.user_id = decoded_token['uid']
+                        self.active_connections.append(websocket)
+                        self.message_queues[websocket] = asyncio.Queue()
+                        self.sender_tasks[websocket] = asyncio.create_task(
+                            self.start_sender(websocket)
+                        )
+                        return
+                    
+                print("Invalid token")
                 await websocket.close(code=1008)
                 return
+                
+            except asyncio.TimeoutError:
+                print("Authentication timeout")
+                await websocket.close(code=1008)
+                return
+            except Exception as e:
+                print(f"Authentication error: {str(e)}")
+                await websocket.close(code=1008)
+                return
+                
         except Exception as e:
-            print(f"Authentication error: {e}")
-            await websocket.close(code=1008)
+            print(f"Connection error: {str(e)}")
+            if not websocket.client_state.DISCONNECTED:
+                await websocket.close(code=1008)
             return
-
-        self.active_connections.append(websocket)
-        self.message_queues[websocket] = asyncio.Queue()
-        self.sender_tasks[websocket] = asyncio.create_task(
-            self.start_sender(websocket))
 
     async def disconnect(self, websocket: WebSocket):
         """Disconnect a websocket."""

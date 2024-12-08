@@ -204,9 +204,6 @@ async def health_check():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     try:
-        # Accept the connection first
-        await websocket.accept()
-        
         # Get client IP from various possible headers
         client_ip = websocket.headers.get('x-forwarded-for', '').split(',')[0] or \
                    websocket.headers.get('x-vercel-forwarded-for') or \
@@ -215,14 +212,16 @@ async def websocket_endpoint(websocket: WebSocket):
         
         # Log connection attempt
         logger.info(f"WebSocket connection attempt from {client_ip}")
+        logger.info(f"WebSocket headers: {websocket.headers}")
         
-        # Connect to manager
+        # Connect to manager (this will handle the accept)
         await manager.connect(websocket)
         
         if websocket in manager.active_connections:
             try:
                 await handle_websocket_communication(websocket, manager)
             except WebSocketDisconnect:
+                logger.info(f"WebSocket disconnected from {client_ip}")
                 await manager.disconnect(websocket)
             except Exception as e:
                 logger.error(f"WebSocket error: {str(e)}")
