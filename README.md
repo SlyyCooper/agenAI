@@ -1,71 +1,144 @@
 <div align="center">
-  <img src="frontend/public/TAN.png" alt="TANgent Logo" width="200"/>
-  <h1>TANgent</h1>
-  <p><strong>Unleashing the Future of AI with Multi-Agent Synergy</strong></p>
+  <img src="frontend/public/TAN.png" alt="agenAI Logo" width="200"/>
+  <h1>agenAI</h1>
+  <p><strong>Pioneering AI Research with Collaborative Multi-Agent Systems</strong></p>
   
   <p>
+    <a href="#-overview">Overview</a> •
     <a href="#-features">Features</a> •
     <a href="#-quick-start">Quick Start</a> •
-    <a href="#-deployment-options">Deployment</a> •
     <a href="#-architecture">Architecture</a> •
     <a href="#-contributing">Contributing</a>
   </p>
 </div>
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/ef561295-05f4-40a8-a57d-8178be687b18" alt="Architecture Diagram" width="800"/>
-</div>
-
 ## 🚀 Overview
 
-Welcome to **TANgent**—the revolutionary multi-agent AI research platform that's transforming the landscape of artificial intelligence. By orchestrating a symphony of collaborative AI agents, TANgent delivers unparalleled insights, dynamic adaptability, and predictive prowess that propel your research into new frontiers.
+Welcome to **agenAI**—a groundbreaking multi-agent AI research platform that redefines collaborative intelligence. By orchestrating a network of specialized AI agents, agenAI enables comprehensive research and report generation, pushing the boundaries of what's possible in artificial intelligence.
 
 ## ✨ Features
 
-- 🤖 **Multi-Agent Synergy**  
-  Experience the power of specialized AI agents collaborating seamlessly to push the boundaries of research.
+- 🤖 **Collaborative Multi-Agent System**  
+  Leverage a team of specialized agents—including Editor, Researcher, Reviewer, and more—that work in harmony to produce high-quality research reports.
 
-- 📊 **Cutting-Edge Analytics**  
-  Dive deep into complex data with nuanced analysis that's both profound and precise.
+- 📚 **Modular Report Generation**  
+  Choose between Basic and Detailed reports tailored to your needs, with features like hierarchical structures, table of contents, and reference management.
 
-- 🔄 **Adaptive Intelligence**  
-  Benefit from continuous learning and real-time adaptation that keeps you ahead of the curve.
+- 🌐 **Advanced Research Orchestration**  
+  Experience multi-phase research processes with initial research, subtopic generation, and in-depth analysis managed seamlessly by the agents.
 
-- 📈 **Futuristic Predictive Modeling**  
-  Unlock forward-looking insights powered by advanced AI modeling techniques.
+- 💬 **Real-time Communication**  
+  Stay informed with real-time WebSocket updates, including progress tracking, error reporting, and the ability to provide human feedback on-the-fly.
 
-- 🌐 **Cross-Platform Excellence**  
-  Enjoy an optimal, responsive experience on any device, anywhere.
+- 🧠 **Contextual Understanding**  
+  Benefit from advanced context management, ensuring consistency, relevance, and coherence throughout the research and report generation phases.
 
-- 🎨 **Stunning UI/UX**  
-  Navigate an intuitive interface designed for ease and efficiency, complete with dark/light mode to suit your preferences.
+- ⚡ **High Performance and Scalability**  
+  Utilize asynchronous operations and parallel task execution for efficient performance, capable of handling complex, multi-faceted research topics.
+
+- 🎯 **Adaptive Intelligence and Learning**  
+  The system adapts to your research requirements, optimizing workflows, and continuously improving through adaptive planning and learning mechanisms.
 
 ## 🏃 Quick Start
 
-Ready to embark on your AI journey? Get up and running with TANgent in just minutes!
+Ready to embark on your AI research journey? Get started with agenAI in just a few steps!
 
 ### Prerequisites
 
-Make sure you have the following installed:
+Ensure you have the following installed:
 
 - 🟩 **Node.js** (v18.17.0 recommended)
 - 🐍 **Python 3.11+**
 - 📦 **npm** and **pip** package managers
 
-### Option 1: Launch with Static Frontend (FastAPI)
+### Installation
 
-1. **Install Python dependencies:**
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/yourusername/agenAI.git
+   cd agenAI
+   ```
+
+2. **Install Python dependencies:**
 
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **Start the server:**
+3. **Install Node.js dependencies:**
 
    ```bash
-   python -m uvicorn main:app
+   cd frontend/nextjs
+   npm install
+   ```
+
+### Starting the Application
+
+#### Option 1: Launch with Static Frontend (FastAPI)
+
+1. **Start the backend server:**
+
+   ```bash
+   python -m uvicorn main:app --reload
+   ```
+
+2. **Access the platform:**
+
+   Open your browser and navigate to [http://localhost:8000](http://localhost:8000) to experience agenAI in action!
+
+#### Option 2: Launch with Next.js Frontend
+
+1. **Start the Next.js development server:**
+
+   ```bash
+   cd frontend/nextjs
+   npm run dev
+   ```
+
+2. **Start the backend server:**
+
+   ```bash
+   python -m uvicorn main:app --reload
    ```
 
 3. **Access the platform:**
 
-   Open your browser and navigate to [http://localhost:8000](http://localhost:8000) to experience TANgent in action!
+   Open your browser and navigate to [http://localhost:3000](http://localhost:3000) to enjoy the full agenAI experience!
+
+## 🛠️ Architecture
+
+agenAI is built with a modular and scalable architecture, leveraging a multi-agent system where specialized agents collaborate to conduct research and generate comprehensive reports.
+
+### Core Components
+
+- **Base Agent System** (`multi_agents/agent.py`): Initializes the research team, configures agent parameters, and manages workflow compilation.
+
+- **Specialized Agents:**
+  - **Editor Agent** (`multi_agents/agents/editor.py`): Plans research outlines, organizes sections, and coordinates parallel research tasks.
+  - **Research Agent** (`multi_agents/agents/researcher.py`): Gathers and analyzes information, executes initial and in-depth research, and generates reports.
+  - **Reviewer and Reviser Agents** (`multi_agents/agents/reviewer.py`, `multi_agents/agents/reviser.py`): Perform content review, quality assurance, and manage revisions to ensure high-quality outputs.
+
+### Research Process
+
+- **Basic Report Flow:**
+  - Initializes research parameters.
+  - Conducts research using GPT-based agents.
+  - Generates a single comprehensive report with real-time updates.
+
+- **Detailed Report Flow:**
+  - Performs initial research to build global context.
+  - Generates and validates relevant subtopics.
+  - Produces hierarchical reports with table of contents and references.
+
+### Key Features
+
+- **Context Management:** Advanced tracking of global context, URL deduplication, and content relevance checking to maintain coherence.
+
+- **Real-time Communication:** Integration with WebSockets for progress updates, error handling, and client feedback support.
+
+- **Performance Optimization:** Utilizes asynchronous operations and parallel task execution for efficient handling of complex research tasks.
+
+## 🤝 Contributing
+
+We welcome contributions to agenAI! Please see our [Contributing Guidelines](CONTRIBUTING.md) for more information on how to get involved.
