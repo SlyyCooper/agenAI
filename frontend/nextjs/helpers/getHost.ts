@@ -9,13 +9,14 @@ export const getHost = () => {
   const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
   const isProduction = backendUrl !== 'http://localhost:8000';
   const domain = typeof window !== 'undefined' ? window.location.hostname : '';
-  const isAgenAI = domain.includes('agenai.app');
   
-  // Handle agenai.app domain
-  const wsBaseUrl = isAgenAI ? 'wss://orca-app-jfdlt.ondigitalocean.app' : `${wsProtocol}//${wsUrl}`;
+  // Always use DigitalOcean for backend in production
+  const wsBaseUrl = isProduction 
+    ? 'wss://orca-app-jfdlt.ondigitalocean.app' 
+    : `${wsProtocol}//${wsUrl}`;
   
   return {
-    backendUrl,
+    backendUrl: isProduction ? 'https://orca-app-jfdlt.ondigitalocean.app' : backendUrl,
     wsUrl: wsBaseUrl,
     wsEndpoint: '/ws',
     fullWsUrl: `${wsBaseUrl}/ws`

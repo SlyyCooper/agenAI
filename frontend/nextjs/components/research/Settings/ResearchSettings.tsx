@@ -16,6 +16,7 @@ import { useAuth } from '@/config/firebase/AuthContext';
 import { getHost } from '../../../helpers/getHost';
 import { StorageFile } from '@/types/interfaces/api.types';
 import { toast } from 'react-hot-toast';
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 interface ResearchSettings {
   report_type: 'research_report' | 'detailed_report' | 'multi_agents';
@@ -53,13 +54,18 @@ export function ResearchSettings({
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('source');
   const { user } = useAuth();
-  
-  // WebSocket States
-  const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [agentLogs, setAgentLogs] = useState<WebSocketData[]>([]);
-  const [report, setReport] = useState("");
-  const [accessData, setAccessData] = useState<any>({});
+  const { isConnected, sendMessage, addMessageListener } = useWebSocket();
   const [settings, setSettings] = useState<ResearchSettings>(chatBoxSettings);
+
+  useEffect(() => {
+    const cleanup = addMessageListener((data) => {
+      if (onWebSocketData) {
+        onWebSocketData(data);
+      }
+    });
+
+    return () => cleanup?.();
+  }, [addMessageListener, onWebSocketData]);
 
   const handleSettingsChange = (newSettings: Partial<ResearchSettings>) => {
     const updatedSettings = { ...settings, ...newSettings };
@@ -67,11 +73,11 @@ export function ResearchSettings({
     onSettingsChange(updatedSettings);
 
     // Notify backend of settings change
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({
+    if (isConnected) {
+      sendMessage({
         type: 'settings_update',
         settings: updatedSettings
-      }));
+      });
     }
   };
 
@@ -87,111 +93,6 @@ export function ResearchSettings({
     }
   };
 
-  // WebSocket Setup
-  useEffect(() => {
-    let reconnectTimeout: NodeJS.Timeout;
-    const maxReconnectAttempts = 5;
-    let reconnectAttempts = 0;
-
-    const setupWebSocket = async () => {
-      if (typeof window !== 'undefined' && user) {
-        const { fullWsUrl } = getHost();
-        const newSocket = new WebSocket(fullWsUrl);
-        setSocket(newSocket);
-
-        newSocket.onopen = async () => {
-          console.log('WebSocket connection opened');
-          reconnectAttempts = 0; // Reset attempts on successful connection
-          try {
-            const idToken = await user.getIdToken();
-            if (!idToken) {
-              console.error('Failed to get ID token');
-              return;
-            }
-            newSocket.send(JSON.stringify({ type: 'auth', token: idToken }));
-          } catch (error) {
-            console.error('Error getting ID token:', error);
-            toast.error('Authentication failed. Please try again.');
-          }
-        };
-
-        newSocket.onmessage = (event) => {
-          try {
-            const data: WebSocketData = JSON.parse(event.data);
-            
-            // Handle different types of messages
-            switch (data.type) {
-              case 'logs':
-                setAgentLogs(prevLogs => [...prevLogs, data]);
-                break;
-              case 'report':
-                if (data.output) {
-                  setReport(prevReport => prevReport + data.output);
-                }
-                break;
-              case 'path':
-                setAccessData(data);
-                break;
-              case 'error':
-                toast.error(data.content || 'An error occurred');
-                break;
-            }
-
-            // Notify parent component if callback exists
-            if (onWebSocketData) {
-              onWebSocketData(data);
-            }
-          } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-            toast.error('Error processing server response');
-          }
-        };
-
-        newSocket.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          toast.error('Connection error. Attempting to reconnect...');
-        };
-
-        newSocket.onclose = () => {
-          console.log('WebSocket connection closed');
-          // Attempt to reconnect if not at max attempts
-          if (reconnectAttempts < maxReconnectAttempts) {
-            reconnectAttempts++;
-            reconnectTimeout = setTimeout(setupWebSocket, 3000 * reconnectAttempts);
-          } else {
-            toast.error('Connection lost. Please refresh the page.');
-          }
-        };
-
-        return () => {
-          if (newSocket.readyState === WebSocket.OPEN) {
-            newSocket.close();
-          }
-          if (reconnectTimeout) {
-            clearTimeout(reconnectTimeout);
-          }
-        };
-      }
-    };
-
-    setupWebSocket();
-
-    return () => {
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-      }
-    };
-  }, [user, onWebSocketData]);
-
-  // Function to send WebSocket message
-  const sendWebSocketMessage = (message: any) => {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(message));
-    } else {
-      console.error('WebSocket is not connected');
-    }
-  };
-
   const handleFileUpload = async (file: StorageFile): Promise<void> => {
     try {
       // Update the research settings with the file information
@@ -200,8 +101,8 @@ export function ResearchSettings({
       });
 
       // Notify backend of new file
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
+      if (isConnected) {
+        sendMessage({
           type: 'file_upload',
           file: {
             name: file.name,
@@ -209,7 +110,7 @@ export function ResearchSettings({
             size: file.size,
             url: file.url
           }
-        }));
+        });
       }
 
       toast.success('File uploaded successfully');
@@ -223,33 +124,6 @@ export function ResearchSettings({
   useEffect(() => {
     setSettings(chatBoxSettings);
   }, [chatBoxSettings]);
-
-  // Cleanup function for component unmount
-  useEffect(() => {
-    const currentSocket = socket;
-    return () => {
-      if (currentSocket) {
-        currentSocket.close();
-      }
-      setAgentLogs([]);
-      setReport("");
-      setAccessData({});
-    };
-  }, [socket]);
-
-  // Handle WebSocket reconnection on user change
-  useEffect(() => {
-    const currentSocket = socket;
-    if (!user) {
-      if (currentSocket) {
-        currentSocket.close();
-      }
-      setSocket(null);
-      setAgentLogs([]);
-      setReport("");
-      setAccessData({});
-    }
-  }, [user, socket]);
 
   // Update active tab based on settings changes
   useEffect(() => {
@@ -266,76 +140,77 @@ export function ResearchSettings({
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-md text-sm"
         >
           <SettingsIcon className="h-4 w-4" />
-          Settings
+          <span className="hidden sm:inline">Settings</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[600px] p-4" align="start">
+      <PopoverContent className="w-[90vw] sm:w-[600px] p-4" align="start">
         <Tabs defaultValue={activeTab} className="w-full">
-          <TabsList className="grid grid-cols-4 gap-4 mb-4">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4">
             <TabsTrigger 
               value="report_type" 
               onClick={() => handleTabChange('report_type')}
-              className="flex items-center justify-center"
+              className="flex items-center justify-center text-xs sm:text-sm"
             >
-              <FileText className="mr-2 h-4 w-4" />
-              Report Type
+              <FileText className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Report Type</span>
+              <span className="sm:hidden">Type</span>
             </TabsTrigger>
             <TabsTrigger 
               value="source" 
               onClick={() => handleTabChange('source')}
-              className="flex items-center justify-center"
+              className="flex items-center justify-center text-xs sm:text-sm"
             >
-              <Globe className="mr-2 h-4 w-4" />
-              Source
+              <Globe className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Source</span>
             </TabsTrigger>
             <TabsTrigger 
               value="files" 
               onClick={() => handleTabChange('files')}
-              className="flex items-center justify-center"
+              className="flex items-center justify-center text-xs sm:text-sm"
             >
-              <Upload className="mr-2 h-4 w-4" />
-              Files
+              <Upload className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Files</span>
             </TabsTrigger>
             <TabsTrigger 
               value="tone" 
               onClick={() => handleTabChange('tone')}
-              className="flex items-center justify-center"
+              className="flex items-center justify-center text-xs sm:text-sm"
             >
-              <PenTool className="mr-2 h-4 w-4" />
-              Tone
+              <PenTool className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Tone</span>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="report_type" className="mt-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <motion.div 
-                className={`flex flex-col items-center p-4 rounded-lg cursor-pointer border-2 ${
+                className={`flex flex-col items-center p-3 sm:p-4 rounded-lg cursor-pointer border-2 ${
                   settings.report_type === 'research_report' ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-gray-100'
                 }`}
                 onClick={() => handleSettingsChange({ report_type: 'research_report' })}
                 whileHover={{ scale: 1.02 }}
               >
-                <Clock className="h-8 w-8 mb-2" />
-                <div className="font-medium">Summary Report</div>
-                <div className="text-sm text-gray-500 text-center">Short and fast (~2 min)</div>
+                <Clock className="h-6 w-6 sm:h-8 sm:w-8 mb-2" />
+                <div className="font-medium text-sm sm:text-base">Summary Report</div>
+                <div className="text-xs sm:text-sm text-gray-500 text-center">Short and fast (~2 min)</div>
               </motion.div>
 
               <motion.div 
-                className={`flex flex-col items-center p-4 rounded-lg cursor-pointer border-2 ${
+                className={`flex flex-col items-center p-3 sm:p-4 rounded-lg cursor-pointer border-2 ${
                   settings.report_type === 'detailed_report' ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-gray-100'
                 }`}
                 onClick={() => handleSettingsChange({ report_type: 'detailed_report' })}
                 whileHover={{ scale: 1.02 }}
               >
-                <BookOpen className="h-8 w-8 mb-2" />
-                <div className="font-medium">Detailed Report</div>
-                <div className="text-sm text-gray-500 text-center">In depth and longer (~5 min)</div>
+                <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 mb-2" />
+                <div className="font-medium text-sm sm:text-base">Detailed Report</div>
+                <div className="text-xs sm:text-sm text-gray-500 text-center">In depth and longer (~5 min)</div>
               </motion.div>
             </div>
           </TabsContent>
 
           <TabsContent value="source" className="mt-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <motion.div 
                 className={`flex flex-col items-center p-4 rounded-lg cursor-pointer border-2 ${
                   settings.report_source === 'web' ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-gray-100'
