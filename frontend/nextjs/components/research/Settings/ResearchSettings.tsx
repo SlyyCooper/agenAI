@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import { Settings as SettingsIcon, Upload, Globe, PenTool, FileText, Clock, BookOpen } from 'lucide-react';
 import {
   Popover,
@@ -14,7 +14,7 @@ import FileUpload from './FileUpload';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/config/firebase/AuthContext';
 import { getHost } from '../../../helpers/getHost';
-import { StorageFile } from '@/types/interfaces/api.types';
+import { StorageFile, ResearchSettings as IResearchSettings, Tone } from '@/types/interfaces/api.types';
 import { toast } from 'react-hot-toast';
 import { useWebSocket } from "@/hooks/useWebSocket";
 
@@ -81,8 +81,11 @@ export function ResearchSettings({
     }
   };
 
-  const handleToneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    handleSettingsChange({ tone: e.target.value });
+  const handleToneChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setSettings(prev => ({
+      ...prev,
+      tone: e.target.value as Tone
+    }));
   };
 
   const handleTabChange = (tab: string) => {
@@ -259,7 +262,7 @@ export function ResearchSettings({
           <TabsContent value="tone" className="mt-4">
             <div className="p-4">
               <ToneSelector 
-                tone={settings.tone} 
+                tone={(settings.tone || 'balanced') as Tone}
                 onToneChange={handleToneChange}
               />
             </div>

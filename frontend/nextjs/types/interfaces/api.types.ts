@@ -311,3 +311,75 @@ export interface ReportStorageError extends StorageError {
   };
   customData: StorageErrorCustomData;
 }
+
+// Research Types
+export type ReportType = 'research_report' | 'detailed_report' | 'multi_agents';
+export type ReportSource = 'web' | 'local' | 'hybrid';
+export type Tone = 'balanced' | 'formal' | 'casual' | 'professional' | 'academic';
+export type Retriever = 
+  | 'arxiv'
+  | 'bing'
+  | 'custom'
+  | 'duckduckgo'
+  | 'exa'
+  | 'google'
+  | 'searchapi'
+  | 'searx'
+  | 'semantic_scholar'
+  | 'serpapi'
+  | 'serper'
+  | 'tavily'
+  | 'pubmed_central';
+
+export interface ResearchSettings {
+  // Required
+  type: 'research';
+  task: string;
+
+  // Optional Research Settings
+  report_type?: ReportType;
+  report_source?: ReportSource;
+  report_format?: string;
+  total_words?: number;
+  max_subtopics?: number;
+  tone?: Tone;
+
+  // Optional LLM Settings
+  llm_provider?: string;
+  llm_model?: string;
+  temperature?: number;
+  llm_temperature?: number;
+
+  // Optional Search Settings
+  retrievers?: Retriever[];
+  max_search_results_per_query?: number;
+  similarity_threshold?: number;
+
+  // Optional Token Settings
+  fast_token_limit?: number;
+  smart_token_limit?: number;
+  summary_token_limit?: number;
+
+  // Optional Document Settings
+  doc_path?: string;
+  browse_chunk_max_length?: number;
+
+  // Optional Agent Settings
+  agent_role?: string;
+  max_iterations?: number;
+  scraper?: string;
+}
+
+export interface ResearchResponse {
+  type: string;
+  content?: string;
+  output?: string;
+  status?: 'success' | 'error';
+  message?: string;
+  metadata?: {
+    sources?: Array<{ title: string; url: string }>;
+    topics?: string[];
+    summary?: string;
+    error?: string;
+  };
+}

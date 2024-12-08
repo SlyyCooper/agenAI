@@ -35,7 +35,7 @@ const InputArea: FC<TInputAreaProps> = ({
   chatBoxSettings,
   onSettingsChange,
 }) => {
-  const { isConnected, sendMessage, addMessageListener } = useWebSocket();
+  const { isConnected, connectionState, sendMessage, addMessageListener } = useWebSocket();
   const [isLoading, setIsLoading] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -56,20 +56,51 @@ const InputArea: FC<TInputAreaProps> = ({
     return () => cleanup?.();
   }, [addMessageListener]);
 
-  // Update connection error when connection status changes
+  // Update connection error based on connection state
   useEffect(() => {
-    if (!isConnected) {
-      setConnectionError('Not connected to server');
-    } else {
-      setConnectionError(null);
+    switch (connectionState) {
+      case 'disconnected':
+        setConnectionError('Not connected to server');
+        break;
+      case 'connecting':
+        setConnectionError('Connecting to server...');
+        break;
+      case 'authenticating':
+        setConnectionError('Authenticating...');
+        break;
+      case 'authenticated':
+        setConnectionError(null);
+        break;
+      case 'closing':
+      case 'closed':
+        setConnectionError('Connection closed');
+        break;
+      default:
+        setConnectionError(null);
     }
-  }, [isConnected]);
+  }, [connectionState]);
+
+  const getConnectionStatusColor = () => {
+    switch (connectionState) {
+      case 'authenticated':
+        return 'text-green-500 bg-green-50';
+      case 'connecting':
+      case 'authenticating':
+        return 'text-yellow-500 bg-yellow-50';
+      case 'disconnected':
+      case 'closing':
+      case 'closed':
+        return 'text-red-500 bg-red-50';
+      default:
+        return 'text-gray-500 bg-gray-50';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!isConnected) {
-      toast.error('Not connected to server. Please try again.');
+    if (connectionState !== 'authenticated') {
+      toast.error('Not connected to server. Please wait for connection.');
       return;
     }
 
@@ -84,8 +115,8 @@ const InputArea: FC<TInputAreaProps> = ({
       // Show loading state
       setIsLoading(true);
       
-      // Send research request
-      sendMessage({
+      // Send research request with promise handling
+      await sendMessage({
         type: 'research_request',
         query: promptValue.trim(),
         settings: chatBoxSettings
@@ -94,15 +125,17 @@ const InputArea: FC<TInputAreaProps> = ({
       handleDisplayResult();
     } catch (error) {
       console.error('Research request error:', error);
-      toast.error('Failed to send research request');
+      toast.error('Failed to send research request. Please try again.');
       setIsLoading(false);
     }
   };
 
+  const isDisabled = disabled || connectionState !== 'authenticated' || isLoading;
+
   return (
     <div className="w-full">
       {connectionError && (
-        <div className="flex items-center justify-center gap-2 text-red-500 mb-4 p-2 bg-red-50 rounded-md">
+        <div className={`flex items-center justify-center gap-2 mb-4 p-2 rounded-md ${getConnectionStatusColor()}`}>
           <WifiOff className="w-4 h-4" />
           <span>{connectionError}</span>
         </div>
@@ -123,14 +156,14 @@ const InputArea: FC<TInputAreaProps> = ({
             type="text"
             placeholder="What would you like me to research next?"
             className="flex-1 px-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-            disabled={disabled || !isConnected || isLoading}
+            disabled={isDisabled}
             value={promptValue}
             required
             onChange={(e) => setPromptValue(e.target.value)}
           />
           <Button 
             type="submit" 
-            disabled={disabled || !isConnected || isLoading}
+            disabled={isDisabled}
             className="flex-shrink-0 w-10 h-10 sm:w-auto sm:h-auto"
             aria-label={isLoading ? "Loading..." : "Search"}
           >

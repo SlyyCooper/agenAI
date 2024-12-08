@@ -5,21 +5,11 @@ import AgentLogs from '../output/AgentLogs';
 import AccessReport from '../output/AccessReport';
 import { useAuth } from '@/config/firebase/AuthContext';
 import { getHost } from '../../../helpers/getHost';
-import { StorageFile } from '@/types/interfaces/api.types';
-
-interface ResearchSettings {
-  report_type: 'research_report' | 'detailed_report' | 'multi_agents';
-  report_source: 'web' | 'local' | 'hybrid';
-  tone: string;
-  files: StorageFile[];
-  maxTokens?: number;
-  temperature?: number;
-  model?: string;
-}
+import { StorageFile, ResearchSettings, Tone } from '@/types/interfaces/api.types';
 
 interface ChatBoxProps {
-  chatBoxSettings: ResearchSettings;
-  setChatBoxSettings: React.Dispatch<React.SetStateAction<ResearchSettings>>;
+  chatBoxSettings: Partial<ResearchSettings>;
+  setChatBoxSettings: React.Dispatch<React.SetStateAction<Partial<ResearchSettings>>>;
 }
 
 export default function ChatBox({ chatBoxSettings, setChatBoxSettings }: ChatBoxProps) {
@@ -81,8 +71,8 @@ export default function ChatBox({ chatBoxSettings, setChatBoxSettings }: ChatBox
     <div>
       <main className="container" id="form">
         <ResearchForm 
-          chatBoxSettings={chatBoxSettings} 
-          setChatBoxSettings={setChatBoxSettings} 
+          settings={chatBoxSettings} 
+          setSettings={setChatBoxSettings} 
         />
 
         {agentLogs?.length > 0 ? <AgentLogs agentLogs={agentLogs} /> : ''}
