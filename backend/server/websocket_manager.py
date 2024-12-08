@@ -55,33 +55,47 @@ class WebSocketManager:
                 
                 if auth_message.get('type') == 'auth' and auth_message.get('token'):
                     token = auth_message['token']
-                    decoded_token = await verify_firebase_token(token)
-                    if decoded_token:
-                        # Store user_id with the websocket connection
-                        websocket.user_id = decoded_token['uid']
-                        self.active_connections.append(websocket)
-                        self.message_queues[websocket] = asyncio.Queue()
-                        self.sender_tasks[websocket] = asyncio.create_task(
-                            self.start_sender(websocket)
-                        )
+                    try:
+                        decoded_token = await verify_firebase_token(token)
+                        if decoded_token:
+                            # Store user_id with the websocket connection
+                            websocket.user_id = decoded_token['uid']
+                            self.active_connections.append(websocket)
+                            self.message_queues[websocket] = asyncio.Queue()
+                            self.sender_tasks[websocket] = asyncio.create_task(
+                                self.start_sender(websocket)
+                            )
+                            await websocket.send_json({"type": "auth", "status": "success"})
+                            return
+                    except Exception as e:
+                        print(f"Token verification error: {str(e)}")
+                        await websocket.send_json({"type": "auth", "status": "error", "message": "Invalid token"})
+                        await websocket.close(code=1008)
                         return
                     
-                print("Invalid token")
+                print("Invalid auth message format")
+                await websocket.send_json({"type": "auth", "status": "error", "message": "Invalid auth message"})
                 await websocket.close(code=1008)
                 return
                 
             except asyncio.TimeoutError:
                 print("Authentication timeout")
+                await websocket.send_json({"type": "auth", "status": "error", "message": "Authentication timeout"})
                 await websocket.close(code=1008)
                 return
             except Exception as e:
                 print(f"Authentication error: {str(e)}")
+                await websocket.send_json({"type": "auth", "status": "error", "message": "Authentication error"})
                 await websocket.close(code=1008)
                 return
                 
         except Exception as e:
             print(f"Connection error: {str(e)}")
             if not websocket.client_state.DISCONNECTED:
+                try:
+                    await websocket.send_json({"type": "error", "message": "Connection error"})
+                except:
+                    pass
                 await websocket.close(code=1008)
             return
 

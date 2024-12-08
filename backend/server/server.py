@@ -104,36 +104,42 @@ async def get_monthly_usage(request: Request):
         # Get authorization header
         auth_header = request.headers.get('Authorization')
         if not auth_header:
-            return {"error": "No authorization header"}, 401
+            return {"error": "No authorization header", "status_code": 401}
 
         # Extract token
-        token = auth_header.split(' ')[1]
+        try:
+            token = auth_header.split(' ')[1]
+        except IndexError:
+            return {"error": "Invalid authorization header format", "status_code": 401}
         
         # Verify Firebase token
         from .firebase.firebase import verify_firebase_token
         decoded_token = await verify_firebase_token(token)
         if not decoded_token:
-            return {"error": "Invalid token"}, 401
+            return {"error": "Invalid token", "status_code": 401}
 
         user_id = decoded_token['uid']
         
         # Get user's monthly usage from Firestore
         from .firebase.firestore_utils import get_user_data
         user_data = await get_user_data(user_id)
+        if not user_data:
+            return {"error": "User data not found", "status_code": 404}
         
         # Calculate monthly usage
         monthly_usage = {
             "total_queries": user_data.get("total_queries", 0),
             "monthly_queries": user_data.get("monthly_queries", 0),
             "last_query_date": user_data.get("last_query_date", None),
-            "subscription_type": user_data.get("subscription_type", "free")
+            "subscription_type": user_data.get("subscription_type", "free"),
+            "status_code": 200
         }
         
         return monthly_usage
         
     except Exception as e:
         logger.error(f"Error getting monthly usage: {str(e)}")
-        return {"error": "Internal server error"}, 500
+        return {"error": "Internal server error", "status_code": 500}
 
 @app.get("/health")
 async def health_check():

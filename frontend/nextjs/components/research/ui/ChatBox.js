@@ -19,7 +19,7 @@ export default function ChatBox({ chatBoxSettings, setChatBoxSettings }) {
         const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         const wsUrl = backendUrl.replace(/^https?:\/\//, '');
         const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws_uri = `${wsProtocol}//${wsUrl}/backend/ws`;
+        const ws_uri = `${wsProtocol}//${wsUrl}/ws`;
 
         const newSocket = new WebSocket(ws_uri);
         setSocket(newSocket);
@@ -42,7 +42,8 @@ export default function ChatBox({ chatBoxSettings, setChatBoxSettings }) {
         };
 
         newSocket.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          console.error('WebSocket connection error:', error);
+          setTimeout(setupWebSocket, 5000);
         };
 
         return () => {
