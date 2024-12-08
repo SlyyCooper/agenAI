@@ -4,6 +4,7 @@ import { Metadata } from 'next'
 import PlausibleProvider from "next-plausible"
 import { AuthProvider } from '@/config/firebase/AuthContext'
 import NavBar from '@/components/ui/NavBar'
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -59,6 +60,7 @@ export default function RootLayout({
               </div>
             </footer>
           </div>
+          <SpeedInsights />
         </body>
       </AuthProvider>
     </html>
