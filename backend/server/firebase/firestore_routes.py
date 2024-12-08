@@ -21,7 +21,7 @@ from backend.server.firebase.firestore_utils import (
 @reference: FastAPI routing and security documentation
 """
 router = APIRouter(
-    prefix="/api/user",
+    prefix="/backend/api/user",
     tags=["user"]
 )
 
