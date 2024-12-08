@@ -138,3 +138,9 @@ out/
 
 # Tests
 tests/
+
+# Node.js root files
+/node_modules
+/package.json
+/package-lock.json
+/yarn.lock
