@@ -98,12 +98,12 @@ app.include_router(stripe_router)
 app.include_router(firestore_router)
 app.include_router(storage_router)
 
-@app.get("/subscription/status")
+@app.get("/backend/subscription/status")
 async def get_subscription_status(request: Request):
     """Redirect to the correct subscription status endpoint"""
-    return RedirectResponse(url="/api/stripe/subscription-status")
+    return RedirectResponse(url="/backend/api/stripe/subscription-status")
 
-@app.get("/usage/monthly")
+@app.get("/backend/usage/monthly")
 async def get_monthly_usage(request: Request):
     """Get monthly usage statistics"""
     try:
