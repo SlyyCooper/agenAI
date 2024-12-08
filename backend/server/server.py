@@ -4,12 +4,13 @@ Main FastAPI server application
 
 import logging
 import os
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from .firebase.stripe_routes import router as stripe_router
 from .firebase.firestore_routes import router as firestore_router
 from .firebase.storage_routes import router as storage_router
+from .websocket_manager import WebSocketManager
 import time
 
 # Configure logging
@@ -24,6 +25,9 @@ app = FastAPI(
     description="API for AgenAI application",
     root_path="/backend"
 )
+
+# Initialize WebSocket Manager
+websocket_manager = WebSocketManager()
 
 # CORS configuration
 origins = [
@@ -80,7 +84,10 @@ async def startup_event():
     # Log available routes
     logger.info("🛣️ Available routes:")
     for route in app.routes:
-        logger.info(f"  {route.methods} {route.path}")
+        if hasattr(route, "methods"):
+            logger.info(f"  {route.methods} {route.path}")
+        elif hasattr(route, "path"):
+            logger.info(f"  WebSocket {route.path}")
 
 # Shutdown event logging
 @app.on_event("shutdown")
@@ -146,3 +153,51 @@ async def health_check():
     """Health check endpoint"""
     logger.info("✅ Health check requested")
     return {"status": "healthy"}
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for research generation"""
+    try:
+        await websocket_manager.connect(websocket)
+        while True:
+            try:
+                data = await websocket.receive_json()
+                if data.get("type") == "research":
+                    task = data.get("task")
+                    report_type = data.get("report_type", "detailed")
+                    report_source = data.get("report_source", "web")
+                    source_urls = data.get("source_urls", [])
+                    tone = data.get("tone", "balanced")
+                    headers = data.get("headers")
+                    
+                    # Start streaming research results
+                    report = await websocket_manager.start_streaming(
+                        task=task,
+                        report_type=report_type,
+                        report_source=report_source,
+                        source_urls=source_urls,
+                        tone=tone,
+                        websocket=websocket,
+                        headers=headers
+                    )
+                    
+                    if report and report.get("user_id"):
+                        # Deduct one token for the research generation
+                        from .firebase.firestore_utils import update_user_tokens
+                        await update_user_tokens(
+                            report["user_id"], 
+                            -1,  # Deduct 1 token
+                            "Research generation"
+                        )
+                        
+            except Exception as e:
+                logger.error(f"Error processing WebSocket message: {str(e)}")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Error processing request: {str(e)}"
+                })
+                
+    except Exception as e:
+        logger.error(f"WebSocket connection error: {str(e)}")
+    finally:
+        await websocket_manager.disconnect(websocket)
