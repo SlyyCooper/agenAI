@@ -105,11 +105,15 @@ app.add_middleware(
         "http://agenai.app",
         "http://www.agenai.app",
         "https://orca-app-jfdlt.ondigitalocean.app",
-        "http://localhost:3000"  # For local development
+        "https://dolphin-app-49eto.ondigitalocean.app",
+        "wss://dolphin-app-49eto.ondigitalocean.app",
+        "http://localhost:3000",  # For local development
+        "ws://localhost:3000"     # For local WebSocket development
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 @app.middleware("http")
