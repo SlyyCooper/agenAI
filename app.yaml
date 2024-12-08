@@ -1,0 +1,22 @@
+name: dolphin-app
+region: nyc
+services:
+- build_command: pip install -r requirements.txt
+  environment_slug: python
+  github:
+    branch: master
+    deploy_on_push: true
+    repo: SlyyCooper/agenAI
+  http_port: 8000
+  instance_count: 1
+  instance_size_slug: apps-s-1vcpu-1gb
+  name: agenai
+  run_command: python3 main.py
+  source_dir: /
+  routes:
+  - path: /ws
+    type: websocket
+  - path: /
+    type: http
+features:
+- buildpack-stack=ubuntu-22 

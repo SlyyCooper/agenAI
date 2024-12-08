@@ -36,12 +36,15 @@ class WebSocketManager:
 
     async def set_state(self, websocket: WebSocket, state: ConnectionState):
         """Update connection state and notify client"""
-        self.connection_states[websocket] = state
         try:
-            await websocket.send_json({
-                "type": "connection_state",
-                "state": state
-            })
+            # Only update state if connection is still active
+            if websocket in self.active_connections:
+                self.connection_states[websocket] = state
+                if state != ConnectionState.CLOSED:
+                    await websocket.send_json({
+                        "type": "connection_state",
+                        "state": state
+                    })
         except Exception as e:
             print(f"Error sending state update: {str(e)}")
 
@@ -162,32 +165,40 @@ class WebSocketManager:
     async def disconnect(self, websocket: WebSocket):
         """Disconnect a websocket with proper cleanup."""
         try:
+            # Prevent multiple disconnects
+            if websocket not in self.active_connections:
+                return
+                
             # Update state first to prevent new messages
-            await self.set_state(websocket, ConnectionState.CLOSING)
+            self.connection_states[websocket] = ConnectionState.CLOSING
             
-            if websocket in self.active_connections:
-                self.active_connections.remove(websocket)
-                
-                # Clean up user connections
-                user_id = getattr(websocket, 'user_id', None)
-                if user_id and user_id in self.user_connections:
-                    self.user_connections[user_id].remove(websocket)
-                    if not self.user_connections[user_id]:
-                        del self.user_connections[user_id]
-                
-                # Cancel sender task
-                if websocket in self.sender_tasks:
-                    self.sender_tasks[websocket].cancel()
-                    await self.message_queues[websocket].put(None)
-                    del self.sender_tasks[websocket]
-                    del self.message_queues[websocket]
-                
-                # Clean up state
-                if websocket in self.connection_states:
-                    del self.connection_states[websocket]
-                
-                await self.set_state(websocket, ConnectionState.CLOSED)
+            # Remove from active connections first to prevent new messages
+            self.active_connections.remove(websocket)
+            
+            # Clean up user connections
+            user_id = getattr(websocket, 'user_id', None)
+            if user_id and user_id in self.user_connections:
+                self.user_connections[user_id].remove(websocket)
+                if not self.user_connections[user_id]:
+                    del self.user_connections[user_id]
+            
+            # Cancel sender task
+            if websocket in self.sender_tasks:
+                self.sender_tasks[websocket].cancel()
+                await self.message_queues[websocket].put(None)
+                del self.sender_tasks[websocket]
+                del self.message_queues[websocket]
+            
+            # Clean up state
+            if websocket in self.connection_states:
+                del self.connection_states[websocket]
+            
+            # Close the connection last
+            try:
                 await websocket.close()
+            except:
+                pass
+                
         except Exception as e:
             print(f"Error in disconnect: {str(e)}")
 

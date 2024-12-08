@@ -4,7 +4,7 @@ Main FastAPI server application
 
 import logging
 import os
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from .firebase.stripe_routes import router as stripe_router
@@ -33,6 +33,9 @@ origins = [
     "http://localhost:3000",
     "https://www.agenai.app",
     "https://agenai.app",
+    "https://dolphin-app-49eto.ondigitalocean.app",
+    "wss://dolphin-app-49eto.ondigitalocean.app",
+    "ws://localhost:8000"
 ]
 
 app.add_middleware(
@@ -41,7 +44,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    allow_origin_regex="https?://.*\\.agenai\\.app"
 )
+
+# Add WebSocket CORS headers middleware
+@app.middleware("http")
+async def add_websocket_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path == "/ws":
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 # Request logging middleware
 @app.middleware("http")
@@ -153,14 +168,31 @@ async def health_check():
     logger.info("✅ Health check requested")
     return {"status": "healthy"}
 
+# Handle WebSocket CORS preflight
+@app.options("/ws")
+async def websocket_cors(request: Request):
+    response = RedirectResponse(url="/ws")
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for research generation"""
+    connection_established = False
     try:
+        # Handle WebSocket connection
         await websocket_manager.connect(websocket)
+        connection_established = True
+        
         while True:
             try:
                 data = await websocket.receive_json()
+                if not await websocket_manager.can_send_message(websocket):
+                    logger.warning("Received message from unauthenticated connection")
+                    continue
+                    
                 if data.get("type") == "research":
                     task = data.get("task")
                     report_type = data.get("report_type", "detailed")
@@ -189,14 +221,25 @@ async def websocket_endpoint(websocket: WebSocket):
                             "Research generation"
                         )
                         
+            except WebSocketDisconnect:
+                logger.info("WebSocket disconnected by client")
+                break
             except Exception as e:
                 logger.error(f"Error processing WebSocket message: {str(e)}")
-                await websocket.send_json({
-                    "type": "error",
-                    "message": f"Error processing request: {str(e)}"
-                })
+                if connection_established:
+                    try:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": f"Error processing request: {str(e)}"
+                        })
+                    except:
+                        logger.error("Failed to send error message to client")
+                break
                 
+    except WebSocketDisconnect:
+        logger.info("Client disconnected during connection setup")
     except Exception as e:
         logger.error(f"WebSocket connection error: {str(e)}")
     finally:
-        await websocket_manager.disconnect(websocket)
+        if connection_established:
+            await websocket_manager.disconnect(websocket)
