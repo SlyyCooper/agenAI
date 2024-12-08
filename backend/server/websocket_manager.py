@@ -44,6 +44,7 @@ class WebSocketManager:
     async def connect(self, websocket: WebSocket):
         """Connect a websocket."""
         try:
+            # Accept the connection first
             await websocket.accept()
             
             # Wait for auth message with timeout
