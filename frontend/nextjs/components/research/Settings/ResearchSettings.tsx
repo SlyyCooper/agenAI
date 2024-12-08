@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/research/
 import ToneSelector from './ToneSelector';
 import FileUpload from './FileUpload';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/config/firebase/AuthContext';
 
 interface ResearchSettingsProps {
   chatBoxSettings: {
@@ -37,6 +38,7 @@ export function ResearchSettings({
 }: ResearchSettingsProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('source');
+  const { user } = useAuth();
   
   // WebSocket States
   const [socket, setSocket] = useState<WebSocket | null>(null);
@@ -54,50 +56,61 @@ export function ResearchSettings({
 
   // WebSocket Setup
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const { protocol, pathname } = window.location;
-      let { host } = window.location;
-      host = host.includes('localhost') ? 'localhost:8000' : host;
-      const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}${pathname}ws`;
-      
-      const newSocket = new WebSocket(ws_uri);
-      setSocket(newSocket);
-
-      newSocket.onmessage = (event) => {
-        const data: WebSocketData = JSON.parse(event.data);
+    const setupWebSocket = async () => {
+      if (typeof window !== 'undefined' && user) {
+        const { protocol } = window.location;
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const wsUrl = backendUrl.replace(/^https?:\/\//, '');
+        const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws_uri = `${wsProtocol}//${wsUrl}/backend/ws`;
         
-        // Handle different types of messages
-        switch (data.type) {
-          case 'logs':
-            setAgentLogs(prevLogs => [...prevLogs, data]);
-            break;
-          case 'report':
-            if (data.output) {
-              setReport(prevReport => prevReport + data.output);
-            }
-            break;
-          case 'path':
-            setAccessData(data);
-            break;
-        }
+        const newSocket = new WebSocket(ws_uri);
+        setSocket(newSocket);
 
-        // Notify parent component if callback exists
-        if (onWebSocketData) {
-          onWebSocketData(data);
-        }
-      };
+        newSocket.onopen = async () => {
+          console.log('WebSocket connection opened');
+          const idToken = await user.getIdToken();
+          newSocket.send(JSON.stringify({ type: 'auth', token: idToken }));
+        };
 
-      newSocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
+        newSocket.onmessage = (event) => {
+          const data: WebSocketData = JSON.parse(event.data);
+          
+          // Handle different types of messages
+          switch (data.type) {
+            case 'logs':
+              setAgentLogs(prevLogs => [...prevLogs, data]);
+              break;
+            case 'report':
+              if (data.output) {
+                setReport(prevReport => prevReport + data.output);
+              }
+              break;
+            case 'path':
+              setAccessData(data);
+              break;
+          }
 
-      return () => {
-        if (newSocket.readyState === WebSocket.OPEN) {
-          newSocket.close();
-        }
-      };
-    }
-  }, [onWebSocketData]);
+          // Notify parent component if callback exists
+          if (onWebSocketData) {
+            onWebSocketData(data);
+          }
+        };
+
+        newSocket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+
+        return () => {
+          if (newSocket.readyState === WebSocket.OPEN) {
+            newSocket.close();
+          }
+        };
+      }
+    };
+
+    setupWebSocket();
+  }, [user, onWebSocketData]);
 
   // Function to send WebSocket message
   const sendWebSocketMessage = (message: any) => {

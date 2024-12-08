@@ -6,6 +6,7 @@ import logging
 import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from .firebase.stripe_routes import router as stripe_router
 from .firebase.firestore_routes import router as firestore_router
 from .firebase.storage_routes import router as storage_router
@@ -90,6 +91,49 @@ async def shutdown_event():
 app.include_router(stripe_router)
 app.include_router(firestore_router)
 app.include_router(storage_router)
+
+@app.get("/backend/subscription/status")
+async def get_subscription_status(request: Request):
+    """Redirect to the correct subscription status endpoint"""
+    return RedirectResponse(url="/backend/api/stripe/subscription-status")
+
+@app.get("/backend/usage/monthly")
+async def get_monthly_usage(request: Request):
+    """Get monthly usage statistics"""
+    try:
+        # Get authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return {"error": "No authorization header"}, 401
+
+        # Extract token
+        token = auth_header.split(' ')[1]
+        
+        # Verify Firebase token
+        from .firebase.firebase import verify_firebase_token
+        decoded_token = await verify_firebase_token(token)
+        if not decoded_token:
+            return {"error": "Invalid token"}, 401
+
+        user_id = decoded_token['uid']
+        
+        # Get user's monthly usage from Firestore
+        from .firebase.firestore_utils import get_user_data
+        user_data = await get_user_data(user_id)
+        
+        # Calculate monthly usage
+        monthly_usage = {
+            "total_queries": user_data.get("total_queries", 0),
+            "monthly_queries": user_data.get("monthly_queries", 0),
+            "last_query_date": user_data.get("last_query_date", None),
+            "subscription_type": user_data.get("subscription_type", "free")
+        }
+        
+        return monthly_usage
+        
+    except Exception as e:
+        logger.error(f"Error getting monthly usage: {str(e)}")
+        return {"error": "Internal server error"}, 500
 
 @app.get("/health")
 async def health_check():

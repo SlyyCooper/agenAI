@@ -1,5 +1,6 @@
 // Search.js
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/config/firebase/AuthContext';
 import ResearchForm from '@/components/research/input/ResearchForm';
 import Report from '@/components/research/output/Report';
 import AgentLogs from '@/components/research/output/AgentLogs';
@@ -13,6 +14,7 @@ const Search = () => {
   const [report, setReport] = useState<string>('');
   const [accessData, setAccessData] = useState<string>('');
   const [socket, setSocket] = useState<WebSocket | null>(null);
+  const { user } = useAuth();
 
   const [chatBoxSettings, setChatBoxSettings] = useState({
     report_type: 'multi_agents',
@@ -21,29 +23,48 @@ const Search = () => {
   });
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const { protocol, pathname } = window.location;
-      let { host } = window.location;
-      host = host.includes('localhost') ? 'localhost:8000' : host;
-      const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}${pathname}ws`;
+    const setupWebSocket = async () => {
+      if (typeof window !== 'undefined' && user) {
+        const { protocol } = window.location;
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const wsUrl = backendUrl.replace(/^https?:\/\//, '');
+        const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws_uri = `${wsProtocol}//${wsUrl}/backend/ws`;
 
-      const newSocket = new WebSocket(ws_uri);
-      setSocket(newSocket);
+        const newSocket = new WebSocket(ws_uri);
+        setSocket(newSocket);
 
-      newSocket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'agentLogs') {
-          setAgentLogs((prevLogs) => [...prevLogs, data.output]);
-        } else if (data.type === 'report') {
-          setReport(data.output);
-        } else if (data.type === 'accessData') {
-          setAccessData(data.output);
-        }
-      };
+        newSocket.onopen = async () => {
+          console.log('WebSocket connection opened');
+          const idToken = await user.getIdToken();
+          newSocket.send(JSON.stringify({ type: 'auth', token: idToken }));
+        };
 
-      return () => newSocket.close();
-    }
-  }, []);
+        newSocket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === 'agentLogs') {
+            setAgentLogs((prevLogs) => [...prevLogs, data.output]);
+          } else if (data.type === 'report') {
+            setReport(data.output);
+          } else if (data.type === 'accessData') {
+            setAccessData(data.output);
+          }
+        };
+
+        newSocket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+
+        return () => {
+          if (newSocket.readyState === WebSocket.OPEN) {
+            newSocket.close();
+          }
+        };
+      }
+    };
+
+    setupWebSocket();
+  }, [user]);
 
   const handleFormSubmit = (
     task: string,
@@ -62,7 +83,7 @@ const Search = () => {
     });
 
     // Send data to WebSocket server if connected
-    if (socket) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(data);
     } else {
       console.error('WebSocket connection is not established.');
@@ -72,9 +93,7 @@ const Search = () => {
   const handleSaveReport = async () => {
     try {
       // Implement your save logic here
-      // For example, you could save to local storage or make an API call
       console.log('Saving report...');
-      // You can add your actual save implementation here
     } catch (error) {
       console.error('Error saving report:', error);
     }
@@ -86,9 +105,15 @@ const Search = () => {
         chatBoxSettings={chatBoxSettings}
         setChatBoxSettings={setChatBoxSettings}
       />
-      <AgentLogs agentLogs={agentLogs} />
-      <Report report={report} />
-      <AccessReport accessData={accessData} report={report} onSave={handleSaveReport} />
+      {agentLogs.length > 0 && <AgentLogs agentLogs={agentLogs} />}
+      {report && <Report report={report} />}
+      {accessData && (
+        <AccessReport 
+          accessData={accessData} 
+          report={report} 
+          onSave={handleSaveReport} 
+        />
+      )}
     </div>
   );
 };
