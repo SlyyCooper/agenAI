@@ -5,7 +5,7 @@ def should_exclude(path):
         'node_modules', '.next', '__pycache__', 
         '__init__.py', 'LICENSE', 'setup.py',
         'README.md', 'cli.py', 'tests', 'venv', '.git', '.pytest_cache',
-        '.DS_Store', '.cursorignore', '.cursorrules'
+        '.DS_Store', '.cursorignore', '.cursorrules', '.svg'
     }
     return any(exclude in path for exclude in excludes)
 
