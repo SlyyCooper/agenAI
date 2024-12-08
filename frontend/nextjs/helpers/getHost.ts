@@ -3,22 +3,28 @@ interface GetHostOptions {
 }
 
 export const getHost = () => {
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  const wsUrl = backendUrl.replace(/^https?:\/\//, '');
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const backendUrl = isDevelopment 
+    ? process.env.NEXT_PUBLIC_API_LOCAL_URL 
+    : process.env.NEXT_PUBLIC_API_URL;
+  
+  const wsUrl = backendUrl?.replace(/^https?:\/\//, '') || 'localhost:8000';
   const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
   const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-  const isProduction = backendUrl !== 'http://localhost:8000';
   
-  // Use consistent WebSocket URL based on API URL
-  const wsBaseUrl = isProduction 
-    ? `wss://${new URL(backendUrl).host}`
+  // Use consistent WebSocket URL based on environment
+  const wsBaseUrl = isDevelopment
+    ? `${wsProtocol}//${wsUrl}`
     : `${wsProtocol}//${wsUrl}`;
   
   return {
-    backendUrl: isProduction ? backendUrl : backendUrl,
+    backendUrl: backendUrl || 'http://localhost:8000',
     wsUrl: wsBaseUrl,
     wsEndpoint: '/ws',
-    fullWsUrl: `${wsBaseUrl}/ws`
+    fullWsUrl: `${wsBaseUrl}/ws`,
+    langgraphUrl: isDevelopment 
+      ? process.env.NEXT_PUBLIC_LANGGRAPH_LOCAL_URL 
+      : process.env.NEXT_PUBLIC_LANGGRAPH_URL
   };
 };
 

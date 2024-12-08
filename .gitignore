@@ -66,7 +66,8 @@ frontend/nextjs/config/firebase/serviceAccountKey.json
 .env.local
 .env.development.local
 .env.test.local
-.env.production.local
+.env.backend
+.env.frontend
 
 # Dependencies
 /node_modules
