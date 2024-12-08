@@ -107,8 +107,8 @@ async def create_checkout_session(
                 'price': request.price_id,
                 'quantity': 1,
             }],
-            success_url="https://agenai.app/success",
-            cancel_url="https://agenai.app/cancel",
+            success_url=os.getenv('STRIPE_SUCCESS_URL', 'https://www.agenai.app/success'),
+            cancel_url=os.getenv('STRIPE_CANCEL_URL', 'https://www.agenai.app/cancel'),
         )
         
         return {"sessionId": checkout_session.id}
