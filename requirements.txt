@@ -5,7 +5,8 @@ md2pdf
 python-dotenv
 pyyaml
 uvicorn
-pydantic
+pydantic[email]>=2.0.0
+email-validator
 fastapi
 python-multipart
 markdown
