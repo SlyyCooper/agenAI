@@ -107,14 +107,36 @@ app.add_middleware(
         "https://orca-app-jfdlt.ondigitalocean.app",
         "https://dolphin-app-49eto.ondigitalocean.app",
         "wss://dolphin-app-49eto.ondigitalocean.app",
-        "http://localhost:3000",  # For local development
-        "ws://localhost:3000"     # For local WebSocket development
+        "https://vercel.app",
+        "https://*.vercel.app",
+        "http://localhost:3000",
+        "ws://localhost:3000",
+        "*"  # Temporarily allow all origins while debugging
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# Add origin verification middleware
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    # Get the origin from various possible headers
+    origin = request.headers.get('origin') or \
+             request.headers.get('x-forwarded-host') or \
+             request.headers.get('referer')
+    
+    response = await call_next(request)
+    
+    # Add CORS headers for WebSocket upgrade requests
+    if request.headers.get('upgrade', '').lower() == 'websocket':
+        response.headers['Access-Control-Allow-Origin'] = origin or '*'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = '*'
+    
+    return response
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -181,12 +203,34 @@ async def health_check():
 # WebSocket endpoint for real-time communication
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    if websocket in manager.active_connections:
-        try:
-            await handle_websocket_communication(websocket, manager)
-        except WebSocketDisconnect:
-            await manager.disconnect(websocket)
+    try:
+        # Accept the connection first
+        await websocket.accept()
+        
+        # Get client IP from various possible headers
+        client_ip = websocket.headers.get('x-forwarded-for', '').split(',')[0] or \
+                   websocket.headers.get('x-vercel-forwarded-for') or \
+                   websocket.headers.get('do-connecting-ip') or \
+                   websocket.client.host
+        
+        # Log connection attempt
+        logger.info(f"WebSocket connection attempt from {client_ip}")
+        
+        # Connect to manager
+        await manager.connect(websocket)
+        
+        if websocket in manager.active_connections:
+            try:
+                await handle_websocket_communication(websocket, manager)
+            except WebSocketDisconnect:
+                await manager.disconnect(websocket)
+            except Exception as e:
+                logger.error(f"WebSocket error: {str(e)}")
+                await manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket connection error: {str(e)}")
+        if not websocket.client_state.DISCONNECTED:
+            await websocket.close()
 
 @app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def catch_all(request: Request, path_name: str):
