@@ -14,7 +14,7 @@ import {
 import { handleAPIError, APIError } from '../utils/errorUtils';
 import { normalizeTimestamp } from '../utils/dateUtils';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dolphin-app-49eto.ondigitalocean.app/backend';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
 

@@ -219,12 +219,11 @@ export default function ResearchPage() {
     if (!socket) {
       if (typeof window !== 'undefined') {
         const { protocol } = window.location;
-        let { host } = window.location;
-        host = host.includes('localhost')
-          ? 'localhost:8000'
-          : 'dolphin-app-49eto.ondigitalocean.app/backend';
+        const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const wsUrl = backendUrl.replace(/^https?:\/\//, '');
         
-        const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}/ws`;
+        const ws_uri = `${wsProtocol}//${wsUrl}/ws`;
         
         // Get the Firebase ID token
         const idToken = await user?.getIdToken();

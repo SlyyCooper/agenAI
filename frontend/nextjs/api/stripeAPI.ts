@@ -7,7 +7,7 @@ import {
   CancelSubscriptionResponse
 } from '@/types/interfaces/api.types';
 
-const BASE_URL = 'https://dolphin-app-49eto.ondigitalocean.app/backend';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Helper function to get Firebase token
 const getFirebaseToken = async (): Promise<string> => {

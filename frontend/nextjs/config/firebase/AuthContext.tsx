@@ -8,7 +8,7 @@ import axios, { AxiosError } from 'axios';
 const auth = getAuth(app);
 
 // Add base URL constant
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dolphin-app-49eto.ondigitalocean.app/backend';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface UserProfile {
   email: string;
