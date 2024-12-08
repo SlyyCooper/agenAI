@@ -68,32 +68,42 @@ async def create_processed_event(event_data: dict):
         raise
 
 async def update_user_data(user_id: str, data: dict):
-    """
-    @purpose: Updates existing user profile fields
-    @prereq: User profile must exist
-    @limitation: Cannot update certain protected fields
-    @performance: Single Firestore write operation
-    """
+    """Updates user data in Firestore"""
     try:
+        logger.info(f"📝 Updating user data for: {user_id}")
+        logger.debug(f"📋 Update data: {data}")
+        
         user_ref = db.collection('users').document(user_id)
+        
+        # Add timestamp
+        data['last_updated'] = firestore.SERVER_TIMESTAMP
+        
         user_ref.update(data)
+        logger.info(f"✅ User data updated: {user_id}")
+        
     except Exception as e:
-        print(f"Error updating user data: {str(e)}")
+        logger.error(f"🚨 Error updating user data: {str(e)}")
         raise
 
 async def get_user_data(user_id: str):
-    """
-    @purpose: Retrieves complete user profile data
-    @prereq: Valid user_id required
-    @performance: Single Firestore read operation
-    @example: user_data = await get_user_data("user123")
-    """
-    logger.info(f"Fetching data for user: {user_id}")
-    user_ref = db.collection('users').document(user_id)
-    doc = user_ref.get()
-    if not doc.exists:
-        logger.warning(f"No data found for user: {user_id}")
-    return doc.to_dict() if doc.exists else None
+    """Retrieves user data from Firestore"""
+    try:
+        logger.info(f"📖 Fetching user data for: {user_id}")
+        user_ref = db.collection('users').document(user_id)
+        doc = user_ref.get()
+        
+        if not doc.exists:
+            logger.warning(f"❌ User not found: {user_id}")
+            return None
+            
+        user_data = doc.to_dict()
+        logger.info(f"✅ User data retrieved: {user_id}")
+        logger.debug(f"📋 User data: {user_data}")  # Detailed data in debug level
+        return user_data
+        
+    except Exception as e:
+        logger.error(f"🚨 Error fetching user data: {str(e)}")
+        raise
 
 async def update_payment_history(user_id: str, payment_data: dict):
     """
@@ -146,15 +156,19 @@ async def create_report_document(user_id: str, report_data: dict):
         raise
 
 async def update_user_tokens(user_id: str, amount: int, reason: str):
-    """
-    @purpose: Atomically updates user token balance
-    @prereq: User profile must exist
-    @performance: Single atomic Firestore write
-    """
+    """Updates user token balance"""
     try:
+        logger.info(f"💰 Updating tokens for user {user_id}: {amount} ({reason})")
         user_ref = db.collection('users').document(user_id)
         
-        # Now using properly imported firestore
+        # Get current balance for logging
+        doc = user_ref.get()
+        if doc.exists:
+            current_balance = doc.to_dict().get('tokens', 0)
+            new_balance = current_balance + amount
+            logger.info(f"💳 Token balance: {current_balance} -> {new_balance}")
+        
+        # Update tokens
         user_ref.update({
             'tokens': firestore.Increment(amount),
             'token_history': firestore.ArrayUnion([{
@@ -164,42 +178,42 @@ async def update_user_tokens(user_id: str, amount: int, reason: str):
             }])
         })
         
-        logger.info(f"Updated tokens for user {user_id}: {amount} ({reason})")
+        logger.info(f"✅ Tokens updated for user {user_id}")
+        
     except Exception as e:
-        logger.error(f"Error updating tokens: {str(e)}")
+        logger.error(f"🚨 Error updating tokens: {str(e)}")
         raise
 
 async def check_processed_event(event_id: str) -> bool:
-    """
-    @purpose: Check if Stripe webhook event was already processed
-    @performance: Single Firestore read
-    """
+    """Checks if Stripe webhook event was already processed"""
     try:
+        logger.info(f"🔍 Checking processed event: {event_id}")
         event_ref = db.collection('processed_events').document(event_id)
         doc = event_ref.get()
-        return doc.exists
+        
+        is_processed = doc.exists
+        logger.info(f"✅ Event {event_id} processed status: {is_processed}")
+        return is_processed
+        
     except Exception as e:
-        logger.error(f"Error checking processed event: {str(e)}")
+        logger.error(f"🚨 Error checking processed event: {str(e)}")
         raise
 
 async def mark_event_processed(event_id: str, event_type: str):
-    """
-    @purpose: Mark Stripe webhook event as processed
-    @performance: Single Firestore write with TTL
-    """
+    """Marks Stripe webhook event as processed"""
     try:
+        logger.info(f"📝 Marking event as processed: {event_id} ({event_type})")
         event_ref = db.collection('processed_events').document(event_id)
-        event_ref.create({  # Use create instead of set for proper idempotency
+        
+        event_ref.create({
             'event_id': event_id,
             'event_type': event_type,
-            'processed_at': SERVER_TIMESTAMP,
-            # TTL field for auto-cleanup after 30 days
+            'processed_at': firestore.SERVER_TIMESTAMP,
             'expires_at': datetime.now() + timedelta(days=30)
         })
-    except Conflict:
-        # Event was already processed, which is fine for idempotency
-        logger.info(f"Event {event_id} already processed")
-        return
+        
+        logger.info(f"✅ Event marked as processed: {event_id}")
+        
     except Exception as e:
-        logger.error(f"Error marking event as processed: {str(e)}")
+        logger.error(f"🚨 Error marking event as processed: {str(e)}")
         raise

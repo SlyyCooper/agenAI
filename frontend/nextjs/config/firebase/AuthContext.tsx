@@ -46,36 +46,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string>();
 
   useEffect(() => {
+    console.log('🔄 Setting up auth state listener');
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
+        console.log('👤 Auth state changed:', user ? `User ${user.uid}` : 'No user');
         setUser(user);
+        
         if (user) {
+          console.log('🎫 Getting Firebase token...');
           const token = await user.getIdToken();
+          console.log('🔑 Token obtained, fetching user profile...');
+          
           const response = await axios.get<UserProfile>(`${BASE_URL}/api/user/profile`, {
             headers: { 
               Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json',
             }
           });
+          
+          console.log('📋 User profile received:', response.data);
           setUserProfile(response.data);
           setError(undefined);
         } else {
+          console.log('❌ No user, clearing profile');
           setUserProfile(null);
         }
       } catch (error) {
-        console.error('Auth state change error:', error);
+        console.error('🚨 Auth state change error:', error);
         setUserProfile(null);
         if (error instanceof AxiosError) {
-          setError(error.response?.data?.message || 'Failed to fetch user profile');
+          const errorMsg = error.response?.data?.message || 'Failed to fetch user profile';
+          console.error('🚨 API Error:', errorMsg);
+          setError(errorMsg);
         } else {
+          console.error('🚨 Unexpected error:', error);
           setError('An unexpected error occurred');
         }
       } finally {
+        console.log('✅ Auth state update complete');
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log('🧹 Cleaning up auth state listener');
+      unsubscribe();
+    };
   }, []);
 
   return (
