@@ -23,6 +23,7 @@ import { saveResearchReport } from '@/api/storageAPI';
 import { toast } from 'react-hot-toast';
 import { storageAPI } from '@/api/storageAPI';
 import { CreateReportRequest, FileMetadata } from '@/types/interfaces/api.types';
+import { getHost } from '../../helpers/getHost';
 
 // Access control constants
 const TIER_LIMITS = {
@@ -217,24 +218,33 @@ export default function ResearchPage() {
     };
 
     if (!socket) {
-      if (typeof window !== 'undefined') {
-        const { protocol } = window.location;
-        const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        const wsUrl = backendUrl.replace(/^https?:\/\//, '');
-        
-        const ws_uri = `${wsProtocol}//${wsUrl}/ws`;
-        
-        // Get the Firebase ID token
-        const idToken = await user?.getIdToken();
-        if (!idToken) {
-          console.error('Failed to retrieve ID token');
+      try {
+        if (!user) {
+          console.error('User not authenticated');
           router.push('/login');
           return;
         }
         
-        const newSocket = new WebSocket(ws_uri);
+        const idToken = await user.getIdToken();
+        const { fullWsUrl } = getHost();
+        const newSocket = new WebSocket(fullWsUrl);
         setSocket(newSocket as WebSocket);
+
+        newSocket.onopen = () => {
+          console.log('WebSocket connection opened');
+          console.log('Sending auth message');
+          newSocket.send(JSON.stringify({ type: 'auth', token: idToken }));
+
+          const { task, report_type, report_source, tone } = chatBoxSettings;
+          let data = "start " + JSON.stringify({
+            task: promptValue,
+            report_type,
+            report_source,
+            tone,
+            headers
+          });
+          newSocket.send(data);
+        };
 
         newSocket.onmessage = (event) => {
           const data = JSON.parse(event.data);
@@ -259,32 +269,13 @@ export default function ResearchPage() {
           
         };
 
-        newSocket.onopen = () => {
-          console.log('WebSocket connection opened');
-          console.log('Sending auth message');
-          // Send the ID token as the first message after connection
-          newSocket.send(JSON.stringify({ type: 'auth', token: idToken }));
-
-          const { task, report_type, report_source, tone } = chatBoxSettings;
-          let data = "start " + JSON.stringify({
-            task: promptValue,
-            report_type,
-            report_source,
-            tone,
-            headers
-          });
-          newSocket.send(data);
-
-          // Start sending heartbeat messages every 30 seconds
-          // heartbeatInterval.current = setInterval(() => {
-          //   newSocket.send(JSON.stringify({ type: 'ping' }));
-          // }, 30000);
-        };
-
         newSocket.onclose = () => {
           clearInterval(heartbeatInterval.current as number);
           setSocket(null);
         };
+      } catch (error) {
+        console.error('Error starting research:', error);
+        toast.error('Failed to start research');
       }
     } else {
       const { task, report_type, report_source, tone } = chatBoxSettings;

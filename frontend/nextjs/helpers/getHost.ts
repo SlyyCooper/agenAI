@@ -1,21 +1,19 @@
 interface GetHostOptions {
-  purpose?: 'langgraph-gui' | string;
+  purpose?: 'langgraph-gui' | 'websocket' | string;
 }
 
-export const getHost = ({ purpose }: GetHostOptions = {}): string => {
-  if (typeof window === 'undefined') return '';
-
-  const { host } = window.location;
-  const isLocalEnvironment = host.includes('localhost');
-
-  if (purpose === 'langgraph-gui') {
-    return isLocalEnvironment
-      ? (process.env.NEXT_PUBLIC_LANGGRAPH_LOCAL_URL || 'http://127.0.0.1:8123')
-      : (process.env.NEXT_PUBLIC_LANGGRAPH_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
-  }
-
-  return isLocalEnvironment
-    ? (process.env.NEXT_PUBLIC_API_LOCAL_URL || 'http://localhost:8000')
-    : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+export const getHost = () => {
+  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const wsUrl = backendUrl.replace(/^https?:\/\//, '');
+  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+  const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+  const isProduction = backendUrl !== 'http://localhost:8000';
+  
+  return {
+    backendUrl,
+    wsUrl: `${wsProtocol}//${wsUrl}`,
+    wsEndpoint: isProduction ? '/backend/ws' : '/ws',
+    fullWsUrl: `${wsProtocol}//${wsUrl}${isProduction ? '/backend/ws' : '/ws'}`
+  };
 };
 

@@ -4,6 +4,7 @@ import Report from '../output/Report';
 import AgentLogs from '../output/AgentLogs';
 import AccessReport from '../output/AccessReport';
 import { useAuth } from '@/config/firebase/AuthContext';
+import { getHost } from '../../../helpers/getHost';
 
 export default function ChatBox({ chatBoxSettings, setChatBoxSettings }) {
   const [agentLogs, setAgentLogs] = useState([]);
@@ -15,19 +16,22 @@ export default function ChatBox({ chatBoxSettings, setChatBoxSettings }) {
   useEffect(() => {
     const setupWebSocket = async () => {
       if (typeof window !== 'undefined' && user) {
-        const { protocol } = window.location;
-        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        const wsUrl = backendUrl.replace(/^https?:\/\//, '');
-        const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws_uri = `${wsProtocol}//${wsUrl}/ws`;
-
-        const newSocket = new WebSocket(ws_uri);
+        const { fullWsUrl } = getHost();
+        const newSocket = new WebSocket(fullWsUrl);
         setSocket(newSocket);
 
         newSocket.onopen = async () => {
           console.log('WebSocket connection opened');
-          const idToken = await user.getIdToken();
-          newSocket.send(JSON.stringify({ type: 'auth', token: idToken }));
+          try {
+            const idToken = await user.getIdToken();
+            if (!idToken) {
+              console.error('Failed to get ID token');
+              return;
+            }
+            newSocket.send(JSON.stringify({ type: 'auth', token: idToken }));
+          } catch (error) {
+            console.error('Error getting ID token:', error);
+          }
         };
 
         newSocket.onmessage = (event) => {
