@@ -12,8 +12,8 @@ export const getHost = () => {
   return {
     backendUrl,
     wsUrl: `${wsProtocol}//${wsUrl}`,
-    wsEndpoint: isProduction ? '/backend/ws' : '/ws',
-    fullWsUrl: `${wsProtocol}//${wsUrl}${isProduction ? '/backend/ws' : '/ws'}`
+    wsEndpoint: '/ws',
+    fullWsUrl: `${wsProtocol}//${wsUrl}/ws`
   };
 };
 
