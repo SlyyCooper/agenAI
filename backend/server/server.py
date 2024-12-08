@@ -18,7 +18,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(
+    title="AgenAI API",
+    description="API for AgenAI application",
+    root_path="/backend"
+)
 
 # CORS configuration
 origins = [
