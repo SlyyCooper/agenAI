@@ -22,8 +22,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="AgenAI API",
-    description="API for AgenAI application",
-    root_path="/backend"
+    description="API for AgenAI application"
 )
 
 # Initialize WebSocket Manager
@@ -99,12 +98,12 @@ app.include_router(stripe_router)
 app.include_router(firestore_router)
 app.include_router(storage_router)
 
-@app.get("/backend/subscription/status")
+@app.get("/subscription/status")
 async def get_subscription_status(request: Request):
     """Redirect to the correct subscription status endpoint"""
-    return RedirectResponse(url="/backend/api/stripe/subscription-status")
+    return RedirectResponse(url="/api/stripe/subscription-status")
 
-@app.get("/backend/usage/monthly")
+@app.get("/usage/monthly")
 async def get_monthly_usage(request: Request):
     """Get monthly usage statistics"""
     try:
