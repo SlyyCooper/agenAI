@@ -16,10 +16,18 @@ from .firestore_utils import get_user_data, check_processed_event, mark_event_pr
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 
-# @purpose: Configure module-level logging
+# Configure detailed logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# @purpose: Define route grouping and authentication
+# Validate Stripe configuration
+if not os.getenv('STRIPE_SECRET_KEY'):
+    raise ValueError("STRIPE_SECRET_KEY environment variable is not set")
+if not os.getenv('STRIPE_WEBHOOK_SECRET'):
+    raise ValueError("STRIPE_WEBHOOK_SECRET environment variable is not set")
+
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+
 router = APIRouter(
     prefix="/api/stripe",
     tags=["stripe"]
@@ -28,15 +36,19 @@ router = APIRouter(
 security = HTTPBearer()
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """
-    @purpose: Validates Firebase JWT and extracts user identity
-    @prereq: Valid Firebase JWT in Authorization header
-    @performance: Requires Firebase Admin SDK verification call
-    """
+    """Validates Firebase JWT and extracts user identity"""
     token = credentials.credentials
+    logger.info("Verifying Firebase token...")
+    
     decoded_token = await verify_firebase_token(token)
     if not decoded_token:
-        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+        logger.error("Invalid Firebase token")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication credentials"
+        )
+    
+    logger.info(f"Token verified for user: {decoded_token.get('uid')}")
     return decoded_token
 
 class CheckoutSessionRequest(BaseModel):
@@ -78,26 +90,32 @@ async def create_checkout_session(
     request: CheckoutSessionRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """
-    @purpose: Creates Stripe checkout session for subscription/one-time payments
-    @prereq: User must have Stripe customer ID
-    @example: POST /api/stripe/create-checkout-session {'price_id': 'price_H5ggYwtDq4fbrJ', 'mode': 'subscription'}
-    """
+    """Creates Stripe checkout session for subscription/one-time payments"""
     try:
         user_id = current_user['uid']
-        user_data = await get_user_data(user_id)
+        logger.info(f"Creating checkout session for user: {user_id}")
         
+        user_data = await get_user_data(user_id)
         if not user_data:
+            logger.error(f"User profile not found: {user_id}")
             raise HTTPException(status_code=404, detail="User profile not found")
-            
+        
         if not user_data.get('stripe_customer_id'):
+            logger.error(f"No Stripe customer ID for user: {user_id}")
             raise HTTPException(status_code=400, detail="Stripe customer not found")
-
-        # @purpose: Validate checkout mode
+        
         if request.mode not in ['subscription', 'payment']:
+            logger.error(f"Invalid mode: {request.mode}")
             raise HTTPException(status_code=400, detail="Invalid mode")
-
-        # @purpose: Create Stripe checkout session with user metadata
+        
+        try:
+            # Verify price exists in Stripe
+            price = stripe.Price.retrieve(request.price_id)
+            logger.info(f"Price verified: {price.id}")
+        except stripe.error.StripeError as e:
+            logger.error(f"Invalid price ID: {request.price_id}")
+            raise HTTPException(status_code=400, detail="Invalid price ID")
+        
         checkout_session = stripe.checkout.Session.create(
             customer=user_data['stripe_customer_id'],
             mode=request.mode,
@@ -111,9 +129,14 @@ async def create_checkout_session(
             cancel_url=os.getenv('STRIPE_CANCEL_URL', 'https://www.agenai.app/cancel'),
         )
         
+        logger.info(f"Checkout session created: {checkout_session.id}")
         return {"sessionId": checkout_session.id}
+        
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Checkout session error: {str(e)}")
+        logger.error(f"Error creating checkout session: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/create-portal-session")
@@ -164,26 +187,43 @@ async def cancel_subscription(current_user: dict = Depends(get_current_user)):
 
 @router.get("/subscription-status")
 async def get_subscription_status(current_user: dict = Depends(get_current_user)):
-    """
-    @purpose: Retrieves current subscription status and access rights
-    @prereq: User must exist in database
-    @performance: Single Firestore read operation
-    """
+    """Retrieves current subscription status and access rights"""
     try:
-        user_data = await get_user_data(current_user['uid'])
+        user_id = current_user['uid']
+        logger.info(f"Fetching subscription status for user: {user_id}")
         
+        user_data = await get_user_data(user_id)
         if not user_data:
+            logger.error(f"User not found: {user_id}")
             raise HTTPException(status_code=404, detail="User not found")
-            
-        return {
+        
+        # Get live subscription data from Stripe if available
+        subscription_data = {}
+        if user_data.get('subscription_id'):
+            try:
+                subscription = stripe.Subscription.retrieve(user_data['subscription_id'])
+                subscription_data = {
+                    "subscription_status": subscription.status,
+                    "subscription_end_date": subscription.current_period_end,
+                }
+            except stripe.error.StripeError as e:
+                logger.error(f"Error fetching Stripe subscription: {str(e)}")
+                # Don't fail the request, just log the error
+        
+        response_data = {
             "has_access": user_data.get('has_access', False),
-            "subscription_status": user_data.get('subscription_status'),
-            "subscription_end_date": user_data.get('subscription_end_date'),
+            "subscription_status": subscription_data.get('subscription_status', user_data.get('subscription_status')),
+            "subscription_end_date": subscription_data.get('subscription_end_date', user_data.get('subscription_end_date')),
             "subscription_id": user_data.get('subscription_id'),
             "one_time_purchase": user_data.get('one_time_purchase', False),
             "tokens": user_data.get('tokens', 0)
         }
+        
+        logger.info(f"Returning subscription status: {response_data}")
+        return response_data
+        
     except Exception as e:
+        logger.error(f"Error in get_subscription_status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/products")

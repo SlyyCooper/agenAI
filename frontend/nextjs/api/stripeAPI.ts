@@ -8,6 +8,11 @@ import {
 } from '@/types/interfaces/api.types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const STRIPE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
+if (!STRIPE_KEY) {
+  throw new Error('Stripe publishable key is not configured');
+}
 
 // Helper function to get Firebase token
 const getFirebaseToken = async (): Promise<string> => {
@@ -19,13 +24,29 @@ const getFirebaseToken = async (): Promise<string> => {
   return await currentUser.getIdToken();
 };
 
+// Helper function to handle API errors
+const handleApiError = (error: any): never => {
+  console.error('API Error:', error);
+  if (error.response?.data?.detail) {
+    throw new Error(error.response.data.detail);
+  }
+  throw error;
+};
+
 // API Functions
 export const createCheckoutSession = async (
   price_id: string,
   mode: 'subscription' | 'payment'
 ): Promise<void> => {
+  if (!price_id) {
+    throw new Error('Price ID is required');
+  }
+  
   try {
+    console.log('Getting Firebase token...');
     const firebaseToken = await getFirebaseToken();
+    
+    console.log('Creating checkout session...', { price_id, mode });
     const checkoutData: CheckoutSessionRequest = { price_id, mode };
     
     const response = await fetch(`${BASE_URL}/api/stripe/create-checkout-session`, {
@@ -43,15 +64,20 @@ export const createCheckoutSession = async (
     }
     
     const { sessionId } = await response.json();
-    const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+    console.log('Got session ID:', sessionId);
     
-    if (!stripe) throw new Error('Stripe failed to load');
+    const stripe = await loadStripe(STRIPE_KEY);
+    if (!stripe) {
+      throw new Error('Failed to initialize Stripe');
+    }
     
     const { error } = await stripe.redirectToCheckout({ sessionId });
-    if (error) throw error;
+    if (error) {
+      console.error('Stripe redirect error:', error);
+      throw error;
+    }
   } catch (error) {
-    console.error('Error creating checkout session:', error);
-    throw error;
+    handleApiError(error);
   }
 };
 
@@ -104,7 +130,10 @@ export const cancelSubscription = async (): Promise<CancelSubscriptionResponse> 
 
 export const getSubscriptionStatus = async (): Promise<SubscriptionStatusResponse> => {
   try {
+    console.log('Getting Firebase token...');
     const firebaseToken = await getFirebaseToken();
+    
+    console.log('Fetching subscription status...');
     const response = await fetch(`${BASE_URL}/api/stripe/subscription-status`, {
       method: 'GET',
       headers: {
@@ -119,13 +148,18 @@ export const getSubscriptionStatus = async (): Promise<SubscriptionStatusRespons
     }
     
     const data = await response.json();
+    console.log('Got subscription status:', data);
+    
     return {
       ...data,
       tokens: data.tokens || 0
     };
   } catch (error) {
-    console.error('Error fetching subscription status:', error);
-    throw error;
+    console.error('API Error:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to fetch subscription status');
   }
 };
 

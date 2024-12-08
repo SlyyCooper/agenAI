@@ -20,14 +20,20 @@ const PlansContent = () => {
 
     useEffect(() => {
         const initializePage = async () => {
-            if (!user) return;
+            if (!user) {
+                setLoading(prev => ({ ...prev, page: false }));
+                return;
+            }
             
             try {
+                console.log('Fetching subscription status...');
                 const subscriptionStatus = await getSubscriptionStatus();
+                console.log('Subscription status:', subscriptionStatus);
                 setCurrentSubscription(subscriptionStatus);
             } catch (err) {
                 console.error('Error fetching subscription status:', err);
-                setError('Unable to verify subscription status');
+                const errorMessage = err instanceof Error ? err.message : 'Unable to verify subscription status';
+                setError(errorMessage);
             } finally {
                 setLoading(prev => ({ ...prev, page: false }));
             }
@@ -38,16 +44,21 @@ const PlansContent = () => {
 
     const handleSubscribe = async (priceId: string, mode: 'subscription' | 'payment') => {
         if (!user) {
+            console.log('No user found, redirecting to login...');
             router.push('/login');
             return;
         }
+
         setLoading(prev => ({ ...prev, purchase: true }));
         setError(null);
+
         try {
+            console.log('Creating checkout session...', { priceId, mode });
             await createCheckoutSession(priceId, mode);
         } catch (error) {
             console.error('Error creating checkout session:', error);
-            setError('Unable to start checkout process');
+            const errorMessage = error instanceof Error ? error.message : 'Unable to start checkout process';
+            setError(errorMessage);
         } finally {
             setLoading(prev => ({ ...prev, purchase: false }));
         }
