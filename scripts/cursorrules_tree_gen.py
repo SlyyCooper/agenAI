@@ -29,7 +29,21 @@ def generate_tree(startpath, prefix=''):
             
     return tree
 
+def find_project_root():
+    """Find the project root by looking for common project files"""
+    current = os.getcwd()
+    while current != '/':
+        if any(os.path.exists(os.path.join(current, marker)) 
+               for marker in ['.git', 'pyproject.toml', 'package.json']):
+            return current
+        current = os.path.dirname(current)
+    return os.getcwd()  # Fallback to current directory
+
 def update_cursorrules():
+    # Find project root
+    root_dir = find_project_root()
+    os.chdir(root_dir)
+    
     # Generate tree structure
     tree_lines = ['.']
     tree_lines.extend(generate_tree('.'))
@@ -38,9 +52,10 @@ def update_cursorrules():
     tree_str = '<tree_structure>\n' + '\n'.join(tree_lines) + '\n</tree_structure>'
     
     # Read existing content
+    cursorrules_path = os.path.join(root_dir, '.cursorrules')
     existing_content = ''
     try:
-        with open('.cursorrules', 'r') as f:
+        with open(cursorrules_path, 'r') as f:
             existing_content = f.read()
     except FileNotFoundError:
         pass
@@ -54,7 +69,7 @@ def update_cursorrules():
         new_content = existing_content + '\n' + tree_str if existing_content else tree_str
     
     # Write back to file
-    with open('.cursorrules', 'w') as f:
+    with open(cursorrules_path, 'w') as f:
         f.write(new_content)
 
 if __name__ == '__main__':

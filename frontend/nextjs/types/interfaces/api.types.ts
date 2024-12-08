@@ -217,15 +217,24 @@ export interface WebhookEvent {
 }
 
 export interface StorageFile {
+  name: string;
   path: string;
-  url: string;
+  type: string;
+  size: number;
+  created: string;
+  updated: string;
   metadata: {
     contentType: string;
     size: number;
     created: Date;
     updated: Date;
-    customMetadata?: Record<string, string>;
+    customMetadata: Record<string, string>;
   };
+  url: string;
+}
+
+export interface StorageFileResponse extends Omit<StorageFile, 'url'> {
+  url?: string;
 }
 
 export interface UploadProgressItem {
@@ -245,12 +254,8 @@ export interface StorageHook {
   getFileUrl: (path: string) => Promise<string>;
   listFiles: (prefix: string) => Promise<StorageFile[]>;
   uploadProgress: UploadProgress;
-  saveReport: (
-    content: string,
-    title: string,
-    reportType: string,
-    source?: string
-  ) => Promise<ResearchReportUrls>;
+  validateFile: (file: File) => Promise<void>;
+  getStorageQuota: () => Promise<{used: number; total: number}>;
 }
 
 export interface ResearchReportUrls {
@@ -261,19 +266,48 @@ export interface ResearchReportUrls {
 
 export interface ResearchReportMetadata {
   title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
   report_type: string;
-  source?: string;
   userId: string;
-  created_at?: string;
-  updated_at?: string;
-  type?: string;
-  [key: string]: any;
+  metadata: {
+    sources: any[];
+    topics: string[];
+    summary: string;
+  };
+}
+
+export interface StorageErrorCustomData {
+  serverResponse: string;
+  [key: string]: unknown;
 }
 
 export interface StorageError extends Error {
   code: string;
-  name: string;
-  customData?: {
-    serverResponse: string;
+  customData: StorageErrorCustomData;
+}
+
+export interface StorageValidation {
+  MAX_REPORT_SIZE: number;
+  SUPPORTED_FORMATS: string[];
+  CLEANUP_AGE_DAYS: number;
+}
+
+export interface StorageConfig {
+  validation: StorageValidation;
+  paths: {
+    reports: string;
+    research: string;
+    temp: string;
   };
+}
+
+export interface ReportStorageError extends StorageError {
+  type: 'cleanup' | 'transaction' | 'validation' | 'maintenance';
+  details: {
+    reason: string;
+    [key: string]: unknown;
+  };
+  customData: StorageErrorCustomData;
 }

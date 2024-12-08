@@ -8,12 +8,17 @@ export const getHost = () => {
   const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
   const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
   const isProduction = backendUrl !== 'http://localhost:8000';
+  const domain = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isAgenAI = domain.includes('agenai.app');
+  
+  // Handle agenai.app domain
+  const wsBaseUrl = isAgenAI ? 'wss://orca-app-jfdlt.ondigitalocean.app' : `${wsProtocol}//${wsUrl}`;
   
   return {
     backendUrl,
-    wsUrl: `${wsProtocol}//${wsUrl}`,
+    wsUrl: wsBaseUrl,
     wsEndpoint: '/ws',
-    fullWsUrl: `${wsProtocol}//${wsUrl}/ws`
+    fullWsUrl: `${wsBaseUrl}/ws`
   };
 };
 

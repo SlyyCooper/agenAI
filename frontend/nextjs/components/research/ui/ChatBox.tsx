@@ -5,12 +5,28 @@ import AgentLogs from '../output/AgentLogs';
 import AccessReport from '../output/AccessReport';
 import { useAuth } from '@/config/firebase/AuthContext';
 import { getHost } from '../../../helpers/getHost';
+import { StorageFile } from '@/types/interfaces/api.types';
 
-export default function ChatBox({ chatBoxSettings, setChatBoxSettings }) {
-  const [agentLogs, setAgentLogs] = useState([]);
-  const [report, setReport] = useState("");
-  const [accessData, setAccessData] = useState({});
-  const [socket, setSocket] = useState(null);
+interface ResearchSettings {
+  report_type: 'research_report' | 'detailed_report' | 'multi_agents';
+  report_source: 'web' | 'local' | 'hybrid';
+  tone: string;
+  files: StorageFile[];
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+}
+
+interface ChatBoxProps {
+  chatBoxSettings: ResearchSettings;
+  setChatBoxSettings: React.Dispatch<React.SetStateAction<ResearchSettings>>;
+}
+
+export default function ChatBox({ chatBoxSettings, setChatBoxSettings }: ChatBoxProps) {
+  const [agentLogs, setAgentLogs] = useState<any[]>([]);
+  const [report, setReport] = useState<string>("");
+  const [accessData, setAccessData] = useState<Record<string, any>>({});
+  const [socket, setSocket] = useState<WebSocket | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {

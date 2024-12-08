@@ -45,6 +45,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string>();
 
+  // Add token refresh
+  useEffect(() => {
+    let tokenRefreshInterval: NodeJS.Timeout;
+    
+    const setupTokenRefresh = async (user: User) => {
+      // Refresh token every 30 minutes
+      tokenRefreshInterval = setInterval(async () => {
+        try {
+          await user.getIdToken(true); // Force token refresh
+          console.log('🔄 Token refreshed');
+        } catch (error) {
+          console.error('🚨 Token refresh failed:', error);
+        }
+      }, 30 * 60 * 1000);
+    };
+
+    const cleanup = () => {
+      if (tokenRefreshInterval) {
+        clearInterval(tokenRefreshInterval);
+      }
+    };
+
+    if (user) {
+      setupTokenRefresh(user);
+    }
+
+    return cleanup;
+  }, [user]);
+
   useEffect(() => {
     console.log('🔄 Setting up auth state listener');
     const unsubscribe = onAuthStateChanged(auth, async (user) => {

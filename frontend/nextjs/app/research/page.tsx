@@ -22,7 +22,7 @@ import Image from 'next/image';
 import { saveResearchReport } from '@/api/storageAPI';
 import { toast } from 'react-hot-toast';
 import { storageAPI } from '@/api/storageAPI';
-import { CreateReportRequest, FileMetadata } from '@/types/interfaces/api.types';
+import { CreateReportRequest, FileMetadata, ResearchReportMetadata, StorageFile } from '@/types/interfaces/api.types';
 import { getHost } from '../../helpers/getHost';
 
 // Access control constants
@@ -44,11 +44,40 @@ const TIER_LIMITS = {
   }
 };
 
+interface ResearchSettings {
+  report_type: 'research_report' | 'detailed_report' | 'multi_agents';
+  report_source: 'web' | 'local' | 'hybrid';
+  tone: string;
+  files: StorageFile[];
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+}
+
 export default function ResearchPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [userTier, setUserTier] = useState<'FREE' | 'PRO' | 'ENTERPRISE'>('FREE');
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const [monthlyUsage, setMonthlyUsage] = useState(0);
+  const [chatBoxSettings, setChatBoxSettings] = useState<ResearchSettings>({
+    report_type: 'research_report',
+    report_source: 'web',
+    tone: 'Objective',
+    files: [],
+    maxTokens: TIER_LIMITS[userTier].tokensPerReport,
+    temperature: 0.7,
+    model: TIER_LIMITS[userTier].modelAccess[0]
+  });
+
+  // Update settings when user tier changes
+  useEffect(() => {
+    setChatBoxSettings(prev => ({
+      ...prev,
+      maxTokens: TIER_LIMITS[userTier].tokensPerReport,
+      model: TIER_LIMITS[userTier].modelAccess[0]
+    }));
+  }, [userTier]);
 
   // Check user's subscription status and usage
   useEffect(() => {
@@ -139,10 +168,20 @@ export default function ResearchPage() {
 
   const [promptValue, setPromptValue] = useState("");
   const [showResult, setShowResult] = useState(false);
-  const [answer, setAnswer] = useState("");
+  const [answer, setAnswer] = useState<ResearchReportMetadata>({
+    title: '',
+    content: '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    report_type: 'research_report',
+    userId: user?.uid || '',
+    metadata: {
+      sources: [],
+      topics: [],
+      summary: ''
+    }
+  });
   const [loading, setLoading] = useState(false);
-  const [chatBoxSettings, setChatBoxSettings] = useState({ report_source: 'web', report_type: 'research_report', tone: 'Objective' });
-  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const [question, setQuestion] = useState("");
   const [sources, setSources] = useState<{ name: string; url: string }[]>([]);
@@ -165,7 +204,7 @@ export default function ResearchPage() {
 
     try {
       setIsSaving(true);
-      const reportContent = answer;
+      const reportContent = answer.content;
       const title = promptValue;
 
       const url = await saveResearchReport({
@@ -259,7 +298,11 @@ export default function ResearchPage() {
             setOrderedData((prevOrder) => [...prevOrder, { ...data, contentAndType }]);
 
             if (data.type === 'report') {
-              setAnswer((prev) => prev + data.output);
+              setAnswer((prev) => ({
+                ...prev,
+                content: prev.content + data.output,
+                updated_at: new Date().toISOString()
+              }));
             } else if (data.type === 'path') {
               setLoading(false);
               newSocket.close();
@@ -306,7 +349,11 @@ export default function ResearchPage() {
     setLoading(true);
     setQuestion(newQuestion);
     setPromptValue("");
-    setAnswer(""); // Reset answer for new query
+    setAnswer({
+      ...answer,
+      content: '',
+      updated_at: new Date().toISOString()
+    });
     setHasOutput(false); // Reset hasOutput
 
     // Add the new question to orderedData
@@ -357,7 +404,11 @@ export default function ResearchPage() {
     setShowResult(false);
     setPromptValue("");
     setQuestion("");
-    setAnswer("");
+    setAnswer({
+      ...answer,
+      content: '',
+      updated_at: new Date().toISOString()
+    });
     setSources([]);
     setSimilarQuestions([]);
   };
@@ -567,7 +618,7 @@ export default function ResearchPage() {
     setIsSaving(true);
     try {
       // Create a Blob from the answer
-      const reportBlob = new Blob([answer], { type: 'text/plain' });
+      const reportBlob = new Blob([answer.content], { type: 'text/plain' });
       const reportFile = new File([reportBlob], `research-${Date.now()}.txt`, { type: 'text/plain' });
       
       // Upload file first
@@ -620,7 +671,11 @@ export default function ResearchPage() {
           setOrderedData((prevOrder) => [...prevOrder, { ...data, contentAndType }]);
 
           if (data.type === 'report') {
-            setAnswer((prev) => prev + data.output);
+            setAnswer((prev) => ({
+              ...prev,
+              content: prev.content + data.output,
+              updated_at: new Date().toISOString()
+            }));
             // Save report when it's complete
             if (data.content === 'complete') {
               try {

@@ -5,21 +5,52 @@ import ResearchForm from '@/components/research/input/ResearchForm';
 import Report from '@/components/research/output/Report';
 import AgentLogs from '@/components/research/output/AgentLogs';
 import AccessReport from '@/components/research/output/AccessReport';
+import { ResearchReportUrls, ResearchReportMetadata, StorageFile } from '@/types/interfaces/api.types';
+
+interface ResearchSettings {
+  report_type: 'research_report' | 'detailed_report' | 'multi_agents';
+  report_source: 'web' | 'local' | 'hybrid';
+  tone: string;
+  files: StorageFile[];
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+}
 
 const Search = () => {
   const [task, setTask] = useState<string>('');
   const [reportType, setReportType] = useState<string>('');
   const [reportSource, setReportSource] = useState<string>('');
   const [agentLogs, setAgentLogs] = useState<string[]>([]);
-  const [report, setReport] = useState<string>('');
-  const [accessData, setAccessData] = useState<string>('');
+  const [report, setReport] = useState<ResearchReportMetadata>({
+    title: '',
+    content: '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    report_type: 'research_report',
+    userId: '',
+    metadata: {
+      sources: [],
+      topics: [],
+      summary: ''
+    }
+  });
+  const [accessData, setAccessData] = useState<ResearchReportUrls>({
+    pdf: undefined,
+    docx: undefined,
+    md: undefined
+  });
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const { user } = useAuth();
 
-  const [chatBoxSettings, setChatBoxSettings] = useState({
-    report_type: 'multi_agents',
+  const [chatBoxSettings, setChatBoxSettings] = useState<ResearchSettings>({
+    report_type: 'research_report',
     report_source: 'web',
     tone: 'Objective',
+    files: [],
+    maxTokens: 1000,
+    temperature: 0.7,
+    model: 'gpt-4'
   });
 
   useEffect(() => {

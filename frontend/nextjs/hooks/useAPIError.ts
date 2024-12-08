@@ -5,13 +5,14 @@ interface ErrorState {
   message: string;
   code?: string;
   statusCode?: number;
+  type?: 'api' | 'firebase' | 'stripe' | 'unknown';
 }
 
 interface UseAPIError {
   error: ErrorState | null;
-  setError: (error: Error) => void;
+  setError: (error: unknown) => void;
   clearError: () => void;
-  handleError: (fn: () => Promise<any>) => Promise<any>;
+  handleError: <T>(fn: () => Promise<T>) => Promise<T | undefined>;
 }
 
 /**
@@ -25,15 +26,30 @@ interface UseAPIError {
 export const useAPIError = (): UseAPIError => {
   const [error, setErrorState] = useState<ErrorState | null>(null);
 
-  const setError = useCallback((error: Error) => {
+  const setError = useCallback((error: unknown) => {
+    if (!(error instanceof Error)) {
+      setErrorState({
+        message: 'An unknown error occurred',
+        type: 'unknown'
+      });
+      return;
+    }
+
     const message = getUserFriendlyError(error);
     const errorState: ErrorState = { message };
 
     if (error instanceof APIError) {
       errorState.statusCode = error.statusCode;
       errorState.code = error.code;
-    } else if (error instanceof FirebaseError || error instanceof StripeError) {
+      errorState.type = 'api';
+    } else if (error instanceof FirebaseError) {
       errorState.code = error.code;
+      errorState.type = 'firebase';
+    } else if (error instanceof StripeError) {
+      errorState.code = error.code;
+      errorState.type = 'stripe';
+    } else {
+      errorState.type = 'unknown';
     }
 
     setErrorState(errorState);
@@ -48,7 +64,7 @@ export const useAPIError = (): UseAPIError => {
       clearError();
       return await fn();
     } catch (error) {
-      setError(error as Error);
+      setError(error);
       return undefined;
     }
   }, [clearError, setError]);

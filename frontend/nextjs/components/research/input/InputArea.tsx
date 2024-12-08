@@ -2,6 +2,17 @@ import { FC } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResearchSettings } from "../Settings/ResearchSettings";
+import { StorageFile } from "@/types/interfaces/api.types";
+
+interface ResearchSettingsType {
+  report_type: 'research_report' | 'detailed_report' | 'multi_agents';
+  report_source: 'web' | 'local' | 'hybrid';
+  tone: string;
+  files: StorageFile[];
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+}
 
 type TInputAreaProps = {
   promptValue: string;
@@ -9,12 +20,8 @@ type TInputAreaProps = {
   handleDisplayResult: () => void;
   disabled?: boolean;
   reset?: () => void;
-  chatBoxSettings: {
-    report_type: string;
-    report_source: string;
-    tone: string;
-  };
-  onSettingsChange: (settings: any) => void;
+  chatBoxSettings: ResearchSettingsType;
+  onSettingsChange: (settings: ResearchSettingsType) => void;
 };
 
 const InputArea: FC<TInputAreaProps> = ({

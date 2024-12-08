@@ -1,21 +1,28 @@
-import { FC, Dispatch, SetStateAction } from "react";
+import { FC, Dispatch, SetStateAction } from 'react';
+import { StorageFile } from '@/types/interfaces/api.types';
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import InputArea from "@/components/research/input/InputArea";
 
-type THeroProps = {
+interface ResearchSettings {
+  report_type: 'research_report' | 'detailed_report' | 'multi_agents';
+  report_source: 'web' | 'local' | 'hybrid';
+  tone: string;
+  files: StorageFile[];
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+}
+
+interface HeroProps {
   promptValue: string;
   setPromptValue: Dispatch<SetStateAction<string>>;
   handleDisplayResult: () => void;
-  chatBoxSettings: {
-    report_type: string;
-    report_source: string;
-    tone: string;
-  };
-  onSettingsChange: (settings: any) => void;
-};
+  chatBoxSettings: ResearchSettings;
+  onSettingsChange: Dispatch<SetStateAction<ResearchSettings>>;
+}
 
-const Hero: FC<THeroProps> = ({
+const Hero: FC<HeroProps> = ({
   promptValue,
   setPromptValue,
   handleDisplayResult,
