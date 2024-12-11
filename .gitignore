@@ -138,10 +138,19 @@ out/
 .vercel
 
 # Tests
-tests/
+/tests
 
 # Node.js root files
 /node_modules
 /package.json
 /package-lock.json
 /yarn.lockfrontend/nextjs/.env.production
+scripts/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.test
+/scripts.env*
+serviceAccountKey.json

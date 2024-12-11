@@ -1,0 +1,35 @@
+name: dolphin-app
+region: nyc
+services:
+- name: agenai
+  github:
+    repo: SlyyCooper/agenAI
+    branch: master
+  build_command: pip install -r ./requirements.txt
+  run_command: python3 backend/src/main.py
+  environment_slug: python
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  source_dir: /
+  http_port: 8000
+  envs:
+  - key: BACKEND_WS_URL
+    scope: RUN_TIME
+    type: SECRET
+    value: ${BACKEND_WS_URL}
+features:
+- buildpack-stack=ubuntu-22
+ingress:
+  rules:
+  - component:
+      name: agenai
+      preserve_path_prefix: true
+    match:
+      path:
+        prefix: /backend/ws
+  - component:
+      name: agenai
+      preserve_path_prefix: true
+    match:
+      path:
+        prefix: /backend

@@ -4,7 +4,7 @@ OUTPUT_FILE = 'codebase_summary.md'
 
 def should_exclude(path):
     excludes = {
-        'node_modules', '.next', '__pycache__', 
+        'node_modules', '.next', '__pycache__', '.svg', '.png',
         '__init__.py', 'LICENSE', 'setup.py',
         'README.md', 'cli.py', 'tests', 'venv', '.git', '.pytest_cache',
         '.DS_Store', '.cursorignore', '.cursorrules'

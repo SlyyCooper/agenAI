@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Enhanced helper functions
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function hasValidSubscription() {
+      return isSignedIn() && 
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.subscription == 'active';
+    }
+    
+    function isValidFileSize() {
+      return request.resource.size <= 10 * 1024 * 1024; // 10MB limit
+    }
+    
+    function isValidContentType() {
+      let allowedTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/markdown',
+        'text/plain',
+        'application/json'
+      ];
+      return allowedTypes.hasAny([request.resource.contentType]);
+    }
+
+    function isValidFilename(filename) {
+      // Prevent path traversal and ensure safe filenames
+      return filename.matches('^[\\w\\-. ]+$') && 
+             !filename.contains('..') &&
+             filename.size() <= 200;
+    }
+
+    function isUnderUserQuota(userId) {
+      let userFiles = firestore.get(/databases/(default)/documents/users/$(userId)).data.storage_metrics;
+      return userFiles == null || 
+             (userFiles.file_count < 1000 && userFiles.total_size < 1000000000); // 1000 files, 1GB total
+    }
+
+    function isValidMetadata() {
+      return request.resource.metadata == null ||
+             (request.resource.metadata is map &&
+              request.resource.metadata.keys().hasOnly(['contentType', 'uploaded_at', 'userId', 'description']) &&
+              request.resource.metadata.description.size() <= 500);
+    }
+
+    // Research reports storage with enhanced security
+    match /reports/{userId}/{reportId}/{fileName} {
+      allow read: if isSignedIn() && (
+        isOwner(userId) || 
+        (firestore.get(/databases/(default)/documents/reports/$(reportId)).data.isPublic == true &&
+         firestore.get(/databases/(default)/documents/reports/$(reportId)).data.status == 'published')
+      );
+      allow create: if isSignedIn() && 
+        isOwner(userId) && 
+        isValidFileSize() && 
+        isValidContentType() &&
+        isValidFilename(fileName) &&
+        isUnderUserQuota(userId) &&
+        isValidMetadata() &&
+        (hasValidSubscription() || 
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.credits > 0);
+      allow update: if isSignedIn() && 
+        isOwner(userId) &&
+        isValidFileSize() &&
+        isValidContentType() &&
+        isValidMetadata();
+      allow delete: if isSignedIn() && isOwner(userId);
+    }
+    
+    // User profile related storage with enhanced security
+    match /users/{userId}/{fileName} {
+      allow read: if isSignedIn() && isOwner(userId);
+      allow create, update: if isSignedIn() && 
+        isOwner(userId) && 
+        isValidFileSize() && 
+        isValidContentType() &&
+        isValidFilename(fileName) &&
+        isUnderUserQuota(userId) &&
+        isValidMetadata();
+      allow delete: if isSignedIn() && isOwner(userId);
+    }
+
+    // Temporary storage with auto-cleanup
+    match /temp/{userId}/{fileName} {
+      allow read: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() &&
+        isOwner(userId) &&
+        isValidFileSize() &&
+        isValidContentType() &&
+        isValidFilename(fileName) &&
+        isValidMetadata();
+      allow delete: if isSignedIn() && isOwner(userId);
+    }
+    
+    // Block all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

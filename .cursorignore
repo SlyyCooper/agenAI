@@ -5,3 +5,5 @@ __pycache__/
 LICENSE
 setup.py
 README.md
+codebase_summary.md
+cursorrules_tree_gen.py

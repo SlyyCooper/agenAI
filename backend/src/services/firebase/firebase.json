@@ -1,0 +1,9 @@
+{
+  "firestore": {
+    "rules": false,  // No rules needed for Admin SDK
+    "indexes": "firestore.indexes.json"  // Keep indexes for query optimization
+  },
+  "storage": {
+    "rules": false  // No rules needed for Admin SDK
+  }
+} 

@@ -1,0 +1,173 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Enhanced helper functions
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function hasValidSubscription() {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription == 'active';
+    }
+
+    // Enhanced data validation functions
+    function isValidUserData() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['email', 'name', 'created_at']) &&
+             data.email is string && 
+             data.email.matches('^[^@]+@[^@]+\\.[^@]+$') &&
+             data.name is string && 
+             data.name.size() >= 2 &&
+             data.name.size() <= 100 &&
+             data.name.matches('^[\\p{L}\\s]{2,100}$') &&
+             data.created_at is timestamp;
+    }
+
+    function isValidPaymentData() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['payment_id', 'created_at', 'status', 'amount']) &&
+             data.payment_id is string &&
+             data.payment_id.size() >= 3 &&
+             data.created_at is timestamp &&
+             data.amount is number &&
+             data.amount > 0 &&
+             data.status in ['succeeded', 'pending', 'failed'];
+    }
+
+    function isValidStorageMetrics() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['timestamp', 'metrics']) &&
+             data.timestamp is timestamp &&
+             data.metrics is map &&
+             data.metrics.keys().hasAll(['total_size', 'file_count']) &&
+             data.metrics.total_size is number &&
+             data.metrics.total_size >= 0 &&
+             data.metrics.total_size <= 1000000000 && // 1GB max
+             data.metrics.file_count is number &&
+             data.metrics.file_count >= 0 &&
+             data.metrics.file_count <= 1000; // 1000 files max
+    }
+
+    function isValidTokenTransaction() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['amount', 'timestamp', 'type', 'description']) &&
+             data.amount is number &&
+             data.amount >= -1000 && // Prevent large negative amounts
+             data.amount <= 10000 && // Prevent large positive amounts
+             data.timestamp is timestamp &&
+             data.description is string &&
+             data.description.size() <= 500 &&
+             data.type in ['purchase', 'usage', 'refund', 'bonus'];
+    }
+
+    function hasValidTokenBalance() {
+      let currentBalance = resource.data.tokens;
+      let requestedChange = request.resource.data.tokens;
+      return requestedChange >= 0 && 
+             requestedChange <= 100000 && // Maximum token limit
+             (currentBalance == null || requestedChange >= currentBalance - 1000);
+    }
+
+    function isUnderRateLimit() {
+      let recentWrites = getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.recentWrites;
+      let lastWrite = getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastWrite;
+      
+      return (recentWrites == null || recentWrites <= 100) &&
+             (lastWrite == null || timestamp.diff(lastWrite, 's') >= 1); // 1 second cooldown
+    }
+
+    function isValidReportData() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['title', 'content', 'created_at']) &&
+             data.title is string &&
+             data.title.size() >= 3 &&
+             data.title.size() <= 200 &&
+             data.content is string &&
+             data.content.size() <= 1000000 && // 1MB content limit
+             data.created_at is timestamp;
+    }
+
+    // User profiles with enhanced security
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && 
+                      isValidUserData() && 
+                      request.auth.token.email_verified == true;
+      allow update: if isOwner(userId) && 
+                      isValidUserData() && 
+                      isUnderRateLimit() && 
+                      hasValidTokenBalance() &&
+                      (!request.resource.data.diff(resource.data).affectedKeys()
+                        .hasAny(['role', 'permissions', 'admin'])); // Prevent privilege escalation
+      allow delete: if false; // Prevent user deletion through client
+      
+      // Storage metrics subcollection
+      match /storage_metrics/{metricId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && 
+                       isValidStorageMetrics() && 
+                       isUnderRateLimit();
+      }
+      
+      // Reports subcollection with enhanced security
+      match /reports/{reportId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && 
+                       isUnderRateLimit() &&
+                       isValidReportData() &&
+                       request.resource.data.size() <= 10000000; // 10MB document size limit
+      }
+
+      // Rate limiting collection
+      match /ratelimits/{docId} {
+        allow read: if isOwner(userId);
+        allow write: if false; // Only writable through backend
+      }
+    }
+
+    // Research reports with enhanced security
+    match /reports/{reportId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        (resource.data.isPublic == true && 
+         resource.data.status == 'published')
+      );
+      allow create: if isSignedIn() && 
+        isValidReportData() && 
+        isUnderRateLimit() && 
+        request.resource.data.userId == request.auth.uid && (
+          hasValidSubscription() || 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.credits > 0
+        );
+      allow update: if isSignedIn() && 
+        resource.data.userId == request.auth.uid && 
+        isValidReportData() && 
+        isUnderRateLimit() &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['userId', 'createdBy']); // Prevent ownership transfer
+      allow delete: if isSignedIn() && 
+        resource.data.userId == request.auth.uid && 
+        isUnderRateLimit();
+    }
+
+    // Payments collection with enhanced security
+    match /payments/{paymentId} {
+      allow read: if isSignedIn() && 
+                    resource.data.userId == request.auth.uid;
+      allow write: if false; // Only writable through backend
+    }
+
+    // Processed events collection
+    match /processed_events/{eventId} {
+      allow read: if isSignedIn() && 
+                    resource.data.userId == request.auth.uid;
+      allow write: if false; // Only writable through backend
+    }
+  }
+}
